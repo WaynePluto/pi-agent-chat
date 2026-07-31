@@ -1,0 +1,89 @@
+{
+  "name": "pi-agent-chat",
+  "displayName": "Pi Agent Chat (Unofficial)",
+  "description": "Unofficial VS Code sidebar chat UI for the pi coding agent",
+  "version": "0.0.1",
+  "publisher": "unofficial",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "private": true,
+  "keywords": ["pi", "agent", "chat", "ai", "coding-agent"],
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=20"
+  },
+  "categories": [
+    "AI",
+    "Chat",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": ["onView:piAgentChat.view"],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "piAgentChat",
+          "title": "Pi Agent Chat",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "piAgentChat": [
+        {
+          "id": "piAgentChat.view",
+          "name": "Pi Agent Chat",
+          "type": "webview",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "piAgentChat.newSession",
+        "title": "Pi Agent Chat: New Session"
+      },
+      {
+        "command": "piAgentChat.focus",
+        "title": "Pi Agent Chat: Focus Chat"
+      },
+      {
+        "command": "piAgentChat.runSpikeDiagnostics",
+        "title": "Pi Agent Chat: Run Spike Diagnostics"
+      },
+      {
+        "command": "piAgentChat.runSpikeLiveTest",
+        "title": "Pi Agent Chat: Run Spike Live Test (uses API tokens)"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "package": "node esbuild.mjs --production",
+    "typecheck": "tsc --noEmit",
+    "verify": "node esbuild.mjs && python scripts/check_bundle.py && node scripts/smoke_load.mjs",
+    "package:vsix": "vsce package --no-dependencies --allow-missing-repository --no-rewrite-relative-links --out pi-agent-chat.vsix",
+    "vscode:prepublish": "npm run package"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "0.83.0",
+    "@earendil-works/pi-coding-agent": "0.83.0",
+    "diff": "8.0.4",
+    "marked": "16.4.2",
+    "undici": "8.8.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "undici": "8.8.0"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "@types/vscode": "1.90.0",
+    "@vscode/vsce": "3.9.2",
+    "esbuild": "0.25.12",
+    "typescript": "5.9.3"
+  }
+}

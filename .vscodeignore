@@ -1,0 +1,28 @@
+# 只保留运行时真正需要的内容，其余一律排除
+.vscode/**
+.git/**
+src/**
+scripts/**
+docs/**
+esbuild.mjs
+tsconfig.json
+pnpm-lock.yaml
+package-lock.json
+.npmrc
+.gitignore
+.pi-plan.md
+vscode-pi-design.md
+**/.DS_Store
+dist/**/*.map
+
+# 默认排除整个 node_modules，再按需放行
+node_modules/**
+
+# SDK 包目录：bundle 里的 import.meta.url 指向它，getPackageDir() / docs / examples 依赖真实路径
+!node_modules/@earendil-works/pi-coding-agent/**
+node_modules/@earendil-works/pi-coding-agent/node_modules/**
+node_modules/@earendil-works/pi-coding-agent/**/*.map
+
+# esbuild external：wasm 图像处理与原生剪贴板，按包目录解析资源
+!node_modules/@silvia-odwyer/photon-node/**
+!node_modules/@mariozechner/**

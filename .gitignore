@@ -1,0 +1,19 @@
+node_modules/
+dist/
+out/
+*.vsix
+
+# 依赖锁文件不纳入版本控制（按项目约定）
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+npm-shrinkwrap.json
+
+.DS_Store
+*.log
+.pi-plan.md
+todo.md
+
+.vscode
+!.vscode/launch.json
+!.vscode/tasks.json
