@@ -1,6 +1,6 @@
 # Pi Agent Chat（非官方）
 
-[English](./readme.md) | 简体中文
+[English](./README.md) | 简体中文
 
 VS Code 侧边栏中的 [pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) 聊天界面。
 
@@ -10,6 +10,7 @@ VS Code 侧边栏中的 [pi coding agent](https://www.npmjs.com/package/@earendi
 - 复用 `~/.pi/agent/` 的全部配置（auth、models、settings、extensions、skills、prompts、AGENTS.md）与默认 sessions 目录，可与终端 pi 互相列出/恢复会话。
 - 内置登录/登出流程：无可用模型时显示认证引导页，支持 OAuth 与 API key。
 - 界面中英双语，跟随 VS Code 显示语言。
+- Marketplace 提供 Windows x64、Linux x64、macOS x64 和 macOS arm64 的目标平台 VSIX；手动安装时请选择匹配当前平台的文件。
 
 > 注意：不要与终端 pi 同时 resume 同一个 session，JSONL 追加写无锁会交错。
 
@@ -59,7 +60,6 @@ Skill 应检测能力而不是判断具体 UI：若当前提供 `subagent` 工�
 
 子代理运行时输入框只读，可单独停止；主代理仍可排队或插话，但消息只会在子代理返回后投递。若从主代理点击停止，则取消整条任务线。
 
-待办：语法高亮、图片粘贴。
 
 ## 安装（自用）
 
@@ -69,7 +69,7 @@ pnpm package:vsix                      # 生成 pi-agent-chat.vsix
 code --install-extension pi-agent-chat.vsix --force
 ```
 
-打包产物只包含运行时必需内容：bundle、样式，以及 `dist/node_modules/` 下的 SDK 包目录（提供 docs/examples/主题等资源路径）、photon-node 与原生剪贴板。剪贴板原生包是平台相关的，在哪个平台打包就只带哪个平台的二进制。
+打包产物只包含运行时必需内容：bundle、样式，以及 `dist/node_modules/` 下的 SDK 包目录（提供 docs/examples/主题等资源路径）、photon-node 与原生剪贴板。Marketplace 会分别发布 Windows x64、Linux x64、macOS x64 和 macOS arm64 的目标平台 VSIX；手动安装时请选择匹配当前平台的文件。
 
 ## 开发
 

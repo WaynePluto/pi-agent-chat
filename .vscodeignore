@@ -1,6 +1,8 @@
 # 只保留运行时真正需要的内容，其余一律排除
 .vscode/**
+.github/**
 .git/**
+.agents/**
 src/**
 scripts/**
 docs/**
@@ -12,6 +14,11 @@ package-lock.json
 .gitignore
 .pi-plan.md
 vscode-pi-design.md
+AGENTS.md
+todo.md
+.env*
+**/*.pem
+**/*.key
 **/.DS_Store
 dist/**/*.map
 

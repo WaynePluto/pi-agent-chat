@@ -10,6 +10,7 @@ A VS Code sidebar chat UI for the [pi coding agent](https://www.npmjs.com/packag
 - Reuses everything under `~/.pi/agent/` (auth, models, settings, extensions, skills, prompts, AGENTS.md) and the default sessions directory, fully interoperable with the terminal pi: sessions can be listed and resumed from either side.
 - Built-in login/logout flow: if no model is available, an auth page guides you through OAuth or API key setup.
 - UI is bilingual (English / Chinese), following the VS Code display language.
+- Marketplace builds are published for Windows x64, Linux x64, macOS x64 and macOS arm64; install the matching target VSIX when installing manually.
 
 > Note: do not resume the same session from the extension and the terminal pi at the same time — JSONL appends are unsynchronized and would interleave.
 
@@ -59,7 +60,6 @@ Skills should detect capabilities rather than a particular UI. If the `subagent`
 
 While a child runs, its composer is read-only and it can be stopped independently; the parent can still queue follow-ups or steering messages, which are delivered only after the child returns. Stopping from the parent cancels the entire task line.
 
-Todo: syntax highlighting, image paste.
 
 ## Install (self-use)
 
@@ -69,7 +69,7 @@ pnpm package:vsix                      # produces pi-agent-chat.vsix
 code --install-extension pi-agent-chat.vsix --force
 ```
 
-The VSIX only contains what is needed at runtime: the bundles, styles, and under `dist/node_modules/` the SDK packages (also providing docs/examples/themes resource paths), photon-node and the native clipboard package. The clipboard package is platform-specific — the VSIX only carries binaries for the platform it was packaged on.
+The VSIX only contains what is needed at runtime: the bundles, styles, and under `dist/node_modules/` the SDK packages (also providing docs/examples/themes resource paths), photon-node and the native clipboard package. Marketplace publishes target-specific VSIX files for Windows x64, Linux x64, macOS x64 and macOS arm64. For manual installation, use the VSIX matching your platform.
 
 ## Development
 

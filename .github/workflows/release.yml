@@ -1,0 +1,143 @@
+name: Release VSIX
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win32-x64
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: macos-13
+            target: darwin-x64
+          - os: macos-14
+            target: darwin-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      # The repository currently does not track pnpm-lock.yaml by convention.
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Validate runner architecture
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $platform = node -p "process.platform"
+          $arch = node -p "process.arch"
+          Write-Host "Runner: $platform/$arch; target: $env:TARGET"
+
+          $expected = @{
+            'win32-x64' = 'win32/x64'
+            'linux-x64' = 'linux/x64'
+            'darwin-x64' = 'darwin/x64'
+            'darwin-arm64' = 'darwin/arm64'
+          }[$env:TARGET]
+
+          if ("$platform/$arch" -ne $expected) {
+            throw "Runner architecture does not match target $env:TARGET. Expected $expected, got $platform/$arch."
+          }
+
+      - name: Validate version
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          $tagVersion = $env:TAG -replace '^v', ''
+          $packageVersion = node -p "require('./package.json').version"
+
+          if ($tagVersion -ne $packageVersion) {
+            throw "Tag version $tagVersion does not match package.json version $packageVersion"
+          }
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Verify bundle and smoke load
+        run: pnpm verify
+
+      - name: Package target VSIX
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          pnpm exec vsce package `
+            --target $env:TARGET `
+            --no-dependencies `
+            --no-rewrite-relative-links `
+            --readme-path README.md `
+            --out "pi-agent-chat-$env:TAG-$env:TARGET.vsix"
+
+      - name: Upload target VSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix-${{ matrix.target }}
+          path: pi-agent-chat-${{ github.ref_name }}-${{ matrix.target }}.vsix
+          if-no-files-found: error
+
+  github-release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download target VSIX files
+        uses: actions/download-artifact@v4
+        with:
+          pattern: vsix-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          $assets = Get-ChildItem -Path artifacts -Filter *.vsix | ForEach-Object { $_.FullName }
+          if (-not $assets) {
+            throw "No VSIX assets were downloaded."
+          }
+
+          gh release create $env:TAG @assets `
+            --verify-tag `
+            --generate-notes `
+            --title "Pi Agent Chat $env:TAG"
