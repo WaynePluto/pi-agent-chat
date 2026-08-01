@@ -57,10 +57,11 @@ export class SubagentCoordinator {
       name: "subagent",
       label: "Subagent",
       description:
-        "Delegate one task to an isolated, visible child agent session. The current session waits for the child and receives its final answer. Only one child can run at a time.",
-      promptSnippet: "Delegate an isolated task to a visible child agent session and wait for its result",
+        "Delegate one task to an isolated, visible child agent session. Use this tool only when the user explicitly asks you to use a subagent or an enabled skill specifically requires the subagent tool; otherwise, do not call it proactively. The current session waits for the child and receives its final answer. Only one child can run at a time.",
+      promptSnippet:
+        "Delegate an isolated task to a visible child agent session only when explicitly requested by the user or required by an enabled skill; do not invoke proactively",
       promptGuidelines: [
-        "Use subagent only when an isolated context is genuinely useful.",
+        "Use subagent only when the user explicitly requests it or an enabled skill specifically requires it; otherwise do not call it proactively.",
         "Subagents run sequentially and cannot create nested subagents.",
       ],
       parameters: Type.Object({
