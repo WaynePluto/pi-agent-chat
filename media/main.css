@@ -35,7 +35,7 @@ body {
     --vscode-sideBarSectionHeader-background,
     rgba(128, 128, 128, 0.08)
   );
-  box-shadow: 0 5px 12px -4px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.55));
+  box-shadow: none;
 }
 
 .header-title {
@@ -79,7 +79,7 @@ body {
     --vscode-textBlockQuote-background,
     var(--vscode-sideBarSectionHeader-background)
   );
-  box-shadow: 0 5px 12px -4px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.55));
+  box-shadow: none;
   font-size: 0.9em;
 }
 
@@ -120,6 +120,7 @@ button.secondary:hover:not(:disabled) {
 /* Flat list-like buttons: beat the base button:hover:not(:disabled) rule
    (higher specificity) so hovering stays a subtle gray, not button blue. */
 button.card-header:hover:not(:disabled),
+button.work-header:hover:not(:disabled),
 button.session-main:hover:not(:disabled),
 button.resources-toggle:hover:not(:disabled),
 button.resource-header:hover:not(:disabled) {
@@ -183,8 +184,9 @@ button:focus-visible {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 -8px 18px -6px
-    var(--vscode-widget-shadow, rgba(0, 0, 0, 0.55));
+  box-shadow:
+    0 -8px 18px -6px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75)),
+    0 -3px 8px -3px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75));
 }
 
 .messages {
@@ -200,8 +202,9 @@ button:focus-visible {
      the surrounding header/resources/composer blocks use the darker
      section-header tone to stand apart without extra border lines. */
   background: var(--vscode-sideBar-background);
-  box-shadow: inset 0 8px 16px -6px
-    var(--vscode-widget-shadow, rgba(0, 0, 0, 0.55));
+  box-shadow:
+    inset 0 8px 16px -6px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75)),
+    inset 0 3px 8px -3px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75));
 }
 
 /* Never let flex compress items when content overflows: cards use
@@ -209,6 +212,102 @@ button:focus-visible {
    would squash them into thin lines. */
 .messages > * {
   flex-shrink: 0;
+}
+
+/* A compact, UI-only group for non-formal agent output. The transcript keeps
+   each work block at the top level, while its individual cards are nested in
+   the body so a long tool-heavy turn occupies one collapsible unit. */
+.work-block {
+  flex: 0 0 auto;
+  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3));
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--vscode-editorWidget-background, transparent);
+  font-size: 0.82em;
+}
+
+.work-block.running {
+  border-color: var(--vscode-focusBorder);
+}
+
+.work-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  color: var(--vscode-foreground);
+  background: transparent;
+  text-align: left;
+}
+
+.work-label {
+  font-weight: 600;
+}
+
+.work-status {
+  opacity: 0.7;
+}
+
+.work-status::before {
+  content: "- ";
+}
+
+.work-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--vscode-progressBar-background, var(--vscode-focusBorder));
+  opacity: 0;
+}
+
+.work-block.running .work-pulse {
+  opacity: 1;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.work-chevron {
+  margin-left: auto;
+  display: inline-flex;
+  opacity: 0.7;
+  transition: transform 0.15s ease;
+}
+
+.work-block.collapsed .work-chevron {
+  transform: rotate(-90deg);
+}
+
+.work-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 8px 8px 10px;
+  border-top: 1px solid
+    var(--vscode-panel-border, rgba(128, 128, 128, 0.25));
+}
+
+.work-block.collapsed .work-body {
+  display: none;
+}
+
+.work-body > * {
+  flex: 0 0 auto;
+}
+
+/* Cards keep comfortable click targets and readable separation while the
+   work block itself supplies the smaller font size. */
+.work-body .card-header {
+  padding: 6px 10px;
+}
+
+.work-body .card-body {
+  padding: 4px 10px 8px;
+}
+
+.work-body .notice-card.flat {
+  padding: 6px 10px;
 }
 
 .bubble {
@@ -559,8 +658,9 @@ button:focus-visible {
     --vscode-sideBarSectionHeader-background,
     rgba(128, 128, 128, 0.08)
   );
-  box-shadow: 0 -5px 12px -4px
-    var(--vscode-widget-shadow, rgba(0, 0, 0, 0.55));
+  box-shadow:
+    0 -6px 16px -5px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75)),
+    0 -2px 6px -2px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75));
   padding: 0 12px 12px;
 }
 
@@ -909,7 +1009,16 @@ textarea:disabled {
     --vscode-sideBarSectionHeader-background,
     rgba(128, 128, 128, 0.08)
   );
-  box-shadow: 0 5px 12px -4px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.55));
+  box-shadow: none;
+}
+
+/* Only the lowest visible top section casts a shadow into the chat area. */
+.header:not(:has(~ .resources:not(.hidden))):not(:has(~ .delegation-bar:not(.hidden))),
+.resources:not(.hidden):not(:has(~ .delegation-bar:not(.hidden))),
+.delegation-bar:not(.hidden) {
+  box-shadow:
+    0 6px 16px -5px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75)),
+    0 2px 5px -2px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75));
 }
 
 /* Bordered container; collapsed = only the slim toggle row is visible. */

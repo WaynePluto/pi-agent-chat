@@ -59,6 +59,15 @@ interface ThinkingCard extends CollapsibleCard {
 }
 let thinkingCard: ThinkingCard | undefined;
 
+interface WorkBlock {
+  element: HTMLElement;
+  statusEl: HTMLElement;
+  body: HTMLElement;
+  expanded: boolean;
+}
+/** The non-formal output group currently being built by the agent. */
+let activeWorkBlock: WorkBlock | undefined;
+
 interface ToolCard extends CollapsibleCard {
   argsText: string;
   bodyText: string;
@@ -622,6 +631,10 @@ function applyState(next: ChatState): void {
   renderDelegationBar();
   applyAuthGate();
   renderStatusLine();
+  // Standalone status/error events can arrive without an agent_end (for
+  // example a failed built-in command). The state snapshot is the final
+  // authority for closing their work block.
+  if (!state.isStreaming) finishWorkBlock();
   updateWorkingIndicator();
 }
 
@@ -735,8 +748,10 @@ function applyEvent(event: ChatEvent): void {
       finishThinkingCard();
       break;
     case "text_delta":
-      // Text starting means the thinking phase (if any) is over.
+      // Formal assistant text ends the current non-formal work block. Any
+      // later thinking/tools will start a fresh block in the transcript.
       finishThinkingCard();
+      finishWorkBlock();
       assistantBubble ??= createStreamingBubble("assistant");
       assistantBubble.raw += event.delta;
       scheduleRender();
@@ -756,6 +771,7 @@ function applyEvent(event: ChatEvent): void {
       break;
     }
     case "assistant_message":
+      finishWorkBlock();
       appendMarkdownBubble("assistant", event.text);
       assistantBubble = undefined;
       break;
@@ -785,6 +801,7 @@ function applyEvent(event: ChatEvent): void {
     case "agent_end":
       flushStreaming();
       finishThinkingCard();
+      finishWorkBlock();
       assistantBubble = undefined;
       // Anything still marked pending was consumed or dropped by now.
       while (pendingUserBubbles.length > 0) normalizeUserBubble(pendingUserBubbles.pop()!.element);
@@ -879,6 +896,7 @@ function createStreamingBubble(role: string): StreamingBubble {
  * collapsed one-line cards; expanding shows the full text.
  */
 function appendNoticeCard(kind: "status" | "error", text: string): void {
+  const work = ensureWorkBlock();
   const firstLine = text.split("\n")[0] ?? "";
   const short = firstLine.length > 80 ? `${firstLine.slice(0, 80)}...` : firstLine;
   // Nothing hidden behind the fold: render a flat, non-expandable card.
@@ -889,7 +907,7 @@ function appendNoticeCard(kind: "status" | "error", text: string): void {
     label.className = "card-label";
     label.textContent = text;
     card.appendChild(label);
-    messagesEl.appendChild(card);
+    work.body.appendChild(card);
     return;
   }
   createCard(`notice-card ${kind}`, short, "", (body) => {
@@ -897,7 +915,7 @@ function appendNoticeCard(kind: "status" | "error", text: string): void {
     pre.className = "notice-body";
     pre.textContent = text;
     body.replaceChildren(pre);
-  });
+  }, work.body);
 }
 
 /* ---------------------------------------------------------------- */
@@ -909,7 +927,13 @@ function appendNoticeCard(kind: "status" | "error", text: string): void {
  * `label - status ......................... chevron`
  * The body is only rendered when the user expands the card.
  */
-function createCard(className: string, label: string, status: string, render: (body: HTMLElement) => void): CollapsibleCard {
+function createCard(
+  className: string,
+  label: string,
+  status: string,
+  render: (body: HTMLElement) => void,
+  parent: HTMLElement = messagesEl,
+): CollapsibleCard {
   const card = document.createElement("div");
   card.className = `${className} collapsed`;
 
@@ -952,14 +976,70 @@ function createCard(className: string, label: string, status: string, render: (b
   });
 
   card.append(header, body);
-  messagesEl.appendChild(card);
+  parent.appendChild(card);
   return entry;
 }
 
+/**
+ * Create or reuse the current group of non-formal output. The group is kept
+ * at the top level of the transcript while its cards live in `body`.
+ */
+function ensureWorkBlock(): WorkBlock {
+  if (activeWorkBlock) return activeWorkBlock;
+
+  const element = document.createElement("section");
+  element.className = "work-block running collapsed";
+
+  const header = document.createElement("button");
+  header.type = "button";
+  header.className = "work-header";
+  header.setAttribute("aria-expanded", "false");
+  header.title = t.expand;
+
+  const label = document.createElement("span");
+  label.className = "work-label";
+  label.textContent = t.workHeader;
+  const status = document.createElement("span");
+  status.className = "work-status";
+  status.textContent = t.workInProgress;
+  const pulse = document.createElement("span");
+  pulse.className = "work-pulse";
+  const chevron = document.createElement("span");
+  chevron.className = "work-chevron";
+  chevron.innerHTML = CHEVRON_ICON;
+  header.append(label, status, pulse, chevron);
+
+  const body = document.createElement("div");
+  body.className = "work-body";
+
+  const work: WorkBlock = { element, statusEl: status, body, expanded: false };
+  header.addEventListener("click", () => {
+    work.expanded = !work.expanded;
+    element.classList.toggle("collapsed", !work.expanded);
+    header.setAttribute("aria-expanded", String(work.expanded));
+    header.title = work.expanded ? t.collapse : t.expand;
+  });
+
+  element.append(header, body);
+  messagesEl.appendChild(element);
+  activeWorkBlock = work;
+  return work;
+}
+
+/** Mark the current group complete; the next non-formal event creates a new one. */
+function finishWorkBlock(): void {
+  if (!activeWorkBlock) return;
+  activeWorkBlock.element.classList.remove("running");
+  activeWorkBlock.element.classList.add("finished");
+  activeWorkBlock.statusEl.textContent = t.workDone;
+  activeWorkBlock = undefined;
+}
+
 function createThinkingCard(streaming: boolean): ThinkingCard {
+  const work = ensureWorkBlock();
   const entry = createCard("thinking-card", streaming ? t.thinkingHeader : t.thinkingDone, "", (body) => {
     body.replaceChildren(renderMarkdown(card.raw));
-  }) as ThinkingCard;
+  }, work.body) as ThinkingCard;
   const card = entry;
   card.raw = "";
   if (streaming) card.card.classList.add("streaming");
@@ -981,9 +1061,10 @@ function finishCard(card: ThinkingCard): void {
 }
 
 function startToolCard(id: string, name: string, args: unknown): void {
+  const work = ensureWorkBlock();
   const entry = createCard("tool-card", name, t.running, (body) => {
     renderToolBody(toolCards.get(id) ?? (entry as ToolCard), body);
-  }) as ToolCard;
+  }, work.body) as ToolCard;
   entry.card.classList.add("running", "streaming");
   entry.argsText = summarizeArgs(args);
   entry.bodyText = "";
@@ -1332,6 +1413,7 @@ function clearMessages(): void {
   pendingUserBubbles.length = 0;
   assistantBubble = undefined;
   thinkingCard = undefined;
+  activeWorkBlock = undefined;
 }
 
 function summarizeArgs(args: unknown): string {
