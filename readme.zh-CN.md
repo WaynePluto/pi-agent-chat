@@ -13,6 +13,13 @@ VS Code 侧边栏中的 [pi coding agent](https://www.npmjs.com/package/@earendi
 
 > 注意：不要与终端 pi 同时 resume 同一个 session，JSONL 追加写无锁会交错。
 
+## 演示
+
+<p align="center">
+  <img src="./media/example1.gif" alt="Pi Agent Chat 初始界面" width="320">
+  <img src="./media/example2.gif" alt="Pi Agent Chat 对话界面" width="320">
+</p>
+
 ## 设计哲学
 
 与 pi 本身一样，本插件保持精简：

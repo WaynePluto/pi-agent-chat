@@ -13,6 +13,13 @@ A VS Code sidebar chat UI for the [pi coding agent](https://www.npmjs.com/packag
 
 > Note: do not resume the same session from the extension and the terminal pi at the same time — JSONL appends are unsynchronized and would interleave.
 
+## Demo
+
+<p align="center">
+  <img src="./media/example1.gif" alt="Pi Agent Chat initial view" width="320">
+  <img src="./media/example2.gif" alt="Pi Agent Chat conversation" width="320">
+</p>
+
 ## Philosophy
 
 Like pi itself, this extension stays minimal:
