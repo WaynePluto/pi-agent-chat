@@ -29,7 +29,11 @@ export interface DelegationState {
   peerSessionFile?: string;
 }
 
-/** Snapshot of runtime state rendered in the webview header/footer. */
+/**
+ * Complete runtime-state snapshot rendered in the webview header/footer.
+ * Every host `state` message replaces the prior snapshot; omitted optional
+ * fields intentionally clear their previous UI state.
+ */
 export interface ChatState {
   ready: boolean;
   cwd?: string;

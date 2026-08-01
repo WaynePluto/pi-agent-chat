@@ -31,7 +31,7 @@ let workingLabelEl: HTMLElement | undefined;
 /** Queued/steering bubbles waiting to be consumed by the agent loop. */
 const pendingUserBubbles: Array<{ element: HTMLElement; text: string; mode: "steer" | "followUp" }> = [];
 
-const state: ChatState = { ready: false, isStreaming: false };
+let state: ChatState = { ready: false, isStreaming: false };
 
 /** Streaming assistant bubble keeps raw markdown for re-render on each delta. */
 interface StreamingBubble {
@@ -587,7 +587,9 @@ function post(message: WebviewMessage): void {
 /* ---------------------------------------------------------------- */
 
 function applyState(next: ChatState): void {
-  Object.assign(state, next);
+  // Host state messages are complete snapshots. Replacing rather than merging
+  // also clears optional fields such as a finished child's delegation.
+  state = next;
   const childReadOnly = Boolean(state.inputDisabled);
   const parentWaiting = state.delegation?.role === "parent";
   sendBtn.disabled = !state.ready;

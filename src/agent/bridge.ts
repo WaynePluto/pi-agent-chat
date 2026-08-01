@@ -29,6 +29,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private disposed = false;
   private displayedSession?: AgentSession;
   private activeDelegation?: SubagentRun;
+  /** Only the newest async state snapshot may reach the webview. */
+  private statePostVersion = 0;
   /** Replay buffers keep parent and child transcripts intact while viewing either. */
   private readonly histories = new Map<string, ChatEvent[]>();
   /** Arguments of in-flight tool calls, used to resolve the edited file path. */
@@ -89,6 +91,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   }
 
   async postState(): Promise<void> {
+    // getAvailableModels() is asynchronous. Without a version check, a state
+    // snapshot started while the child is displayed can arrive after the child
+    // finishes and overwrite the authoritative parent state.
+    const postVersion = ++this.statePostVersion;
     const session = this.displayedSession ?? this.runtime.session;
     const model = session.model as { id?: string; provider?: string } | undefined;
     let needsAuth = false;
@@ -97,6 +103,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     } catch {
       // Availability check failing must not block the chat UI.
     }
+    if (postVersion !== this.statePostVersion || this.disposed) return;
     const state: ChatState = {
       ready: true,
       cwd: this.runtime.cwd,
@@ -157,6 +164,13 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         this.emit(session, { kind: "agent_end" });
         void this.postState();
         break;
+      // `agent_end` can still be followed by retries, compaction, or queued
+      // prompts. Refresh when the SDK reports that automatic continuations
+      // have settled so the UI receives the current streaming state.
+      case "agent_settled":
+        void this.postState();
+        void this.refreshSessions();
+        break;
       case "message_start":
         this.emit(session, { kind: "assistant_start" });
         break;
@@ -168,9 +182,11 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       }
       case "message_end":
         this.emit(session, { kind: "assistant_end" });
-        // The SDK reports provider failures on the message, not as an event.
-        if (session.agent.state.errorMessage) {
-          this.emit(session, { kind: "error", text: session.agent.state.errorMessage });
+        // Provider failures are encoded on the completed assistant message.
+        // AgentState.errorMessage is only updated at turn_end, so it is not
+        // available yet when message_end is delivered.
+        if (event.message.role === "assistant" && event.message.stopReason === "error" && event.message.errorMessage) {
+          this.emit(session, { kind: "error", text: event.message.errorMessage });
         }
         break;
       case "tool_execution_start":
@@ -598,6 +614,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
   dispose(): void {
     this.disposed = true;
+    this.statePostVersion++;
     this.runtime.subagents.setObserver(undefined);
     this.unsubscribe?.();
     this.unsubscribe = undefined;
@@ -700,6 +717,8 @@ export function buildHistoryEvents(messages: readonly unknown[], cwd: string): C
       toolCallId?: string;
       toolName?: string;
       isError?: boolean;
+      stopReason?: string;
+      errorMessage?: string;
       details?: { patch?: string; path?: string };
     };
 
@@ -723,6 +742,9 @@ export function buildHistoryEvents(messages: readonly unknown[], cwd: string): C
       if (text.trim()) events.push({ kind: "assistant_message", text });
       for (const part of parts) {
         if (part.type === "toolCall" && typeof part.id === "string") toolArgs.set(part.id, part.arguments);
+      }
+      if (message.stopReason === "error" && message.errorMessage) {
+        events.push({ kind: "error", text: message.errorMessage });
       }
       continue;
     }
