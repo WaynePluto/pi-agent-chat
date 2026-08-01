@@ -102,11 +102,20 @@ export class ProjectFileIndex {
 
     let index: FileIndex;
     try {
-      const [regular, ignored] = await Promise.all([
+      const [regular, ignored, deleted] = await Promise.all([
         gitFiles(cwd, ["ls-files", "--cached", "--others", "--exclude-standard", "-z"]),
         gitFiles(cwd, ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"]),
+        // An index entry can remain after its working-tree file was deleted or
+        // moved but before the user stages the change. Do not expose that
+        // stale path in the @ picker.
+        gitFiles(cwd, ["ls-files", "--deleted", "-z"]),
       ]);
-      index = { createdAt: Date.now(), regular, ignored };
+      const deletedSet = new Set(deleted);
+      index = {
+        createdAt: Date.now(),
+        regular: regular.filter((path) => !deletedSet.has(path)),
+        ignored: ignored.filter((path) => !deletedSet.has(path)),
+      };
     } catch (error) {
       this.log(`git file discovery unavailable, using directory walk fallback: ${error instanceof Error ? error.message : String(error)}`);
       index = { createdAt: Date.now(), regular: await walkFiles(cwd), ignored: [] };
