@@ -29,8 +29,13 @@ body {
   justify-content: space-between;
   gap: 10px;
   padding: 10px 12px;
-  background: var(--vscode-sideBarSectionHeader-background, rgba(128, 128, 128, 0.08));
-  border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-sideBarSectionHeader-border, rgba(128, 128, 128, 0.25)));
+  position: relative;
+  z-index: 1;
+  background: var(
+    --vscode-sideBarSectionHeader-background,
+    rgba(128, 128, 128, 0.08)
+  );
+  box-shadow: 0 5px 12px -4px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.55));
 }
 
 .header-title {
@@ -67,9 +72,14 @@ body {
   justify-content: space-between;
   gap: 10px;
   padding: 6px 12px;
+  position: relative;
+  z-index: 1;
   color: var(--vscode-foreground);
-  background: var(--vscode-textBlockQuote-background, var(--vscode-sideBarSectionHeader-background));
-  border-bottom: 1px solid var(--vscode-focusBorder);
+  background: var(
+    --vscode-textBlockQuote-background,
+    var(--vscode-sideBarSectionHeader-background)
+  );
+  box-shadow: 0 5px 12px -4px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.55));
   font-size: 0.9em;
 }
 
@@ -101,7 +111,10 @@ button:hover:not(:disabled) {
 }
 
 button.secondary:hover:not(:disabled) {
-  background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2)));
+  background: var(
+    --vscode-button-secondaryHoverBackground,
+    var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2))
+  );
 }
 
 /* Flat list-like buttons: beat the base button:hover:not(:disabled) rule
@@ -152,7 +165,10 @@ button.icon-button {
 }
 
 button.icon-button.stop {
-  background: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+  background: var(
+    --vscode-inputValidation-errorBorder,
+    var(--vscode-errorForeground)
+  );
   color: var(--vscode-button-foreground);
 }
 
@@ -162,10 +178,13 @@ button:focus-visible {
 
 .messages-wrap {
   position: relative;
+  z-index: 1;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 -8px 18px -6px
+    var(--vscode-widget-shadow, rgba(0, 0, 0, 0.55));
 }
 
 .messages {
@@ -181,6 +200,8 @@ button:focus-visible {
      the surrounding header/resources/composer blocks use the darker
      section-header tone to stand apart without extra border lines. */
   background: var(--vscode-sideBar-background);
+  box-shadow: inset 0 8px 16px -6px
+    var(--vscode-widget-shadow, rgba(0, 0, 0, 0.55));
 }
 
 /* Never let flex compress items when content overflows: cards use
@@ -209,12 +230,14 @@ button:focus-visible {
 /* Queued (follow-up) messages: dashed border + muted accent while waiting. */
 .bubble.user.queued {
   border-style: dashed;
-  border-right: 2px dashed var(--vscode-charts-yellow, var(--vscode-focusBorder));
+  border-right: 2px dashed
+    var(--vscode-charts-yellow, var(--vscode-focusBorder));
 }
 
 /* Steering messages: orange accent, they interrupt the current run. */
 .bubble.user.steered {
-  border-right: 2px solid var(--vscode-charts-orange, var(--vscode-editorWarning-foreground, orange));
+  border-right: 2px solid
+    var(--vscode-charts-orange, var(--vscode-editorWarning-foreground, orange));
 }
 
 .bubble-badge {
@@ -474,8 +497,15 @@ button:focus-visible {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 0.35; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1.1); }
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
 }
 
 .tool-args {
@@ -505,11 +535,17 @@ button:focus-visible {
 }
 
 .diff-line.added {
-  background: var(--vscode-diffEditor-insertedLineBackground, rgba(80, 200, 120, 0.16));
+  background: var(
+    --vscode-diffEditor-insertedLineBackground,
+    rgba(80, 200, 120, 0.16)
+  );
 }
 
 .diff-line.removed {
-  background: var(--vscode-diffEditor-removedLineBackground, rgba(230, 90, 90, 0.16));
+  background: var(
+    --vscode-diffEditor-removedLineBackground,
+    rgba(230, 90, 90, 0.16)
+  );
 }
 
 .diff-line.hunk {
@@ -518,8 +554,13 @@ button:focus-visible {
 
 .composer {
   position: relative;
-  background: var(--vscode-sideBarSectionHeader-background, rgba(128, 128, 128, 0.08));
-  border-top: 1px solid var(--vscode-panel-border, var(--vscode-sideBarSectionHeader-border, rgba(128, 128, 128, 0.25)));
+  z-index: 1;
+  background: var(
+    --vscode-sideBarSectionHeader-background,
+    rgba(128, 128, 128, 0.08)
+  );
+  box-shadow: 0 -5px 12px -4px
+    var(--vscode-widget-shadow, rgba(0, 0, 0, 0.55));
   padding: 0 12px 12px;
 }
 
@@ -550,8 +591,15 @@ button:focus-visible {
   max-height: 220px;
   overflow-y: auto;
   z-index: 10;
-  background: var(--vscode-editorSuggestWidget-background, var(--vscode-editor-background));
-  border: 1px solid var(--vscode-editorSuggestWidget-border, var(--vscode-panel-border, rgba(128, 128, 128, 0.4)));
+  background: var(
+    --vscode-editorSuggestWidget-background,
+    var(--vscode-editor-background)
+  );
+  border: 1px solid
+    var(
+      --vscode-editorSuggestWidget-border,
+      var(--vscode-panel-border, rgba(128, 128, 128, 0.4))
+    );
   border-radius: 3px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
@@ -565,8 +613,14 @@ button:focus-visible {
 }
 
 .autocomplete-row.selected {
-  background: var(--vscode-editorSuggestWidget-selectedBackground, var(--vscode-list-activeSelectionBackground));
-  color: var(--vscode-editorSuggestWidget-selectedForeground, var(--vscode-list-activeSelectionForeground));
+  background: var(
+    --vscode-editorSuggestWidget-selectedBackground,
+    var(--vscode-list-activeSelectionBackground)
+  );
+  color: var(
+    --vscode-editorSuggestWidget-selectedForeground,
+    var(--vscode-list-activeSelectionForeground)
+  );
 }
 
 .autocomplete-name {
@@ -763,7 +817,10 @@ textarea:disabled {
 }
 
 .session-row.current {
-  background: var(--vscode-list-inactiveSelectionBackground, rgba(128, 128, 128, 0.12));
+  background: var(
+    --vscode-list-inactiveSelectionBackground,
+    rgba(128, 128, 128, 0.12)
+  );
 }
 
 .session-row.delegation-child,
@@ -844,15 +901,24 @@ textarea:disabled {
 
 .resources {
   padding: 8px 12px;
+  position: relative;
+  z-index: 1;
   font-size: 0.9em;
   /* Same family as the header block; separated from the chat area below. */
-  background: var(--vscode-sideBarSectionHeader-background, rgba(128, 128, 128, 0.08));
-  border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-sideBarSectionHeader-border, rgba(128, 128, 128, 0.25)));
+  background: var(
+    --vscode-sideBarSectionHeader-background,
+    rgba(128, 128, 128, 0.08)
+  );
+  box-shadow: 0 5px 12px -4px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.55));
 }
 
 /* Bordered container; collapsed = only the slim toggle row is visible. */
 .resources-panel {
-  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, rgba(128, 128, 128, 0.35)));
+  border: 1px solid
+    var(
+      --vscode-widget-border,
+      var(--vscode-panel-border, rgba(128, 128, 128, 0.35))
+    );
   border-radius: 6px;
   background: var(--vscode-editorWidget-background, transparent);
   overflow: hidden;
@@ -902,7 +968,11 @@ textarea:disabled {
 
 .resources-body {
   padding: 4px 8px 8px;
-  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, rgba(128, 128, 128, 0.25)));
+  border-top: 1px solid
+    var(
+      --vscode-widget-border,
+      var(--vscode-panel-border, rgba(128, 128, 128, 0.25))
+    );
 }
 
 .resources-panel.collapsed .resources-body {
@@ -980,6 +1050,11 @@ textarea:disabled {
   word-break: break-all;
 }
 
+/* Match the flat resource headers rather than the base button's blue hover. */
+button.resource-file:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.12));
+}
+
 .resource-file:hover {
   color: var(--vscode-textLink-foreground);
   text-decoration: underline;
@@ -1034,8 +1109,15 @@ textarea:disabled {
   padding: 0;
   border-radius: 50%;
   color: var(--vscode-foreground);
-  background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
-  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, rgba(128, 128, 128, 0.35)));
+  background: var(
+    --vscode-editorWidget-background,
+    var(--vscode-sideBar-background)
+  );
+  border: 1px solid
+    var(
+      --vscode-widget-border,
+      var(--vscode-panel-border, rgba(128, 128, 128, 0.35))
+    );
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
   opacity: 0.9;
 }
