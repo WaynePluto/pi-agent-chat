@@ -64,6 +64,11 @@ interface WorkBlock {
   statusEl: HTMLElement;
   body: HTMLElement;
   expanded: boolean;
+  thinkingCount: number;
+  toolCount: number;
+  failedToolCount: number;
+  activeTools: Map<string, string>;
+  action?: string;
 }
 /** The non-formal output group currently being built by the agent. */
 let activeWorkBlock: WorkBlock | undefined;
@@ -631,10 +636,6 @@ function applyState(next: ChatState): void {
   renderDelegationBar();
   applyAuthGate();
   renderStatusLine();
-  // Standalone status/error events can arrive without an agent_end (for
-  // example a failed built-in command). The state snapshot is the final
-  // authority for closing their work block.
-  if (!state.isStreaming) finishWorkBlock();
   updateWorkingIndicator();
 }
 
@@ -801,6 +802,13 @@ function applyEvent(event: ChatEvent): void {
     case "agent_end":
       flushStreaming();
       finishThinkingCard();
+      // This only ends one low-level run. Automatic retries, compaction and
+      // queued continuations may still add cards to the same work block.
+      assistantBubble = undefined;
+      break;
+    case "agent_settled":
+      flushStreaming();
+      finishThinkingCard();
       finishWorkBlock();
       assistantBubble = undefined;
       // Anything still marked pending was consumed or dropped by now.
@@ -825,6 +833,9 @@ function applyHistory(events: ChatEvent[]): void {
   followBottom = true;
   for (const event of events) applyEvent(event);
   if (events.length === 0) appendBubble("status", t.emptySession).classList.add("empty-session");
+  // Persisted history has no agent lifecycle events. Its final non-formal
+  // cards belong to a completed historical execution process, not a live one.
+  finishWorkBlock();
   scrollToEnd();
 }
 
@@ -1001,7 +1012,6 @@ function ensureWorkBlock(): WorkBlock {
   label.textContent = t.workHeader;
   const status = document.createElement("span");
   status.className = "work-status";
-  status.textContent = t.workInProgress;
   const pulse = document.createElement("span");
   pulse.className = "work-pulse";
   const chevron = document.createElement("span");
@@ -1012,7 +1022,17 @@ function ensureWorkBlock(): WorkBlock {
   const body = document.createElement("div");
   body.className = "work-body";
 
-  const work: WorkBlock = { element, statusEl: status, body, expanded: false };
+  const work: WorkBlock = {
+    element,
+    statusEl: status,
+    body,
+    expanded: false,
+    thinkingCount: 0,
+    toolCount: 0,
+    failedToolCount: 0,
+    activeTools: new Map(),
+  };
+  updateWorkStatus(work);
   header.addEventListener("click", () => {
     work.expanded = !work.expanded;
     element.classList.toggle("collapsed", !work.expanded);
@@ -1026,17 +1046,29 @@ function ensureWorkBlock(): WorkBlock {
   return work;
 }
 
+/** Update the compact execution summary shown while the work block is collapsed. */
+function updateWorkStatus(work: WorkBlock, action?: string): void {
+  if (action !== undefined) work.action = action;
+  work.statusEl.textContent = t.workInProgress(work.thinkingCount, work.toolCount, work.action);
+}
+
 /** Mark the current group complete; the next non-formal event creates a new one. */
 function finishWorkBlock(): void {
   if (!activeWorkBlock) return;
   activeWorkBlock.element.classList.remove("running");
   activeWorkBlock.element.classList.add("finished");
-  activeWorkBlock.statusEl.textContent = t.workDone;
+  activeWorkBlock.statusEl.textContent = t.workDone(
+    activeWorkBlock.thinkingCount,
+    activeWorkBlock.toolCount,
+    activeWorkBlock.failedToolCount,
+  );
   activeWorkBlock = undefined;
 }
 
 function createThinkingCard(streaming: boolean): ThinkingCard {
   const work = ensureWorkBlock();
+  work.thinkingCount += 1;
+  updateWorkStatus(work, t.workThinking);
   const entry = createCard("thinking-card", streaming ? t.thinkingHeader : t.thinkingDone, "", (body) => {
     body.replaceChildren(renderMarkdown(card.raw));
   }, work.body) as ThinkingCard;
@@ -1062,6 +1094,9 @@ function finishCard(card: ThinkingCard): void {
 
 function startToolCard(id: string, name: string, args: unknown): void {
   const work = ensureWorkBlock();
+  work.toolCount += 1;
+  work.activeTools.set(id, name);
+  updateWorkStatus(work, t.workCalling(name));
   const entry = createCard("tool-card", name, t.running, (body) => {
     renderToolBody(toolCards.get(id) ?? (entry as ToolCard), body);
   }, work.body) as ToolCard;
@@ -1085,6 +1120,14 @@ function endToolCard(event: Extract<ChatEvent, { kind: "tool_end" }>): void {
   entry.path = event.path;
   entry.rendered = false;
   if (entry.expanded) entry.render();
+
+  const work = activeWorkBlock;
+  if (work) {
+    work.activeTools.delete(event.id);
+    if (event.isError) work.failedToolCount += 1;
+    const activeTool = [...work.activeTools.values()].at(-1);
+    updateWorkStatus(work, activeTool ? t.workCalling(activeTool) : t.workLastTool(event.name));
+  }
   toolCards.delete(event.id);
 }
 

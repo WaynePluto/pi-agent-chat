@@ -17,10 +17,10 @@ VS Code 侧边栏中的 [pi coding agent](https://www.npmjs.com/package/@earendi
 
 与 pi 本身一样，本插件保持精简：
 
-- **只做 UI，能力来自官方 SDK。**基于官方 `@earendil-works/pi-coding-agent` SDK 独立开发的 VS Code UI。Agent 循环、工具、LLM 调用、extension/skill 加载全部来自 SDK，未作任何修改；无需安装 pi 的 TUI/CLI 版本。
-- **零 VS Code 配置。**没有设置页，不往 `settings.json` 里加任何配置项。一切配置都按 pi 的方式放在 `~/.pi/agent/`，与终端 pi 共享，可直接手工编辑。
-- **完整兼容 pi 生态。**上下文（AGENTS.md）、skills、extensions、prompt 模板、模型与认证与 CLI 行为完全一致；会话可在插件与终端之间互通。UI 本身跟随 VS Code 颜色主题（不使用 pi 的 TUI 主题渲染）。
-- **不堆功能。**单会话模式、小而克制的功能面，只在真正有益处时接入 VS Code 原生能力（diff 视图、QuickPick、主题颜色）。
+- **只做 UI，能力来自官方 SDK。** 基于官方 `@earendil-works/pi-coding-agent` SDK 独立开发的 VS Code UI。Agent 循环、工具、LLM 调用、extension/skill 加载全部来自 SDK，未作任何修改；无需安装 pi 的 TUI/CLI 版本。
+- **零 VS Code 配置。** 没有设置页，不往 `settings.json` 里加任何配置项。一切配置都按 pi 的方式放在 `~/.pi/agent/`，与终端 pi 共享，可直接手工编辑。
+- **完整兼容 pi 生态。** 上下文（AGENTS.md）、skills、extensions、prompt 模板、模型与认证与 CLI 行为完全一致；会话可在插件与终端之间互通。UI 本身跟随 VS Code 颜色主题（不使用 pi 的 TUI 主题渲染）。
+- **不堆功能。** 单会话模式、小而克制的功能面，只在真正有益处时接入 VS Code 原生能力（diff 视图、QuickPick、主题颜色）。
 
 ## 单会话模式（设计理念）
 

@@ -120,6 +120,8 @@ export type ChatEvent =
     }
   | { kind: "agent_start" }
   | { kind: "agent_end" }
+  /** All automatic retries, compaction and queued continuations have settled. */
+  | { kind: "agent_settled" }
   | { kind: "queue_update"; steering: string[]; followUp: string[] }
   | { kind: "status"; text: string }
   | { kind: "error"; text: string };

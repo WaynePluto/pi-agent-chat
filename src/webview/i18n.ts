@@ -59,8 +59,13 @@ const en = {
   thinkingHeader: "thinking...",
   thinkingDone: "thinking finished",
   workHeader: "Work",
-  workInProgress: "in progress",
-  workDone: "done",
+  workInProgress: (thinking: number, tools: number, action?: string) =>
+    `thinking ${thinking} · tools ${tools}${action ? ` · ${action}` : ""}`,
+  workDone: (thinking: number, tools: number, failed: number) =>
+    `done · thinking ${thinking} · tools ${tools}${failed ? ` · failed ${failed}` : ""}`,
+  workThinking: "thinking...",
+  workCalling: (name: string) => `calling ${name}...`,
+  workLastTool: (name: string) => `last ${name}`,
   starting: "starting...",
   streaming: "Working...",
   queued: (n: number) => `${n} queued message(s)`,
@@ -136,8 +141,13 @@ const zh: Dict = {
   thinkingHeader: "思考中...",
   thinkingDone: "思考完成",
   workHeader: "执行过程",
-  workInProgress: "进行中",
-  workDone: "完成",
+  workInProgress: (thinking: number, tools: number, action?: string) =>
+    `思考 ${thinking} 段 · 工具 ${tools} 次${action ? ` · ${action}` : ""}`,
+  workDone: (thinking: number, tools: number, failed: number) =>
+    `完成 · 思考 ${thinking} 段 · 工具 ${tools} 次${failed ? ` · 失败 ${failed}` : ""}`,
+  workThinking: "思考中...",
+  workCalling: (name: string) => `正在调用 ${name}...`,
+  workLastTool: (name: string) => `最近 ${name}`,
   starting: "启动中...",
   streaming: "工作中...",
   queued: (n: number) => `${n} 条消息排队中`,

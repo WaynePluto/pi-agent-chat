@@ -161,6 +161,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         void this.postState();
         break;
       case "agent_end":
+        // A low-level run can end before Pi retries or continues with
+        // compaction. The webview closes the execution process on the later
+        // agent_settled event instead.
         this.emit(session, { kind: "agent_end" });
         void this.postState();
         break;
@@ -168,6 +171,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       // prompts. Refresh when the SDK reports that automatic continuations
       // have settled so the UI receives the current streaming state.
       case "agent_settled":
+        this.emit(session, { kind: "agent_settled" });
         void this.postState();
         void this.refreshSessions();
         break;
