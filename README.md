@@ -1,18 +1,19 @@
-# Pi Agent Chat (unofficial)
+# Pi Agent Chat
 
 English | [简体中文](./readme.zh-CN.md)
 
-A VS Code sidebar chat UI for the [pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent).
+The [Pi Coding Agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent), running natively in your VS Code sidebar — **no Pi CLI installation required**.
 
-> **Disclaimer**: This is an **unofficial**, community-built extension. It is **not affiliated with, endorsed by, or maintained by** the upstream pi project or Earendil Works. All trademarks belong to their respective owners. Use at your own risk.
+This extension is implemented with the **official** `@earendil-works/pi-coding-agent` SDK (**v0.83.0**) bundled directly inside — no RPC bridge and no separate Pi CLI installation required. The agent loop, tools and LLM calls all run in-process, while everything stays compatible with your existing Pi setup.
 
-- The extension is UI-only; all agent capabilities come from the official SDK `@earendil-works/pi-coding-agent`, bundled inside the VSIX — **no pi CLI installation required**.
-- Reuses everything under `~/.pi/agent/` (auth, models, settings, extensions, skills, prompts, AGENTS.md) and the default sessions directory, fully interoperable with the terminal pi: sessions can be listed and resumed from either side.
+- The extension is UI-only; all agent capabilities come from the official SDK `@earendil-works/pi-coding-agent`, bundled inside the VSIX — **no Pi CLI installation required**.
+- Reuses everything under `~/.pi/agent/` (auth, models, settings, extensions, skills, prompts, AGENTS.md) and the default sessions directory, fully interoperable with the terminal Pi: sessions can be listed and resumed from either side.
+- **Proxy-aware by default.** Outgoing requests follow your VS Code proxy settings (`http.proxy` / `http.proxyStrictSSL`) automatically — no `HTTP_PROXY` / `HTTPS_PROXY` environment variables need to be configured for pi.
 - Built-in login/logout flow: if no model is available, an auth page guides you through OAuth or API key setup.
 - UI is bilingual (English / Chinese), following the VS Code display language.
-- Marketplace builds are published for Windows x64, Linux x64, macOS x64 and macOS arm64; install the matching target VSIX when installing manually.
+- Marketplace builds are published for Windows x64, Linux x64 and macOS arm64; install the matching target VSIX when installing manually.
 
-> Note: do not resume the same session from the extension and the terminal pi at the same time — JSONL appends are unsynchronized and would interleave.
+> Note: do not resume the same session from the extension and the terminal Pi at the same time — JSONL appends are unsynchronized and would interleave.
 
 ## Demo
 
@@ -23,11 +24,11 @@ A VS Code sidebar chat UI for the [pi coding agent](https://www.npmjs.com/packag
 
 ## Philosophy
 
-Like pi itself, this extension stays minimal:
+Like Pi itself, this extension stays minimal:
 
-- **UI only, powered by the official SDK.** The extension is a standalone VS Code UI built on the official `@earendil-works/pi-coding-agent` SDK. Agent loop, tools, LLM calls, extension/skill loading — all come from the SDK, unmodified. The pi TUI/CLI does not need to be installed.
-- **Zero VS Code configuration.** No settings pages, no `settings.json` keys. Everything is configured the pi way, in `~/.pi/agent/` — shared with the terminal pi and editable by hand.
-- **Full pi compatibility.** Context (AGENTS.md), skills, extensions, prompt templates, models and auth all work exactly as in the CLI. Sessions are interchangeable between the extension and the terminal. The UI itself follows your VS Code color theme (pi TUI themes are not used for rendering).
+- **UI only, powered by the official SDK.** The extension is a standalone VS Code UI built on the official `@earendil-works/pi-coding-agent` SDK. Agent loop, tools, LLM calls, extension/skill loading — all come from the SDK, unmodified. The Pi TUI/CLI does not need to be installed.
+- **Zero VS Code configuration.** No settings pages, no `settings.json` keys. Everything is configured the Pi way, in `~/.pi/agent/` — shared with the terminal Pi and editable by hand.
+- **Full Pi compatibility.** Context (AGENTS.md), skills, extensions, prompt templates, models and auth all work exactly as in the CLI. Sessions are interchangeable between the extension and the terminal. The UI itself follows your VS Code color theme (Pi TUI themes are not used for rendering).
 - **No feature sprawl.** Single-session mode, a small surface area, and native VS Code integration (diff view, QuickPick, theme colors) where it genuinely helps — nothing more.
 
 ## Single-session mode (by design)
@@ -52,7 +53,7 @@ This is intentional — parallel sessions are not planned:
 - Resource listing pinned above the transcript (Context / Skills / Prompts / Extensions), same as the CLI startup listing
 - Auto-continues the most recent session of the workspace on startup
 - `@` project file references: type `@` in the composer to fuzzy-search workspace files (respecting `.gitignore`; `Ctrl+→` toggles showing ignored files, which are labeled along with potentially sensitive ones); selected files become removable chips and are sent as plain relative paths for the model to `read` itself
-- Visible, sequential SDK subagents: the built-in `subagent` tool creates a persistent child session without the pi CLI; the parent waits, both transcripts remain inspectable, and nested/parallel delegation is disabled
+- Visible, sequential SDK subagents: the built-in `subagent` tool creates a persistent child session without the Pi CLI; the parent waits, both transcripts remain inspectable, and nested/parallel delegation is disabled
 
 ### Subagent-aware skills
 
@@ -69,7 +70,7 @@ pnpm package:vsix                      # produces pi-agent-chat.vsix
 code --install-extension pi-agent-chat.vsix --force
 ```
 
-The VSIX only contains what is needed at runtime: the bundles, styles, and under `dist/node_modules/` the SDK packages (also providing docs/examples/themes resource paths), photon-node and the native clipboard package. Marketplace publishes target-specific VSIX files for Windows x64, Linux x64, macOS x64 and macOS arm64. For manual installation, use the VSIX matching your platform.
+The VSIX only contains what is needed at runtime: the bundles, styles, and under `dist/node_modules/` the SDK packages (also providing docs/examples/themes resource paths), photon-node and the native clipboard package. Marketplace publishes target-specific VSIX files for Windows x64, Linux x64 and macOS arm64. For manual installation, use the VSIX matching your platform.
 
 ## Development
 
@@ -104,6 +105,10 @@ $env:PI_SPIKE_LIVE="1"; node scripts/smoke_load.mjs   # additionally runs a real
 - `src/webview/` — frontend (no framework, direct DOM)
 
 Bundling & SDK adaptation notes (why undici is overridden, `import.meta.url` shims, OAuth flow registration, etc.): `docs/spike-findings.md`.
+
+## Disclaimer
+
+This is an **unofficial**, community-built extension. It is **not affiliated with, endorsed by, or maintained by** the upstream Pi project or Earendil Works. All trademarks belong to their respective owners. Use at your own risk.
 
 ## License
 

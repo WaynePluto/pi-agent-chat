@@ -7,10 +7,13 @@ on:
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   build:
@@ -24,34 +27,30 @@ jobs:
             target: win32-x64
           - os: ubuntu-latest
             target: linux-x64
-          - os: macos-13
-            target: darwin-x64
           - os: macos-14
             target: darwin-arm64
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10.20.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: pnpm
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
-      # The repository currently does not track pnpm-lock.yaml by convention.
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Validate runner architecture
         shell: pwsh
@@ -65,7 +64,6 @@ jobs:
           $expected = @{
             'win32-x64' = 'win32/x64'
             'linux-x64' = 'linux/x64'
-            'darwin-x64' = 'darwin/x64'
             'darwin-arm64' = 'darwin/arm64'
           }[$env:TARGET]
 
@@ -100,14 +98,14 @@ jobs:
           pnpm exec vsce package `
             --target $env:TARGET `
             --no-dependencies `
-            --no-rewrite-relative-links `
+            --githubBranch master `
             --readme-path README.md `
             --out "pi-agent-chat-$env:TAG-$env:TARGET.vsix"
 
       - name: Upload target VSIX
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: vsix-${{ matrix.target }}
+          name: pi-agent-chat-${{ matrix.target }}
           path: pi-agent-chat-${{ github.ref_name }}-${{ matrix.target }}.vsix
           if-no-files-found: error
 
@@ -119,10 +117,15 @@ jobs:
       contents: write
 
     steps:
-      - name: Download target VSIX files
-        uses: actions/download-artifact@v4
+      - name: Checkout
+        uses: actions/checkout@v5
         with:
-          pattern: vsix-*
+          fetch-depth: 0
+
+      - name: Download target VSIX files
+        uses: actions/download-artifact@v8
+        with:
+          pattern: pi-agent-chat-*
           path: artifacts
           merge-multiple: true
 
@@ -131,13 +134,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
         run: |
           $assets = Get-ChildItem -Path artifacts -Filter *.vsix | ForEach-Object { $_.FullName }
           if (-not $assets) {
             throw "No VSIX assets were downloaded."
           }
 
+          $tagVersion = $env:TAG -replace '^v', ''
+          $notesFile = "docs/changelog/$tagVersion.md"
+          if (-not (Test-Path $notesFile)) {
+            throw "Changelog file not found: $notesFile"
+          }
+
+          # Re-create the release so re-tagging the same version works.
+          gh release delete $env:TAG --yes 2>$null | Out-Null
+
+          $notes = Get-Content $notesFile -Raw
+          $notes += "`n---`nFull Changelog: https://github.com/$env:REPO/blob/$env:TAG/docs/changelog/$tagVersion.md`n"
+          $notes += "简体中文: https://github.com/$env:REPO/blob/$env:TAG/docs/changelog/$tagVersion.zh-CN.md`n"
+
           gh release create $env:TAG @assets `
             --verify-tag `
-            --generate-notes `
+            --notes $notes `
             --title "Pi Agent Chat $env:TAG"

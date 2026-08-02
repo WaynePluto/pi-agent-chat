@@ -184,7 +184,7 @@ async function importSession(runtime: PiRuntime, argument: string, actions: Buil
   let target = argument;
   if (!target) {
     const picked = await vscode.window.showOpenDialog({
-      title: "Import pi session",
+      title: "Import Pi session",
       filters: { "Session JSONL": ["jsonl"] },
       canSelectMany: false,
     });
@@ -204,7 +204,7 @@ async function exportSession(runtime: PiRuntime, argument: string, actions: Buil
   let target = argument;
   if (!target) {
     const picked = await vscode.window.showSaveDialog({
-      title: "Export pi session",
+      title: "Export Pi session",
       filters: { "Session JSONL": ["jsonl"] },
       saveLabel: "Export",
     });

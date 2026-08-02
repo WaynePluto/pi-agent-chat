@@ -128,7 +128,16 @@ async function copyRuntimePackages() {
       await cp(source, join(target, name), {
         recursive: true,
         // Nested deps are already bundled; type declarations and maps are dead weight.
-        filter: (path) => !/[\\/]node_modules[\\/]|\.map$|\.d\.ts$/.test(path.slice(source.length)),
+        filter: (path) => {
+          const rel = path.slice(source.length);
+          if (/[\\/]node_modules[\\/]|\.map$|\.d\.ts$|\.d\.mts$|\.d\.cts$/.test(rel)) return false;
+          // The clipboard npm wrapper ships Rust sources and build files that
+          // are never needed at runtime; keep only the JS loader and manifest.
+          if (source === resolve(root, "node_modules", "@mariozechner", "clipboard")) {
+            if (/[\\/]src[\\/]|Cargo\.toml$|build\.rs$|exp\.ts$|\.yarnrc\.yml$/.test(rel)) return false;
+          }
+          return true;
+        },
       });
     } catch (error) {
       console.warn(`[esbuild] skipped runtime package ${name}: ${error.message}`);

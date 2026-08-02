@@ -20,13 +20,13 @@ builds on matching GitHub-hosted runners and creates these target packages:
 
 - `win32-x64`
 - `linux-x64`
-- `darwin-x64`
 - `darwin-arm64`
 
-The current workflow uses `macos-13` for Intel/x64 and `macos-14` for arm64, with
-an architecture check that fails rather than producing a mismatched package. GitHub
-may retire or change macOS runner labels, so check the official runner image list
-before a release if the Intel job stops being available.
+Intel macOS (`darwin-x64`) is intentionally not packaged: the `macos-13` x64
+runner is deprecated and Apple Silicon covers current macOS users. The remaining
+`darwin-arm64` job runs on `macos-14`, with an architecture check that fails
+rather than producing a mismatched package. Intel Mac users can build locally
+with `pnpm package:vsix`.
 
 Do not publish a package built on one operating system as an unqualified universal
 VSIX. For manual installation, use the VSIX matching the user's platform.
@@ -41,14 +41,16 @@ one file per version under `docs/changelog/`:
 CHANGELOG.md
  docs/changelog/
    0.0.1.md
+   0.0.1.zh-CN.md
    0.0.2.md
+   0.0.2.zh-CN.md
 ```
 
 For each release:
 
-1. Add `docs/changelog/<version>.md`.
-2. Add a link to that file in the root `CHANGELOG.md`.
-3. Use an absolute GitHub URL in the index so the link works from Marketplace,
+1. Add `docs/changelog/<version>.md` (English) and `docs/changelog/<version>.zh-CN.md` (Simplified Chinese).
+2. Add links to both files in the root `CHANGELOG.md`.
+3. Use absolute GitHub URLs in the index so the links work from Marketplace,
    where `docs/` is excluded from the VSIX.
 
 ## Local checks
@@ -102,11 +104,10 @@ them manually through Marketplace Publisher Management.
 5. Confirm the extension metadata, README, icon, version and target platform before
    publishing.
 
-The four target files from one release must all use the same extension version:
+The target files from one release must all use the same extension version:
 
 - `win32-x64`
 - `linux-x64`
-- `darwin-x64`
 - `darwin-arm64`
 
 Do not upload the unqualified local Windows artifact as a universal Marketplace
@@ -116,10 +117,15 @@ account step required by Marketplace.
 
 ## Reproducible installs
 
-The repository currently follows its existing convention of not tracking
-`pnpm-lock.yaml`. The workflow consequently uses `pnpm install --no-frozen-lockfile`.
-For stronger release reproducibility, revisit that convention and track the lockfile
-before relying on byte-for-byte repeatable builds.
+The repository tracks `pnpm-lock.yaml` so CI and release builds use the exact
+resolved dependency graph. Workflows install with:
+
+```powershell
+pnpm install --frozen-lockfile
+```
+
+Update the lockfile intentionally when dependency versions change, and include the
+lockfile in the same commit as `package.json`.
 
 ## License notices
 

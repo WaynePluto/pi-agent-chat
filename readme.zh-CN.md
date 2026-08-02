@@ -1,18 +1,19 @@
-# Pi Agent Chat（非官方）
+# Pi Agent Chat
 
 [English](./README.md) | 简体中文
 
-VS Code 侧边栏中的 [pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) 聊天界面。
+[Pi Coding Agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) 原生运行在你的 VS Code 侧边栏中 —— **无需安装 Pi CLI**。
 
-> **免责声明**：本插件为**非官方**社区项目，与上游 pi 项目及 Earendil Works **无任何隶属、授权或维护关系**，相关商标归各自所有者所有。使用风险自负。
+本插件通过内置的**官方** `@earendil-works/pi-coding-agent` SDK（**v0.83.0**）实现，而非 RPC 方式；agent 循环、工具与 LLM 调用都在扩展进程内完成，无需单独安装 Pi CLI，同时与你的 Pi 现有配置完全兼容。
 
-- 插件只做 UI 层，agent 能力 100% 来自官方 SDK `@earendil-works/pi-coding-agent`，SDK 已打包进 VSIX —— **无需安装 pi CLI**。
-- 复用 `~/.pi/agent/` 的全部配置（auth、models、settings、extensions、skills、prompts、AGENTS.md）与默认 sessions 目录，可与终端 pi 互相列出/恢复会话。
+- 插件只做 UI 层，agent 能力 100% 来自官方 SDK `@earendil-works/pi-coding-agent`，SDK 已打包进 VSIX —— **无需安装 Pi CLI**。
+- 复用 `~/.pi/agent/` 的全部配置（auth、models、settings、extensions、skills、prompts、AGENTS.md）与默认 sessions 目录，可与终端 Pi 互相列出/恢复会话。
+- **默认跟随 VS Code 代理配置。** 网络请求自动使用 VS Code 的 `http.proxy` / `http.proxyStrictSSL` 设置，无需为 Pi 单独配置 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量。
 - 内置登录/登出流程：无可用模型时显示认证引导页，支持 OAuth 与 API key。
 - 界面中英双语，跟随 VS Code 显示语言。
-- Marketplace 提供 Windows x64、Linux x64、macOS x64 和 macOS arm64 的目标平台 VSIX；手动安装时请选择匹配当前平台的文件。
+- Marketplace 提供 Windows x64、Linux x64 和 macOS arm64 的目标平台 VSIX；手动安装时请选择匹配当前平台的文件。
 
-> 注意：不要与终端 pi 同时 resume 同一个 session，JSONL 追加写无锁会交错。
+> 注意：不要与终端 Pi 同时 resume 同一个 session，JSONL 追加写无锁会交错。
 
 ## 演示
 
@@ -23,11 +24,11 @@ VS Code 侧边栏中的 [pi coding agent](https://www.npmjs.com/package/@earendi
 
 ## 设计哲学
 
-与 pi 本身一样，本插件保持精简：
+与 Pi 本身一样，本插件保持精简：
 
-- **只做 UI，能力来自官方 SDK。** 基于官方 `@earendil-works/pi-coding-agent` SDK 独立开发的 VS Code UI。Agent 循环、工具、LLM 调用、extension/skill 加载全部来自 SDK，未作任何修改；无需安装 pi 的 TUI/CLI 版本。
-- **零 VS Code 配置。** 没有设置页，不往 `settings.json` 里加任何配置项。一切配置都按 pi 的方式放在 `~/.pi/agent/`，与终端 pi 共享，可直接手工编辑。
-- **完整兼容 pi 生态。** 上下文（AGENTS.md）、skills、extensions、prompt 模板、模型与认证与 CLI 行为完全一致；会话可在插件与终端之间互通。UI 本身跟随 VS Code 颜色主题（不使用 pi 的 TUI 主题渲染）。
+- **只做 UI，能力来自官方 SDK。** 基于官方 `@earendil-works/pi-coding-agent` SDK 独立开发的 VS Code UI。Agent 循环、工具、LLM 调用、extension/skill 加载全部来自 SDK，未作任何修改；无需安装 Pi 的 TUI/CLI 版本。
+- **零 VS Code 配置。** 没有设置页，不往 `settings.json` 里加任何配置项。一切配置都按 Pi 的方式放在 `~/.pi/agent/`，与终端 Pi 共享，可直接手工编辑。
+- **完整兼容 Pi 生态。** 上下文（AGENTS.md）、skills、extensions、prompt 模板、模型与认证与 CLI 行为完全一致；会话可在插件与终端之间互通。UI 本身跟随 VS Code 颜色主题（不使用 Pi 的 TUI 主题渲染）。
 - **不堆功能。** 单会话模式、小而克制的功能面，只在真正有益处时接入 VS Code 原生能力（diff 视图、QuickPick、主题颜色）。
 
 ## 单会话模式（设计理念）
@@ -52,7 +53,7 @@ VS Code 侧边栏中的 [pi coding agent](https://www.npmjs.com/package/@earendi
 - 消息区上方固定资源列表（Context / Skills / Prompts / Extensions），与 CLI 启动列表一致
 - 启动时自动 continue 当前工作区最近的会话
 - `@` 项目文件引用：在输入框输入 `@` 模糊搜索工作区文件（默认遵循 `.gitignore`；`Ctrl+→` 切换显示被忽略文件，并标记 ignored / 敏感文件）；选中文件显示为可移除 chip，发送时以相对路径纯文本附在消息后，由模型自行 `read`
-- 可见、串行的 SDK 子代理：内置 `subagent` 工具无需 pi CLI 即可创建持久子会话；主代理等待，父/子 transcript 均可查看，并禁止嵌套和并行委派
+- 可见、串行的 SDK 子代理：内置 `subagent` 工具无需 Pi CLI 即可创建持久子会话；主代理等待，父/子 transcript 均可查看，并禁止嵌套和并行委派
 
 ### 支持子代理的 Skill
 
@@ -69,7 +70,7 @@ pnpm package:vsix                      # 生成 pi-agent-chat.vsix
 code --install-extension pi-agent-chat.vsix --force
 ```
 
-打包产物只包含运行时必需内容：bundle、样式，以及 `dist/node_modules/` 下的 SDK 包目录（提供 docs/examples/主题等资源路径）、photon-node 与原生剪贴板。Marketplace 会分别发布 Windows x64、Linux x64、macOS x64 和 macOS arm64 的目标平台 VSIX；手动安装时请选择匹配当前平台的文件。
+打包产物只包含运行时必需内容：bundle、样式，以及 `dist/node_modules/` 下的 SDK 包目录（提供 docs/examples/主题等资源路径）、photon-node 与原生剪贴板。Marketplace 会分别发布 Windows x64、Linux x64 和 macOS arm64 的目标平台 VSIX；手动安装时请选择匹配当前平台的文件。
 
 ## 开发
 
@@ -104,6 +105,10 @@ $env:PI_SPIKE_LIVE="1"; node scripts/smoke_load.mjs   # 额外跑一次真实 pr
 - `src/webview/` — 前端（无框架，DOM 直操作）
 
 打包与 SDK 适配说明（undici override 原因、`import.meta.url` 注入、OAuth flow 静态注册等）见 `docs/spike-findings.md`。
+
+## 免责声明
+
+本插件为**非官方**社区项目，与上游 Pi 项目及 Earendil Works **无任何隶属、授权或维护关系**，相关商标归各自所有者所有。使用风险自负。
 
 ## 许可证
 

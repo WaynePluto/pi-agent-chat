@@ -1,6 +1,6 @@
 ---
 name: update-dependencies
-description: 检查并更新本项目（pi-agent-chat）的依赖版本。优先检查 @earendil-works/pi-ai 与 @earendil-works/pi-coding-agent 是否有新版本；若 pi 相关依赖无新版本则跳过其余依赖检查。更新后运行项目验证并整理 pi SDK 新功能吸收建议。当用户要求更新依赖、升级 pi SDK、或检查依赖新版本时使用。
+description: 检查并更新本项目（pi-agent-chat）的依赖版本。优先检查 @earendil-works/pi-ai 与 @earendil-works/pi-coding-agent 是否有新版本；若 Pi 相关依赖无新版本则跳过其余依赖检查。更新后运行项目验证并整理 Pi SDK 新功能吸收建议。当用户要求更新依赖、升级 Pi SDK、或检查依赖新版本时使用。
 ---
 
 # update-dependencies
@@ -9,7 +9,7 @@ description: 检查并更新本项目（pi-agent-chat）的依赖版本。优先
 
 ## 步骤
 
-### 1. 检查 pi SDK 是否有新版本
+### 1. 检查 Pi SDK 是否有新版本
 
 ```powershell
 npm view @earendil-works/pi-coding-agent version
@@ -18,10 +18,10 @@ npm view @earendil-works/pi-ai version
 
 与 `package.json` 中的当前版本比较。**两个包必须保持同一版本号**（上游同步发布）。
 
-- 若无新版本：告知用户“pi SDK 已是最新”，**结束，不再检查其他依赖**。
+- 若无新版本：告知用户“Pi SDK 已是最新”，**结束，不再检查其他依赖**。
 - 若有新版本：继续。
 
-### 2. 更新 pi SDK
+### 2. 更新 Pi SDK
 
 编辑 `package.json`，将 `@earendil-works/pi-ai` 与 `@earendil-works/pi-coding-agent` 的
 `dependencies` 版本改为新版本，然后：
@@ -33,7 +33,7 @@ pnpm install
 注意：`undici` 被 `pnpm.overrides` 锁定为修复代理的版本，**不要**因 SDK 升级而顺手改动它，
 除非确认新 undici 版本 >= 当前锁定版本且包含代理转发修复（见 AGENTS.md 已知陷阱）。
 
-### 3. 检查其余依赖（仅当 pi SDK 有更新时）
+### 3. 检查其余依赖（仅当 Pi SDK 有更新时）
 
 ```powershell
 pnpm outdated
@@ -63,7 +63,7 @@ pnpm verify        # 构建产物校验 + 无头冒烟测试（含 SDK 加载、
 可选：`pnpm package:vsix` 后在 Extension Development Host（F5）里手动过一轮
 prompt + 工具调用 + session 切换。
 
-### 5. 整理 pi SDK 新功能吸收建议
+### 5. 整理 Pi SDK 新功能吸收建议
 
 比较新旧版本，寻找插件可吸收的新能力：
 

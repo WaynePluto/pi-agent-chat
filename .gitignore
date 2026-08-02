@@ -3,9 +3,9 @@ dist/
 out/
 *.vsix
 
-# 依赖锁文件不纳入版本控制（按项目约定）
+# npm/yarn lock files are not used by this pnpm project.
+# pnpm-lock.yaml is tracked for reproducible CI and release builds.
 package-lock.json
-pnpm-lock.yaml
 yarn.lock
 npm-shrinkwrap.json
 

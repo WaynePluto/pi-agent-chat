@@ -1,6 +1,6 @@
 # AGENTS.md — pi-agent-chat
 
-非官方 VS Code 插件：在侧边栏提供 pi coding agent 的聊天 UI。插件只做 UI 层，agent 能力全部来自官方 SDK `@earendil-works/pi-coding-agent`。
+非官方 VS Code 插件：在侧边栏提供 Pi Coding Agent 的聊天 UI。插件只做 UI 层，agent 能力全部来自官方 SDK `@earendil-works/pi-coding-agent`。
 
 ## 架构速览
 
@@ -15,9 +15,9 @@
 
 ## 关键约定
 
-- 会话文件与配置完全复用 `~/.pi/agent/`（auth.json、models.json、settings、extensions、skills），与终端 pi 可互操作；不要引入插件私有的配置副本。
+- 会话文件与配置完全复用 `~/.pi/agent/`（auth.json、models.json、settings、extensions、skills），与终端 Pi 可互操作；不要引入插件私有的配置副本。
 - 每次 `runtime.session` 被替换（new/resume/fork/tree）后必须重新 `bindExtensions()` 并重订阅事件 —— 走 `ChatBridge.attach()`。
-- 不要与终端 pi 同时 resume 同一个 session（JSONL 追加写无锁）。
+- 不要与终端 Pi 同时 resume 同一个 session（JSONL 追加写无锁）。
 - protocol.ts 修改后需同步 host 端（bridge）与 webview 端（main.ts）两侧。
 - UI 文案改动要同时更新 `i18n.ts` 的 en 与 zh 两套字典。
 
