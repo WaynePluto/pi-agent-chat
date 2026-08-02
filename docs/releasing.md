@@ -60,7 +60,7 @@ Run the same checks used by the release workflow:
 ```powershell
 pnpm typecheck
 pnpm verify
-pnpm exec vsce package --target win32-x64 --no-dependencies --readme-path README.md --out pi-agent-chat-win32-x64.vsix
+pnpm exec vsce package --target win32-x64 --no-dependencies --readme-path README.md --out pi-code-agent-chat-win32-x64.vsix
 ```
 
 Inspect package contents before distributing an artifact:

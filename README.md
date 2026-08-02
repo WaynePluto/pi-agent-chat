@@ -66,8 +66,8 @@ While a child runs, its composer is read-only and it can be stopped independentl
 
 ```powershell
 pnpm install
-pnpm package:vsix                      # produces pi-agent-chat.vsix
-code --install-extension pi-agent-chat.vsix --force
+pnpm package:vsix                      # produces pi-code-agent-chat.vsix
+code --install-extension pi-code-agent-chat.vsix --force
 ```
 
 The VSIX only contains what is needed at runtime: the bundles, styles, and under `dist/node_modules/` the SDK packages (also providing docs/examples/themes resource paths), photon-node and the native clipboard package. Marketplace publishes target-specific VSIX files for Windows x64, Linux x64 and macOS arm64. For manual installation, use the VSIX matching your platform.

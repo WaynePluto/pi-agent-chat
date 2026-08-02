@@ -1,5 +1,5 @@
 {
-  "name": "pi-agent-chat",
+  "name": "pi-code-agent-chat",
   "displayName": "Pi Agent Chat",
   "description": "VS Code sidebar chat for the Pi Coding Agent, powered by the official SDK bundled inside the extension — no Pi CLI required. Unofficial community project.",
   "version": "0.0.1",
@@ -72,7 +72,7 @@
     "package": "node esbuild.mjs --production",
     "typecheck": "tsc --noEmit",
     "verify": "node esbuild.mjs && python scripts/check_bundle.py && node scripts/smoke_load.mjs",
-    "package:vsix": "vsce package --no-dependencies --githubBranch master --readme-path README.md --out pi-agent-chat.vsix",
+    "package:vsix": "vsce package --no-dependencies --githubBranch master --readme-path README.md --out pi-code-agent-chat.vsix",
     "vscode:prepublish": "npm run package"
   },
   "dependencies": {

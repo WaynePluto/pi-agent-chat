@@ -66,8 +66,8 @@ Skill 应检测能力而不是判断具体 UI：若当前提供 `subagent` 工�
 
 ```powershell
 pnpm install
-pnpm package:vsix                      # 生成 pi-agent-chat.vsix
-code --install-extension pi-agent-chat.vsix --force
+pnpm package:vsix                      # 生成 pi-code-agent-chat.vsix
+code --install-extension pi-code-agent-chat.vsix --force
 ```
 
 打包产物只包含运行时必需内容：bundle、样式，以及 `dist/node_modules/` 下的 SDK 包目录（提供 docs/examples/主题等资源路径）、photon-node 与原生剪贴板。Marketplace 会分别发布 Windows x64、Linux x64 和 macOS arm64 的目标平台 VSIX；手动安装时请选择匹配当前平台的文件。
