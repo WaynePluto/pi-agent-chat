@@ -1,79 +1,103 @@
-"""Generate media/icon.png (128x128 marketplace icon) with PIL.
+"""Generate ``media/icon.png`` for the Pi Agent Chat extension.
 
-Design: rounded-square VS Code blue gradient tile, white chat bubble, pi glyph.
-Drawn at 8x and downsampled for anti-aliasing. Re-run after design changes:
+The icon is intentionally a flat, two-colour design: a ``#24abf2`` rounded
+square, a white chat bubble with a lower-left tail, and a blue pi glyph.
+The artwork is rendered at a larger size and downsampled for clean edges.
+
+Run from the repository root with::
 
     python scripts/make_icon.py
 """
 
+from __future__ import annotations
+
+import os
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
-SCALE = 8
-SIZE = 128 * SCALE
-OUT = Path(__file__).resolve().parent.parent / "media" / "icon.png"
+ICON_SIZE = 128
+SCALE = 6
+CANVAS_SIZE = ICON_SIZE * SCALE
+OUTPUT = Path(__file__).resolve().parent.parent / "media" / "icon.png"
+
+BACKGROUND = (36, 171, 242, 255)  # #24abf2
+BUBBLE = (249, 252, 255, 255)
+PI_INK = (16, 112, 174, 255)
 
 
-def lerp(a: tuple, b: tuple, t: float) -> tuple:
-    return tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+def scale_box(values: tuple[float, float, float, float]) -> tuple[int, int, int, int]:
+    """Scale a logical icon-space bounding box to the render canvas."""
+    return tuple(round(value * SCALE) for value in values)  # type: ignore[return-value]
+
+
+def scale_points(points: list[tuple[float, float]]) -> list[tuple[int, int]]:
+    """Scale logical icon-space points to the render canvas."""
+    return [(round(x * SCALE), round(y * SCALE)) for x, y in points]
+
+
+def pi_font() -> ImageFont.FreeTypeFont:
+    """Load the font used for the approved pi glyph design.
+
+    Cambria is available on the Windows development environment and gives the
+    lowercase Greek pi the distinctive, readable shape used in the PNG. An
+    environment override keeps the script usable if the font is installed in
+    a non-standard location.
+    """
+    override = os.environ.get("PI_ICON_FONT")
+    candidates = [
+        Path(override) if override else None,
+        Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts" / "cambria.ttc",
+        Path("/usr/share/fonts/truetype/msttcorefonts/Cambria.ttf"),
+        Path("/usr/share/fonts/truetype/msttcorefonts/cambria.ttf"),
+    ]
+
+    for candidate in candidates:
+        if candidate is not None and candidate.is_file():
+            return ImageFont.truetype(str(candidate), 56 * SCALE)
+
+    searched = ", ".join(str(path) for path in candidates if path is not None)
+    raise FileNotFoundError(
+        "Could not find the Cambria font used for the pi glyph. "
+        f"Install it or set PI_ICON_FONT to a font file. Searched: {searched}"
+    )
 
 
 def main() -> None:
-    img = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
+    image = Image.new("RGBA", (CANVAS_SIZE, CANVAS_SIZE), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
 
-    # Vertical gradient tile (VS Code brand blues: light #2C9DF2-ish -> deep #0E639C/#005A9E),
-    # rounded corners.
-    top, bottom = (44, 157, 242), (0, 68, 130)
-    gradient = Image.new("RGBA", (SIZE, SIZE))
-    gdraw = ImageDraw.Draw(gradient)
-    for y in range(SIZE):
-        gdraw.line([(0, y), (SIZE, y)], fill=lerp(top, bottom, y / SIZE) + (255,))
-    mask = Image.new("L", (SIZE, SIZE), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, SIZE - 1, SIZE - 1], radius=SIZE // 5, fill=255)
-    img.paste(gradient, (0, 0), mask)
-
-    # Chat bubble (white outline), tail pointing bottom-left.
-    white = (255, 255, 255, 255)
-    stroke = 7 * SCALE
-
-    def pt(x: float, y: float) -> tuple:
-        return (x * SCALE, y * SCALE)
-
-    bubble = [pt(24, 26), pt(104, 78)]  # rounded rect of the bubble body
-    draw.rounded_rectangle(bubble, radius=16 * SCALE, outline=white, width=stroke)
-    # Tail: triangle from bubble bottom edge to lower-left.
-    draw.polygon([pt(34, 74), pt(56, 74), pt(30, 98)], fill=white)
-    # Erase the seam between tail and bubble border by refilling the overlap.
+    # Flat rounded-square background.
     draw.rounded_rectangle(
-        [pt(24 + 7, 26 + 7), pt(104 - 7, 78 - 7)],
-        radius=11 * SCALE,
-        fill=lerp((44, 157, 242), (0, 68, 130), 0.5) + (0,),
+        scale_box((0, 0, ICON_SIZE, ICON_SIZE)),
+        radius=28 * SCALE,
+        fill=BACKGROUND,
     )
-    # Repaint bubble interior with the gradient (keep outline + tail).
-    interior = Image.new("L", (SIZE, SIZE), 0)
-    ImageDraw.Draw(interior).rounded_rectangle(
-        [pt(24 + 7, 26 + 7), pt(104 - 7, 78 - 7)], radius=11 * SCALE, fill=255
+
+    # Filled speech bubble. The broad lower-left tail is part of the same
+    # shape, so it does not read as a separate tear or decorative mark.
+    draw.rounded_rectangle(
+        scale_box((16, 24, 112, 88)),
+        radius=20 * SCALE,
+        fill=BUBBLE,
     )
-    img.paste(gradient, (0, 0), interior)
+    draw.polygon(
+        scale_points([(27, 76), (27, 104), (53, 80)]),
+        fill=BUBBLE,
+    )
 
-    # Pi glyph inside the bubble.
-    draw = ImageDraw.Draw(img)
-    pi_stroke = 6 * SCALE
-    # top bar with a slight overhang
-    draw.line([pt(42, 42), pt(86, 42)], fill=white, width=pi_stroke)
-    # two straight legs (clean shape stays readable at 16px)
-    draw.line([pt(52, 42), pt(52, 64)], fill=white, width=pi_stroke)
-    draw.line([pt(76, 42), pt(76, 64)], fill=white, width=pi_stroke)
-    # round the line caps
-    for cx, cy in [(42, 42), (86, 42), (52, 64), (76, 64)]:
-        r = pi_stroke // 2
-        draw.ellipse([cx * SCALE - r, cy * SCALE - r, cx * SCALE + r, cy * SCALE + r], fill=white)
+    # Centered lowercase Greek pi.
+    draw.text(
+        (64 * SCALE, 56 * SCALE),
+        "π",
+        font=pi_font(),
+        anchor="mm",
+        fill=PI_INK,
+    )
 
-    img = img.resize((128, 128), Image.LANCZOS)
-    img.save(OUT)
-    print(f"wrote {OUT}")
+    result = image.resize((ICON_SIZE, ICON_SIZE), Image.Resampling.LANCZOS)
+    result.save(OUTPUT, optimize=True)
+    print(f"wrote {OUTPUT}")
 
 
 if __name__ == "__main__":
