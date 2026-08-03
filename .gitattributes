@@ -1,0 +1,5 @@
+# Pin the webview snapshot to LF: it is compared byte-for-byte against the
+# output of smoke_webview.mjs, which always writes LF. Without this rule,
+# Windows checkouts (core.autocrlf=true) would turn it into CRLF and make
+# the comparison fail on CI.
+scripts/webview-snapshot.txt text eol=lf

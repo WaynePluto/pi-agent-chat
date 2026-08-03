@@ -267,7 +267,10 @@ async function run() {
     return;
   }
 
-  const expected = readFileSync(baselinePath, "utf8");
+  const expected = readFileSync(baselinePath, "utf8").replace(/\r\n/g, "\n");
+  // Normalize CRLF so the comparison is stable on Windows checkouts with
+  // core.autocrlf=true (the snapshot file is pinned to LF via .gitattributes,
+  // but this guards against local clones without that rule).
   if (expected === actual) {
     console.log(`[ok]   webview snapshot matches (${SCRIPT.length} steps, ${posted.length} host messages)`);
     return;
