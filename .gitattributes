@@ -1,5 +1,9 @@
-# Pin the webview snapshot to LF: it is compared byte-for-byte against the
-# output of smoke_webview.mjs, which always writes LF. Without this rule,
-# Windows checkouts (core.autocrlf=true) would turn it into CRLF and make
-# the comparison fail on CI.
-scripts/webview-snapshot.txt text eol=lf
+# Normalize all text files to LF: stored as LF in the repo and checked out as
+# LF on every platform. Without eol=lf, Windows checkouts (core.autocrlf=true)
+# would turn text files into CRLF and break byte-for-byte comparisons (e.g.
+# the webview snapshot test in scripts/smoke_webview.mjs).
+* text=auto eol=lf
+
+# Binary assets: never normalize.
+*.png binary
+*.gif binary
