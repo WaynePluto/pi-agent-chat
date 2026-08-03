@@ -8,6 +8,7 @@ import {
   type AgentSessionServices,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
+import { describe } from "./errors.js";
 
 export type SubagentStopReason = "child" | "parent" | "disposed";
 
@@ -209,7 +210,7 @@ export class SubagentCoordinator {
     } catch (error) {
       outcome = this.stopReason
         ? stoppedOutcome(this.stopReason)
-        : { status: "failed", text: `Subagent failed: ${error instanceof Error ? error.message : String(error)}` };
+        : { status: "failed", text: `Subagent failed: ${describe(error)}` };
     } finally {
       signal?.removeEventListener("abort", abortFromParent);
       unsubscribe();

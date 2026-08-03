@@ -1,0 +1,1501 @@
+===== startup: resources + commands + empty state =====
+<div id="root">
+  <header class="header">
+    <div class="header-title">
+      "Pi Agent Chat"
+      <span class="unofficial">
+        "unofficial"
+    <div class="header-actions">
+      <button id="btn-new" title="Start a new session" disabled>
+        "New"
+      <button id="btn-sessions" title="Browse, resume or delete sessions">
+        "Sessions"
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)" disabled>
+        "Session tree"
+      <button id="btn-providers" title="Sign in / configure a model provider">
+        "Providers"
+  <div id="sessions" class="sessions hidden">
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources">
+    <div class="resources-panel collapsed">
+      <button class="resources-toggle" title="Expand" aria-expanded="false" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 1"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/AGENTS.md"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/.agents/skills/demo/SKILL.md"
+            <div>
+              "broken.md: parse failed"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+    <button id="delegation-peer" class="secondary">
+  <div class="messages-wrap">
+    <main id="messages" class="messages">
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <footer id="composer" class="composer">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div class="composer-actions">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <button id="btn-send" class="icon-button" title="Send (Enter)">
+        <svg/>
+    <div id="statusline" class="statusline">
+      <div class="statusline-row">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
+===== history replay: user + thinking + tool + assistant =====
+<div id="root">
+  <header class="header">
+    <div class="header-title">
+      "Pi Agent Chat"
+      <span class="unofficial">
+        "unofficial"
+    <div class="header-actions">
+      <button id="btn-new" title="Start a new session">
+        "New"
+      <button id="btn-sessions" title="Browse, resume or delete sessions">
+        "Sessions"
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)">
+        "Session tree"
+      <button id="btn-providers" title="Sign in / configure a model provider">
+        "Providers"
+  <div id="sessions" class="sessions hidden">
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources">
+    <div class="resources-panel collapsed">
+      <button class="resources-toggle" title="Expand" aria-expanded="false" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 1"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/AGENTS.md"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/.agents/skills/demo/SKILL.md"
+            <div>
+              "broken.md: parse failed"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+    <button id="delegation-peer" class="secondary">
+  <div class="messages-wrap">
+    <main id="messages" class="messages">
+      <div class="bubble markdown user">
+        <p>
+          "Fix the bug in"
+          <strong>
+            "demo.ts"
+      <section class="work-block collapsed finished">
+        <button class="work-header" title="Expand" aria-expanded="false" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 1 · tools 1"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="thinking-card collapsed">
+            <button class="card-header" title="Expand" aria-expanded="false" type="button">
+              <span class="card-label">
+                "thinking finished"
+              <span class="card-status">
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+          <div class="tool-card collapsed">
+            <button class="card-header" title="Expand" aria-expanded="false" type="button">
+              <span class="card-label">
+                "edit"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+      <div class="bubble markdown assistant">
+        <p>
+          "Done."
+        <ul>
+          <li>
+            "changed"
+            <code>
+              "b"
+            "to 3"
+          <li>
+            "nothing else"
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <footer id="composer" class="composer">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div class="composer-actions">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <button id="btn-send" class="icon-button" title="Send (Enter)">
+        <svg/>
+    <div id="statusline" class="statusline">
+      <div class="statusline-row">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
+===== live streaming: thinking, tool call, text delta =====
+<div id="root">
+  <header class="header">
+    <div class="header-title">
+      "Pi Agent Chat"
+      <span class="unofficial">
+        "unofficial"
+    <div class="header-actions">
+      <button id="btn-new" title="Start a new session" disabled>
+        "New"
+      <button id="btn-sessions" title="Browse, resume or delete sessions">
+        "Sessions"
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)" disabled>
+        "Session tree"
+      <button id="btn-providers" title="Sign in / configure a model provider">
+        "Providers"
+  <div id="sessions" class="sessions hidden">
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources">
+    <div class="resources-panel collapsed">
+      <button class="resources-toggle" title="Expand" aria-expanded="false" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 1"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/AGENTS.md"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/.agents/skills/demo/SKILL.md"
+            <div>
+              "broken.md: parse failed"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+    <button id="delegation-peer" class="secondary">
+  <div class="messages-wrap">
+    <main id="messages" class="messages">
+      <div class="bubble markdown user">
+        <p>
+          "Fix the bug in"
+          <strong>
+            "demo.ts"
+      <section class="work-block collapsed finished">
+        <button class="work-header" title="Expand" aria-expanded="false" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 1 · tools 1"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="thinking-card collapsed">
+            <button class="card-header" title="Expand" aria-expanded="false" type="button">
+              <span class="card-label">
+                "thinking finished"
+              <span class="card-status">
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+          <div class="tool-card collapsed">
+            <button class="card-header" title="Expand" aria-expanded="false" type="button">
+              <span class="card-label">
+                "edit"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+      <div class="bubble markdown assistant">
+        <p>
+          "Done."
+        <ul>
+          <li>
+            "changed"
+            <code>
+              "b"
+            "to 3"
+          <li>
+            "nothing else"
+      <section class="work-block collapsed finished">
+        <button class="work-header" title="Expand" aria-expanded="false" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 1 · tools 1 · failed 1"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="thinking-card collapsed">
+            <button class="card-header" title="Expand" aria-expanded="false" type="button">
+              <span class="card-label">
+                "thinking finished"
+              <span class="card-status">
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+          <div class="tool-card collapsed error">
+            <button class="card-header" title="Expand" aria-expanded="false" type="button">
+              <span class="card-label">
+                "bash"
+              <span class="card-status">
+                "error"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+      <div class="bubble markdown assistant">
+      <div class="working-row">
+        <span class="working-spinner">
+          "⠋"
+        <span>
+          "Working..."
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <footer id="composer" class="composer">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div class="composer-actions">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <button id="btn-steer" class="secondary" title="Interrupt with new instructions">
+        "Steer"
+      <button id="btn-followup" class="secondary" title="Queue for after this run">
+        "Follow up"
+      <button id="btn-send" class="icon-button stop" title="Stop the current run">
+        <svg/>
+    <div id="statusline" class="statusline">
+      <div class="statusline-row">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
+===== run finished: status + error notices =====
+<div id="root">
+  <header class="header">
+    <div class="header-title">
+      "Pi Agent Chat"
+      <span class="unofficial">
+        "unofficial"
+    <div class="header-actions">
+      <button id="btn-new" title="Start a new session">
+        "New"
+      <button id="btn-sessions" title="Browse, resume or delete sessions">
+        "Sessions"
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)">
+        "Session tree"
+      <button id="btn-providers" title="Sign in / configure a model provider">
+        "Providers"
+  <div id="sessions" class="sessions hidden">
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources">
+    <div class="resources-panel collapsed">
+      <button class="resources-toggle" title="Expand" aria-expanded="false" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 1"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/AGENTS.md"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/.agents/skills/demo/SKILL.md"
+            <div>
+              "broken.md: parse failed"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+    <button id="delegation-peer" class="secondary">
+  <div class="messages-wrap">
+    <main id="messages" class="messages">
+      <div class="bubble markdown user">
+        <p>
+          "Fix the bug in"
+          <strong>
+            "demo.ts"
+      <section class="work-block collapsed finished">
+        <button class="work-header" title="Expand" aria-expanded="false" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 1 · tools 1"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="thinking-card collapsed">
+            <button class="card-header" title="Expand" aria-expanded="false" type="button">
+              <span class="card-label">
+                "thinking finished"
+              <span class="card-status">
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+          <div class="tool-card collapsed">
+            <button class="card-header" title="Expand" aria-expanded="false" type="button">
+              <span class="card-label">
+                "edit"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+      <div class="bubble markdown assistant">
+        <p>
+          "Done."
+        <ul>
+          <li>
+            "changed"
+            <code>
+              "b"
+            "to 3"
+          <li>
+            "nothing else"
+      <section class="work-block collapsed finished">
+        <button class="work-header" title="Expand" aria-expanded="false" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 1 · tools 1 · failed 1"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="thinking-card collapsed">
+            <button class="card-header" title="Expand" aria-expanded="false" type="button">
+              <span class="card-label">
+                "thinking finished"
+              <span class="card-status">
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+          <div class="tool-card collapsed error">
+            <button class="card-header" title="Expand" aria-expanded="false" type="button">
+              <span class="card-label">
+                "bash"
+              <span class="card-status">
+                "error"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+      <div class="bubble markdown assistant">
+        <p>
+          "Here is the"
+          <strong>
+            "result"
+          "."
+      <section class="work-block collapsed finished">
+        <button class="work-header" title="Expand" aria-expanded="false" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 0 · tools 0"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="notice-card flat status">
+            <span class="card-label">
+              "compaction done"
+          <div class="notice-card flat error">
+            <span class="card-label">
+              "provider rejected the request"
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <footer id="composer" class="composer">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div class="composer-actions">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <button id="btn-send" class="icon-button" title="Send (Enter)">
+        <svg/>
+    <div id="statusline" class="statusline">
+      <div class="statusline-row">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
+===== expanded cards: work block, tool card, resources =====
+<div id="root">
+  <header class="header">
+    <div class="header-title">
+      "Pi Agent Chat"
+      <span class="unofficial">
+        "unofficial"
+    <div class="header-actions">
+      <button id="btn-new" title="Start a new session">
+        "New"
+      <button id="btn-sessions" title="Browse, resume or delete sessions">
+        "Sessions"
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)">
+        "Session tree"
+      <button id="btn-providers" title="Sign in / configure a model provider">
+        "Providers"
+  <div id="sessions" class="sessions hidden">
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources">
+    <div class="resources-panel">
+      <button class="resources-toggle" title="Collapse" aria-expanded="true" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 1"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/AGENTS.md"
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/.agents/skills/demo/SKILL.md"
+            <div>
+              "broken.md: parse failed"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+    <button id="delegation-peer" class="secondary">
+  <div class="messages-wrap">
+    <main id="messages" class="messages">
+      <div class="bubble markdown user">
+        <p>
+          "Fix the bug in"
+          <strong>
+            "demo.ts"
+      <section class="work-block finished">
+        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 1 · tools 1"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="thinking-card">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "thinking finished"
+              <span class="card-status">
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <p>
+                "Reading the file first."
+          <div class="tool-card">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "edit"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"path":"src/demo.ts"}"
+              <div>
+                <div class="diff-line hunk">
+                  "@@ -1,3 +1,3 @@"
+                <div class="diff-line">
+                  "const a = 1;"
+                <div class="diff-line removed">
+                  "-const b = 2;"
+                <div class="diff-line added">
+                  "+const b = 3;"
+                <div class="diff-line">
+                  "const c = 4;"
+              <div class="tool-actions">
+                <button class="secondary" type="button">
+                  "Open diff"
+                <button class="secondary" type="button">
+                  "Open file"
+      <div class="bubble markdown assistant">
+        <p>
+          "Done."
+        <ul>
+          <li>
+            "changed"
+            <code>
+              "b"
+            "to 3"
+          <li>
+            "nothing else"
+      <section class="work-block finished">
+        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 1 · tools 1 · failed 1"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="thinking-card">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "thinking finished"
+              <span class="card-status">
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <p>
+                "Considering options"
+          <div class="tool-card error">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "bash"
+              <span class="card-status">
+                "error"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"cmd":"ls"}"
+              <pre class="tool-body">
+                "boom"
+      <div class="bubble markdown assistant">
+        <p>
+          "Here is the"
+          <strong>
+            "result"
+          "."
+      <section class="work-block finished">
+        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 0 · tools 0"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="notice-card flat status">
+            <span class="card-label">
+              "compaction done"
+          <div class="notice-card flat error">
+            <span class="card-label">
+              "provider rejected the request"
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <footer id="composer" class="composer">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div class="composer-actions">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <button id="btn-send" class="icon-button" title="Send (Enter)">
+        <svg/>
+    <div id="statusline" class="statusline">
+      <div class="statusline-row">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
+===== delegation: child session displayed =====
+<div id="root">
+  <header class="header">
+    <div class="header-title">
+      "Pi Agent Chat"
+      <span class="unofficial">
+        "unofficial"
+    <div class="header-actions">
+      <button id="btn-new" title="Start a new session" disabled>
+        "New"
+      <button id="btn-sessions" title="Browse, resume or delete sessions">
+        "Sessions"
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)" disabled>
+        "Session tree"
+      <button id="btn-providers" title="Sign in / configure a model provider">
+        "Providers"
+  <div id="sessions" class="sessions hidden">
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources">
+    <div class="resources-panel">
+      <button class="resources-toggle" title="Collapse" aria-expanded="true" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 1"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/AGENTS.md"
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/.agents/skills/demo/SKILL.md"
+            <div>
+              "broken.md: parse failed"
+  <div id="delegation-bar" class="delegation-bar">
+    <span id="delegation-label">
+      "Subagent running: research task"
+    <button id="delegation-peer" class="secondary">
+      "View parent"
+  <div class="messages-wrap">
+    <main id="messages" class="messages">
+      <div class="bubble markdown user">
+        <p>
+          "Fix the bug in"
+          <strong>
+            "demo.ts"
+      <section class="work-block finished">
+        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 1 · tools 1"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="thinking-card">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "thinking finished"
+              <span class="card-status">
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <p>
+                "Reading the file first."
+          <div class="tool-card">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "edit"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"path":"src/demo.ts"}"
+              <div>
+                <div class="diff-line hunk">
+                  "@@ -1,3 +1,3 @@"
+                <div class="diff-line">
+                  "const a = 1;"
+                <div class="diff-line removed">
+                  "-const b = 2;"
+                <div class="diff-line added">
+                  "+const b = 3;"
+                <div class="diff-line">
+                  "const c = 4;"
+              <div class="tool-actions">
+                <button class="secondary" type="button">
+                  "Open diff"
+                <button class="secondary" type="button">
+                  "Open file"
+      <div class="bubble markdown assistant">
+        <p>
+          "Done."
+        <ul>
+          <li>
+            "changed"
+            <code>
+              "b"
+            "to 3"
+          <li>
+            "nothing else"
+      <section class="work-block finished">
+        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 1 · tools 1 · failed 1"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="thinking-card">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "thinking finished"
+              <span class="card-status">
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <p>
+                "Considering options"
+          <div class="tool-card error">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "bash"
+              <span class="card-status">
+                "error"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"cmd":"ls"}"
+              <pre class="tool-body">
+                "boom"
+      <div class="bubble markdown assistant">
+        <p>
+          "Here is the"
+          <strong>
+            "result"
+          "."
+      <section class="work-block finished">
+        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 0 · tools 0"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="notice-card flat status">
+            <span class="card-label">
+              "compaction done"
+          <div class="notice-card flat error">
+            <span class="card-label">
+              "provider rejected the request"
+      <div class="working-row">
+        <span class="working-spinner">
+          "⠋"
+        <span>
+          "Subagent working..."
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <footer id="composer" class="composer">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="This subagent is running autonomously. You can watch or stop it." disabled>
+    <div class="composer-actions">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model" disabled>
+        "test-model"
+      <button id="btn-thinking" class="chip" title="Switch thinking level" disabled>
+        "medium"
+      <span class="spacer">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <button id="btn-send" class="icon-button stop" title="Stop this subagent; the parent agent will resume">
+        <svg/>
+    <div id="statusline" class="statusline">
+      <div class="statusline-row">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
+===== sessions page =====
+<div id="root">
+  <header class="header">
+    <div class="header-title">
+      "Pi Agent Chat"
+      <span class="unofficial">
+        "unofficial"
+    <div class="header-actions">
+      <button id="btn-new" title="Start a new session">
+        "New"
+      <button id="btn-sessions" title="Browse, resume or delete sessions" disabled>
+        "Sessions"
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)" disabled>
+        "Session tree"
+      <button id="btn-providers" title="Sign in / configure a model provider">
+        "Providers"
+  <div id="sessions" class="sessions">
+    <div class="sessions-header">
+      <span>
+        "Sessions"
+    <div class="session-row current" title="/workspace/a.jsonl">
+      <button class="session-main" title="Resume this session" type="button">
+        <span class="session-title">
+          "current session"
+        <span class="session-meta">
+          "2026-01-02 03:04"
+      <span class="session-badge">
+        "current"
+    <div class="session-row" title="/workspace/b.jsonl">
+      <button class="session-main" title="Resume this session" type="button">
+        <span class="session-title">
+          "older session"
+        <span class="session-meta">
+          "2026-01-01 00:00"
+      <button class="session-delete" title="Delete this session file" type="button">
+        "Delete"
+    <div class="session-row delegation-child" title="/workspace/c.jsonl">
+      <button class="session-main" title="Resume this session" type="button">
+        <span class="session-title">
+          "delegated child"
+        <span class="session-meta">
+          "2026-01-03 00:00"
+      <span class="session-badge">
+        <span class="working-spinner">
+          "⠋"
+        "subagent"
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources hidden">
+    <div class="resources-panel">
+      <button class="resources-toggle" title="Collapse" aria-expanded="true" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 1"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/AGENTS.md"
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/.agents/skills/demo/SKILL.md"
+            <div>
+              "broken.md: parse failed"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+      "Subagent running: research task"
+    <button id="delegation-peer" class="secondary">
+      "View parent"
+  <div class="messages-wrap">
+    <main id="messages" class="messages hidden">
+      <div class="bubble markdown user">
+        <p>
+          "Fix the bug in"
+          <strong>
+            "demo.ts"
+      <section class="work-block finished">
+        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 1 · tools 1"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="thinking-card">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "thinking finished"
+              <span class="card-status">
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <p>
+                "Reading the file first."
+          <div class="tool-card">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "edit"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"path":"src/demo.ts"}"
+              <div>
+                <div class="diff-line hunk">
+                  "@@ -1,3 +1,3 @@"
+                <div class="diff-line">
+                  "const a = 1;"
+                <div class="diff-line removed">
+                  "-const b = 2;"
+                <div class="diff-line added">
+                  "+const b = 3;"
+                <div class="diff-line">
+                  "const c = 4;"
+              <div class="tool-actions">
+                <button class="secondary" type="button">
+                  "Open diff"
+                <button class="secondary" type="button">
+                  "Open file"
+      <div class="bubble markdown assistant">
+        <p>
+          "Done."
+        <ul>
+          <li>
+            "changed"
+            <code>
+              "b"
+            "to 3"
+          <li>
+            "nothing else"
+      <section class="work-block finished">
+        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 1 · tools 1 · failed 1"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="thinking-card">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "thinking finished"
+              <span class="card-status">
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <p>
+                "Considering options"
+          <div class="tool-card error">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "bash"
+              <span class="card-status">
+                "error"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"cmd":"ls"}"
+              <pre class="tool-body">
+                "boom"
+      <div class="bubble markdown assistant">
+        <p>
+          "Here is the"
+          <strong>
+            "result"
+          "."
+      <section class="work-block finished">
+        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 0 · tools 0"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="notice-card flat status">
+            <span class="card-label">
+              "compaction done"
+          <div class="notice-card flat error">
+            <span class="card-label">
+              "provider rejected the request"
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <footer id="composer" class="composer hidden">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div class="composer-actions">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <button id="btn-send" class="icon-button" title="Send (Enter)">
+        <svg/>
+    <div id="statusline" class="statusline">
+      <div class="statusline-row">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
+===== auth gate =====
+<div id="root">
+  <header class="header">
+    <div class="header-title">
+      "Pi Agent Chat"
+      <span class="unofficial">
+        "unofficial"
+    <div class="header-actions">
+      <button id="btn-new" title="Start a new session">
+        "New"
+      <button id="btn-sessions" title="Browse, resume or delete sessions" disabled>
+        "Sessions"
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)" disabled>
+        "Session tree"
+      <button id="btn-providers" title="Sign in / configure a model provider">
+        "Providers"
+  <div id="sessions" class="sessions hidden">
+    <div class="sessions-header">
+      <span>
+        "Sessions"
+    <div class="session-row current" title="/workspace/a.jsonl">
+      <button class="session-main" title="Resume this session" type="button">
+        <span class="session-title">
+          "current session"
+        <span class="session-meta">
+          "2026-01-02 03:04"
+      <span class="session-badge">
+        "current"
+    <div class="session-row" title="/workspace/b.jsonl">
+      <button class="session-main" title="Resume this session" type="button">
+        <span class="session-title">
+          "older session"
+        <span class="session-meta">
+          "2026-01-01 00:00"
+      <button class="session-delete" title="Delete this session file" type="button">
+        "Delete"
+    <div class="session-row delegation-child" title="/workspace/c.jsonl">
+      <button class="session-main" title="Resume this session" type="button">
+        <span class="session-title">
+          "delegated child"
+        <span class="session-meta">
+          "2026-01-03 00:00"
+      <span class="session-badge">
+        <span class="working-spinner">
+          "⠋"
+        "subagent"
+  <div id="auth" class="auth-page">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources hidden">
+    <div class="resources-panel">
+      <button class="resources-toggle" title="Collapse" aria-expanded="true" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 1"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/AGENTS.md"
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <button class="resource-file" title="Open in editor" type="button">
+              "/workspace/.agents/skills/demo/SKILL.md"
+            <div>
+              "broken.md: parse failed"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+      "Subagent running: research task"
+    <button id="delegation-peer" class="secondary">
+      "View parent"
+  <div class="messages-wrap">
+    <main id="messages" class="messages hidden">
+      <div class="bubble markdown user">
+        <p>
+          "Fix the bug in"
+          <strong>
+            "demo.ts"
+      <section class="work-block finished">
+        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 1 · tools 1"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="thinking-card">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "thinking finished"
+              <span class="card-status">
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <p>
+                "Reading the file first."
+          <div class="tool-card">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "edit"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"path":"src/demo.ts"}"
+              <div>
+                <div class="diff-line hunk">
+                  "@@ -1,3 +1,3 @@"
+                <div class="diff-line">
+                  "const a = 1;"
+                <div class="diff-line removed">
+                  "-const b = 2;"
+                <div class="diff-line added">
+                  "+const b = 3;"
+                <div class="diff-line">
+                  "const c = 4;"
+              <div class="tool-actions">
+                <button class="secondary" type="button">
+                  "Open diff"
+                <button class="secondary" type="button">
+                  "Open file"
+      <div class="bubble markdown assistant">
+        <p>
+          "Done."
+        <ul>
+          <li>
+            "changed"
+            <code>
+              "b"
+            "to 3"
+          <li>
+            "nothing else"
+      <section class="work-block finished">
+        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 1 · tools 1 · failed 1"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="thinking-card">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "thinking finished"
+              <span class="card-status">
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <p>
+                "Considering options"
+          <div class="tool-card error">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "bash"
+              <span class="card-status">
+                "error"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"cmd":"ls"}"
+              <pre class="tool-body">
+                "boom"
+      <div class="bubble markdown assistant">
+        <p>
+          "Here is the"
+          <strong>
+            "result"
+          "."
+      <section class="work-block finished">
+        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
+          <span class="work-label">
+            "Work"
+          <span class="work-status">
+            "done · thinking 0 · tools 0"
+          <span class="work-pulse">
+          <span class="work-chevron">
+            <svg/>
+        <div class="work-body">
+          <div class="notice-card flat status">
+            <span class="card-label">
+              "compaction done"
+          <div class="notice-card flat error">
+            <span class="card-label">
+              "provider rejected the request"
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <footer id="composer" class="composer hidden">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div class="composer-actions">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <button id="btn-send" class="icon-button" title="Send (Enter)">
+        <svg/>
+    <div id="statusline" class="statusline">
+      <div class="statusline-row">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
+===== posted to host =====
+{"type":"ready"}
+{"type":"listSessions"}

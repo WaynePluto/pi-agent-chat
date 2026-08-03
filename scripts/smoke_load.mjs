@@ -18,6 +18,8 @@ const vscodeStub = {
   Uri: { file: (path) => ({ fsPath: path, path }), joinPath: (base, ...parts) => ({ fsPath: [base?.fsPath, ...parts].join("/") }) },
   EventEmitter: class {},
   ProgressLocation: { Notification: 15 },
+  // The host always provides a display language; localized strings read it.
+  env: { language: "en", clipboard: { writeText: async () => {} }, openExternal: async () => true },
   window: {
     createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }),
     registerWebviewViewProvider: noop,
@@ -67,6 +69,13 @@ if (typeof extension.activate !== "function" || typeof extension.deactivate !== 
 
 console.log(`[ok]   bundle loaded and activated (${subscriptions.length} subscriptions registered)`);
 
+/** Report a diagnostic batch and remember whether anything failed. */
+let failures = 0;
+function report(results) {
+  failures += results.filter((result) => !result.ok).length;
+  console.log(formatDiagnostics(results));
+}
+
 const {
   runSpikeDiagnostics,
   runHistoryReplayTest,
@@ -77,16 +86,21 @@ const {
   runLiveToolCallTest,
   formatDiagnostics,
 } = extension.__spike;
-console.log(formatDiagnostics(await runSpikeDiagnostics()));
-console.log(formatDiagnostics(await runHistoryReplayTest(root)));
-console.log(formatDiagnostics(await runSlashCommandTest(root)));
-console.log(formatDiagnostics(await runSessionTreeTest(root)));
-console.log(formatDiagnostics(await runSubagentToolTest(root)));
-console.log(formatDiagnostics(await runProjectFilesTest(root)));
+report(await runSpikeDiagnostics());
+report(await runHistoryReplayTest(root));
+report(await runSlashCommandTest(root));
+report(await runSessionTreeTest(root));
+report(await runSubagentToolTest(root));
+report(await runProjectFilesTest(root));
 
 if (process.env.PI_SPIKE_LIVE === "1") {
   console.log("\n# Live prompt + tool call");
-  console.log(formatDiagnostics(await runLiveToolCallTest(root, (message) => console.log(`       ${message}`))));
+  report(await runLiveToolCallTest(root, (message) => console.log(`       ${message}`)));
 }
 
 extension.deactivate();
+
+if (failures > 0) {
+  console.error(`[fail] ${failures} diagnostic(s) failed`);
+  process.exit(1);
+}

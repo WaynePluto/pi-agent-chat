@@ -2,7 +2,7 @@
   "name": "pi-code-agent-chat",
   "displayName": "Pi Agent Chat",
   "description": "VS Code sidebar chat for the Pi Coding Agent, powered by the official SDK bundled inside the extension — no Pi CLI required. Unofficial community project.",
-  "version": "0.0.1",
+  "version": "0.0.2-20260803",
   "publisher": "waynepluto",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -15,7 +15,13 @@
   },
   "homepage": "https://github.com/WaynePluto/pi-agent-chat#readme",
   "packageManager": "pnpm@10.20.0",
-  "keywords": ["pi", "agent", "chat", "ai", "coding-agent"],
+  "keywords": [
+    "pi",
+    "agent",
+    "chat",
+    "ai",
+    "coding-agent"
+  ],
   "engines": {
     "vscode": "^1.90.0",
     "node": ">=20"
@@ -26,7 +32,9 @@
     "Other"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": ["onView:piAgentChat.view"],
+  "activationEvents": [
+    "onView:piAgentChat.view"
+  ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -71,7 +79,7 @@
     "watch": "node esbuild.mjs --watch",
     "package": "node esbuild.mjs --production",
     "typecheck": "tsc --noEmit",
-    "verify": "node esbuild.mjs && python scripts/check_bundle.py && node scripts/smoke_load.mjs",
+    "verify": "node esbuild.mjs && python scripts/check_bundle.py && node scripts/smoke_load.mjs && node scripts/smoke_webview.mjs",
     "package:vsix": "vsce package --no-dependencies --githubBranch master --readme-path README.md --out pi-code-agent-chat.vsix",
     "vscode:prepublish": "npm run package"
   },
@@ -92,6 +100,7 @@
     "@types/vscode": "1.90.0",
     "@vscode/vsce": "3.9.2",
     "esbuild": "0.25.12",
+    "jsdom": "^30.0.1",
     "typescript": "5.9.3"
   }
 }

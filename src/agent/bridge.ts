@@ -1,10 +1,14 @@
 import { isAbsolute, basename, resolve as resolvePath } from "node:path";
 import * as vscode from "vscode";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { buildSessionContext, migrateSessionEntries, parseSessionEntries, parseSkillBlock, SessionManager } from "@earendil-works/pi-coding-agent";
+import type { SessionEntry } from "@earendil-works/pi-coding-agent";
+import { readFile } from "node:fs/promises";
 import type { ChatEvent, ChatState, ChatStats, HostMessage, ResourceSection, SessionListItem, WebviewMessage } from "../shared/protocol.js";
 import { loginFlow, logoutFlow } from "./auth.js";
 import { collectSlashCommands, runBuiltinCommand } from "./commands.js";
+import { describe } from "./errors.js";
+import { t, tf } from "./i18n.js";
 import { navigateSessionTree } from "./session-tree.js";
 import type { OriginalContentProvider } from "./diff-view.js";
 import { openEditDiff } from "./diff-view.js";
@@ -29,6 +33,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private disposed = false;
   private displayedSession?: AgentSession;
   private activeDelegation?: SubagentRun;
+  /** Read-only preview of another session while a run is in progress. */
+  private preview?: { file: string; title: string; events: ChatEvent[] };
   /** Only the newest async state snapshot may reach the webview. */
   private statePostVersion = 0;
   /** Replay buffers keep parent and child transcripts intact while viewing either. */
@@ -52,6 +58,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     await this.runtime.bindExtensions();
     const session = this.runtime.session;
     this.displayedSession = session;
+    this.preview = undefined;
     this.histories.clear();
     this.histories.set(session.sessionId, buildHistoryEvents(session.messages, this.runtime.cwd));
     this.unsubscribe = session.subscribe((event) => this.onSessionEvent(session, event));
@@ -59,6 +66,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.postCommands();
     this.postResources();
     await this.postState();
+    await this.refreshSessions();
   }
 
   /**
@@ -69,7 +77,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     try {
       this.host.post({ type: "resources", sections: collectResourceSections(this.runtime) });
     } catch (error) {
-      this.host.log(`failed to collect resources: ${error instanceof Error ? error.message : String(error)}`);
+      this.host.log(`failed to collect resources: ${describe(error)}`);
     }
   }
 
@@ -78,12 +86,16 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     try {
       this.host.post({ type: "commands", items: collectSlashCommands(this.runtime.session) });
     } catch (error) {
-      this.host.log(`failed to collect slash commands: ${error instanceof Error ? error.message : String(error)}`);
+      this.host.log(`failed to collect slash commands: ${describe(error)}`);
     }
   }
 
   /** Replay the persisted transcript so a resumed session is not shown empty. */
   postHistory(): void {
+    if (this.preview) {
+      this.host.post({ type: "history", events: [...this.preview.events] });
+      return;
+    }
     const session = this.displayedSession ?? this.runtime.session;
     const events = this.histories.get(session.sessionId) ?? buildHistoryEvents(session.messages, this.runtime.cwd);
     this.histories.set(session.sessionId, events);
@@ -104,6 +116,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       // Availability check failing must not block the chat UI.
     }
     if (postVersion !== this.statePostVersion || this.disposed) return;
+    const preview = this.preview;
     const state: ChatState = {
       ready: true,
       cwd: this.runtime.cwd,
@@ -112,11 +125,14 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       modelId: model?.id,
       providerId: model?.provider,
       thinkingLevel: session.thinkingLevel,
-      isStreaming: session.isStreaming,
+      // In preview the live run keeps going, but the transcript on screen is
+      // static history: no stop button, no working indicator.
+      isStreaming: preview ? false : session.isStreaming,
       needsAuth,
       messageCount: session.messages.length,
-      delegation: this.delegationState(session),
-      inputDisabled: Boolean(this.activeDelegation && session === this.activeDelegation.child),
+      delegation: preview ? undefined : this.delegationState(session),
+      preview: preview ? { file: preview.file, title: preview.title } : undefined,
+      inputDisabled: Boolean(preview) || Boolean(this.activeDelegation && session === this.activeDelegation.child),
       stats: this.collectStats(session),
     };
     this.host.post({ type: "state", state });
@@ -148,7 +164,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     const history = this.histories.get(session.sessionId) ?? buildHistoryEvents(session.messages, this.runtime.cwd);
     history.push(event);
     this.histories.set(session.sessionId, history);
-    if ((this.displayedSession ?? this.runtime.session) === session) {
+    if (!this.preview && (this.displayedSession ?? this.runtime.session) === session) {
       this.host.post({ type: "event", event });
     }
   }
@@ -172,6 +188,16 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       // have settled so the UI receives the current streaming state.
       case "agent_settled":
         this.emit(session, { kind: "agent_settled" });
+        // A preview left open after the run finishes would trap the user in a
+        // read-only view; the previewed session can now be resumed for real.
+        if (this.preview && !this.activeDelegation && session === this.runtime.session && !session.isStreaming) {
+          const file = this.preview.file;
+          void (async () => {
+            await this.runtime.switchSession(file);
+            await this.attach();
+          })();
+          break;
+        }
         void this.postState();
         void this.refreshSessions();
         break;
@@ -240,7 +266,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.activeDelegation = run;
     this.histories.set(run.child.sessionId, [{ kind: "user_message", text: run.task }]);
     this.displayedSession = run.child;
-    this.postHistory();
+    if (!this.preview) this.postHistory();
     void this.postState();
     void this.refreshSessions();
   }
@@ -260,7 +286,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.emit(run.child, { kind: outcome.status === "failed" ? "error" : "status", text: childStatus });
     this.activeDelegation = undefined;
     this.displayedSession = run.parent;
-    this.postHistory();
+    if (!this.preview) this.postHistory();
     void this.postState();
     void this.refreshSessions();
   }
@@ -290,6 +316,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private showDelegationSession(target: "parent" | "child"): void {
     const run = this.activeDelegation;
     if (!run) return;
+    this.preview = undefined;
     this.displayedSession = target === "parent" ? run.parent : run.child;
     this.postHistory();
     this.postCommands();
@@ -332,6 +359,12 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         await this.runtime.switchSession(message.file);
         await this.attach();
         break;
+      case "previewSession":
+        await this.previewSession(message.file);
+        break;
+      case "closePreview":
+        this.closePreview();
+        break;
       case "showDelegationSession":
         this.showDelegationSession(message.target);
         break;
@@ -366,6 +399,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
   private async abortDisplayedSession(): Promise<void> {
     const run = this.activeDelegation;
+    if (this.preview) return; // preview shows a static transcript; nothing to stop
     if (!run) {
       await this.runtime.session.abort();
       return;
@@ -386,13 +420,38 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    */
   private guardStreaming(): boolean {
     if (!this.runtime.session.isStreaming) return false;
-    const zh = vscode.env.language.toLowerCase().startsWith("zh");
-    vscode.window.showWarningMessage(
-      zh
-        ? "Pi Agent Chat 仅支持单会话模式：请先停止当前会话的运行，再切换或新建会话。"
-        : "Pi Agent Chat is single-session: stop the current run before switching or starting a session.",
-    );
+    vscode.window.showWarningMessage(t("singleSessionGuard"));
     return true;
+  }
+
+  /**
+   * Open another session's transcript read-only, without touching the runtime
+   * session: the JSONL file is replayed into events. Used while a run is in
+   * progress, when switching the active session is not allowed.
+   */
+  private async previewSession(file: string): Promise<void> {
+    try {
+      const entries = parseSessionEntries(await readFile(file, "utf8"));
+      migrateSessionEntries(entries);
+      const context = buildSessionContext(entries.filter((entry): entry is SessionEntry => entry.type !== "session"));
+      const events = buildHistoryEvents(context.messages, this.runtime.cwd);
+      const firstUser = events.find((event) => event.kind === "user_message") as { text?: string } | undefined;
+      this.preview = { file, title: (firstUser?.text ?? "").split("\n")[0] ?? "", events };
+      this.postHistory();
+      await this.postState();
+      await this.refreshSessions();
+    } catch (error) {
+      this.reportError(this.runtime.session, "session preview failed", error);
+    }
+  }
+
+  /** Return from a read-only preview to the live transcript. */
+  private closePreview(): void {
+    if (!this.preview) return;
+    this.preview = undefined;
+    this.postHistory();
+    void this.postState();
+    void this.refreshSessions();
   }
 
   /** Answer a webview @ picker query; errors are reported inline, never thrown. */
@@ -401,13 +460,21 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       const items = await this.projectFiles.search(this.runtime.cwd, query, includeIgnored);
       this.host.post({ type: "projectFiles", requestId, items });
     } catch (error) {
-      const messageText = error instanceof Error ? error.message : String(error);
+      const messageText = describe(error);
       this.host.log(`project file search failed: ${messageText}`);
       this.host.post({ type: "projectFiles", requestId, items: [], error: messageText });
     }
   }
 
+  /** Log a failure and surface it as an error notice in the transcript. */
+  private reportError(session: AgentSession, context: string, error: unknown): void {
+    const messageText = describe(error);
+    this.host.log(`${context}: ${messageText}`);
+    this.emit(session, { kind: "error", text: messageText });
+  }
+
   private async sendPrompt(text: string, streamingBehavior?: "steer" | "followUp", references?: string[]): Promise<void> {
+    if (this.preview) return;
     if (this.activeDelegation && this.displayedSession === this.activeDelegation.child) return;
     let trimmed = text.trim();
 
@@ -426,9 +493,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
           trimmed = `${trimmed ? `${trimmed}\n\n` : ""}Referenced project files (relative to the workspace root; use the read tool to inspect them):\n${lines.join("\n")}`;
         }
       } catch (error) {
-        const messageText = error instanceof Error ? error.message : String(error);
-        this.host.log(`file reference rejected: ${messageText}`);
-        this.emit(this.runtime.session, { kind: "error", text: messageText });
+        this.reportError(this.runtime.session, "file reference rejected", error);
         return;
       }
     }
@@ -439,9 +504,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     try {
       if (await runBuiltinCommand(this.runtime, trimmed, this.builtinActions())) return;
     } catch (error) {
-      const messageText = error instanceof Error ? error.message : String(error);
-      this.host.log(`command failed: ${messageText}`);
-      this.emit(this.runtime.session, { kind: "error", text: messageText });
+      this.reportError(this.runtime.session, "command failed", error);
       return;
     }
 
@@ -453,9 +516,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         streamingBehavior: mode,
       });
     } catch (error) {
-      const messageText = error instanceof Error ? error.message : String(error);
-      this.host.log(`prompt failed: ${messageText}`);
-      this.emit(this.runtime.session, { kind: "error", text: messageText });
+      this.reportError(this.runtime.session, "prompt failed", error);
     } finally {
       await this.postState();
     }
@@ -486,7 +547,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         const items = await this.listSessions();
         const picked = await vscode.window.showQuickPick(
           items.map((item) => ({ label: item.title, description: item.timestamp, file: item.file })),
-          { title: "Pi Agent Chat: resume session" },
+          { title: t("resumeSessionTitle") },
         );
         if (!picked) return;
         await this.runtime.switchSession(picked.file);
@@ -522,11 +583,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private async pickModel(): Promise<void> {
     const models = await this.runtime.getAvailableModels();
     if (models.length === 0) {
-      const signIn = "Sign in";
-      const answer = await vscode.window.showWarningMessage(
-        "Pi Agent Chat: no authenticated model found.",
-        signIn,
-      );
+      const signIn = t("signInAction");
+      const answer = await vscode.window.showWarningMessage(t("noAuthenticatedModel"), signIn);
       if (answer === signIn) await this.login();
       return;
     }
@@ -535,13 +593,13 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       const isCurrent = model.id === current?.id && model.provider === current?.provider;
       return {
         label: `${isCurrent ? "$(check) " : ""}${model.id}`,
-        description: isCurrent ? `${model.provider} — current` : model.provider,
+        description: isCurrent ? tf("modelCurrent", model.provider) : model.provider,
         picked: isCurrent,
         model,
       };
     });
     const picked = await vscode.window.showQuickPick(items, {
-      title: "Pi Agent Chat: select model",
+      title: t("selectModelTitle"),
       matchOnDescription: true,
     });
     if (!picked) return;
@@ -553,7 +611,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     const session = this.runtime.session;
     const levels = session.getAvailableThinkingLevels();
     if (levels.length <= 1) {
-      vscode.window.showInformationMessage("Pi Agent Chat: the current model has no selectable thinking levels.");
+      vscode.window.showInformationMessage(t("noThinkingLevels"));
       return;
     }
     const picked = await vscode.window.showQuickPick(
@@ -561,11 +619,11 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         const isCurrent = level === session.thinkingLevel;
         return {
           label: `${isCurrent ? "$(check) " : ""}${level}`,
-          description: isCurrent ? "current" : undefined,
+          description: isCurrent ? t("current") : undefined,
           level,
         };
       }),
-      { title: "Pi Agent Chat: select thinking level" },
+      { title: t("selectThinkingTitle") },
     );
     if (!picked) return;
     session.setThinkingLevel(picked.level);
@@ -574,13 +632,18 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
   private async listSessions(): Promise<SessionListItem[]> {
     const sessions = await SessionManager.list(this.runtime.cwd);
-    const displayedFile = (this.displayedSession ?? this.runtime.session).sessionFile;
+    const displayedFile = this.preview?.file ?? (this.displayedSession ?? this.runtime.session).sessionFile;
+    const runningFile = this.runtime.session.isStreaming ? this.runtime.session.sessionFile : undefined;
     const run = this.activeDelegation;
     return sessions.map((info) => ({
       file: info.path,
-      title: info.name || info.firstMessage || "(empty session)",
+      // The SDK stores an expanded <skill> block as the first user message.
+      // Restore the command form so session lists show `/skill:name ...`
+      // instead of the skill XML and its filesystem location.
+      title: info.name || collapseSkillInvocation(info.firstMessage) || t("emptySessionTitle"),
       timestamp: info.modified?.toISOString(),
       current: Boolean(displayedFile) && info.path === displayedFile,
+      running: Boolean(runningFile) && info.path === runningFile,
       delegationRole: run && info.path === run.parent.sessionFile
         ? "parent"
         : run && info.path === run.child.sessionFile
@@ -597,17 +660,12 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private async deleteSession(file: string): Promise<void> {
     const run = this.activeDelegation;
     if (file === this.runtime.session.sessionFile || file === run?.child.sessionFile) {
-      vscode.window.showWarningMessage(
-        vscode.env.language.toLowerCase().startsWith("zh")
-          ? "无法删除当前正在使用的 session，请先切换到其它 session。"
-          : "Cannot delete the session that is currently open. Switch to another session first.",
-      );
+      vscode.window.showWarningMessage(t("deleteActiveSession"));
       return;
     }
-    const zh = vscode.env.language.toLowerCase().startsWith("zh");
-    const confirmLabel = zh ? "删除" : "Delete";
+    const confirmLabel = t("deleteSessionAction");
     const answer = await vscode.window.showWarningMessage(
-      zh ? "删除这个 session？文件将被移除，不可恢复。" : "Delete this session? The file will be removed permanently.",
+      t("deleteSessionConfirm"),
       { modal: true, detail: file },
       confirmLabel,
     );
@@ -727,7 +785,7 @@ export function buildHistoryEvents(messages: readonly unknown[], cwd: string): C
     };
 
     if (message.role === "user") {
-      const text = contentText(message.content);
+      const text = collapseSkillInvocation(contentText(message.content));
       if (text.trim()) events.push({ kind: "user_message", text });
       continue;
     }
@@ -769,6 +827,18 @@ export function buildHistoryEvents(messages: readonly unknown[], cwd: string): C
   }
 
   return events;
+}
+
+/**
+ * `session.prompt()` persists `/skill:<name>` invocations already expanded into
+ * the full `<skill>` block, so a replayed transcript would show the whole skill
+ * file instead of the short command the user typed. Collapse it back to the
+ * original command, mirroring what the live stream emitted.
+ */
+function collapseSkillInvocation(text: string): string {
+  const block = parseSkillBlock(text);
+  if (!block) return text;
+  return block.userMessage ? `/skill:${block.name} ${block.userMessage}` : `/skill:${block.name}`;
 }
 
 /** The edit/write tools name their target file through the `path` argument. */

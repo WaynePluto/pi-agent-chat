@@ -2,12 +2,12 @@ import { execFile } from "node:child_process";
 import { lstat, readdir } from "node:fs/promises";
 import { promisify } from "node:util";
 import { basename, extname, isAbsolute, relative, resolve, sep } from "node:path";
-import type { ProjectFileItem } from "../shared/protocol.js";
+import { MAX_FILE_REFERENCES, type ProjectFileItem } from "../shared/protocol.js";
+import { describe } from "./errors.js";
 
 const execFileAsync = promisify(execFile);
 const CACHE_TTL_MS = 5_000;
 const MAX_INDEX_FILES = 20_000;
-export const MAX_FILE_REFERENCES = 10;
 
 const BINARY_EXTENSIONS = new Set([
   ".7z", ".a", ".avi", ".bin", ".bmp", ".class", ".dll", ".dylib", ".exe", ".flac", ".gif", ".gz",
@@ -117,7 +117,7 @@ export class ProjectFileIndex {
         ignored: ignored.filter((path) => !deletedSet.has(path)),
       };
     } catch (error) {
-      this.log(`git file discovery unavailable, using directory walk fallback: ${error instanceof Error ? error.message : String(error)}`);
+      this.log(`git file discovery unavailable, using directory walk fallback: ${describe(error)}`);
       index = { createdAt: Date.now(), regular: await walkFiles(cwd), ignored: [] };
     }
     this.cache.set(cwd, index);

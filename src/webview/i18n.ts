@@ -5,7 +5,12 @@
  * the extension through the `lang` attribute on <html>. Chinese locales get
  * Chinese UI text; everything else falls back to English. Model names and
  * thinking-level values are never translated.
+ *
+ * Strings that also appear in host-side dialogs live in `shared/messages.ts`
+ * so both sides stay worded consistently.
  */
+
+import { isChinese } from "../shared/messages.js";
 
 const en = {
   title: "Pi Agent Chat",
@@ -51,6 +56,8 @@ const en = {
   fileSensitiveBadge: "sensitive",
   fileRemoveTitle: "Remove file reference",
   resourceOpenTitle: "Open in editor",
+  openDiff: "Open diff",
+  openFile: "Open file",
   running: "running",
   done: "done",
   errorLabel: "error",
@@ -72,13 +79,15 @@ const en = {
   emptySession: "No messages in this session yet.",
   sessionsHeader: "Sessions",
   sessionsEmpty: "No sessions for this folder yet.",
-  sessionsClose: "Back to chat",
   sessionCurrent: "current",
+  sessionRunning: "running",
   sessionDelete: "Delete",
   sessionDeleteTitle: "Delete this session file",
   sessionResumeTitle: "Resume this session",
-  singleSessionHint:
-    "Pi Agent Chat is single-session: stop the current run before switching sessions.",
+  sessionPreviewing: "previewing",
+  previewBanner: (title: string) => (title ? `Read-only preview: ${title}` : "Read-only preview"),
+  previewBack: "Back to running session",
+  previewInputDisabled: "Read-only preview. Go back to the running session to send messages.",
   scrollDownTitle: "Jump to the latest message",
   resourcesLoaded: "Loaded resources",
   authTitle: "No model provider configured",
@@ -133,6 +142,8 @@ const zh: Dict = {
   fileSensitiveBadge: "敏感",
   fileRemoveTitle: "移除文件引用",
   resourceOpenTitle: "在编辑器中打开",
+  openDiff: "打开 diff",
+  openFile: "打开文件",
   running: "运行中",
   done: "完成",
   errorLabel: "出错",
@@ -154,12 +165,15 @@ const zh: Dict = {
   emptySession: "当前会话还没有消息。",
   sessionsHeader: "会话列表",
   sessionsEmpty: "这个目录还没有会话。",
-  sessionsClose: "返回聊天",
   sessionCurrent: "当前",
+  sessionRunning: "运行中",
   sessionDelete: "删除",
   sessionDeleteTitle: "删除这个会话文件",
   sessionResumeTitle: "恢复这个会话",
-  singleSessionHint: "Pi Agent Chat 仅支持单会话模式：请先停止当前会话的运行，再切换会话。",
+  sessionPreviewing: "预览中",
+  previewBanner: (title: string) => (title ? `只读预览：${title}` : "只读预览"),
+  previewBack: "返回运行中会话",
+  previewInputDisabled: "只读预览中；返回运行中会话后才能发送消息。",
   scrollDownTitle: "跳到最新消息",
   resourcesLoaded: "已加载资源",
   authTitle: "还没有配置模型供应商",
@@ -170,6 +184,5 @@ const zh: Dict = {
 
 /** Resolve the dictionary from the document language set by the extension. */
 export function getDict(): Dict {
-  const lang = (document.documentElement.lang || "en").toLowerCase();
-  return lang.startsWith("zh") ? zh : en;
+  return isChinese(document.documentElement.lang || "en") ? zh : en;
 }

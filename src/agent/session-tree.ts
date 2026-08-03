@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import type { SessionManager, SessionTreeNode } from "@earendil-works/pi-coding-agent";
+import { t, tf } from "./i18n.js";
 import type { PiRuntime } from "./runtime.js";
 
 /**
@@ -25,11 +26,11 @@ export interface TreeChoice extends vscode.QuickPickItem {
 export async function navigateSessionTree(runtime: PiRuntime, ui: SessionTreeUi): Promise<void> {
   const choices = buildTreeChoices(runtime.session.sessionManager);
   if (choices.length === 0) {
-    ui.status("this session has no navigable entries yet");
+    ui.status(t("treeEmpty"));
     return;
   }
   const picked = await vscode.window.showQuickPick(choices, {
-    title: "Pi Agent Chat: navigate session tree",
+    title: t("treeNavigateTitle"),
     matchOnDescription: true,
     matchOnDetail: true,
   });
@@ -37,9 +38,9 @@ export async function navigateSessionTree(runtime: PiRuntime, ui: SessionTreeUi)
 
   const action = await vscode.window.showQuickPick(
     [
-      { label: "Switch to this point", detail: "Continue in this branch, same session file", action: "switch" as const },
-      { label: "Fork from here", detail: "Copy the branch into a new session file", action: "fork" as const },
-      { label: "Set or clear label", detail: "Bookmark this entry for later navigation", action: "label" as const },
+      { label: t("treeSwitchLabel"), detail: t("treeSwitchDetail"), action: "switch" as const },
+      { label: t("treeForkLabel"), detail: t("treeForkDetail"), action: "fork" as const },
+      { label: t("treeLabelLabel"), detail: t("treeLabelDetail"), action: "label" as const },
     ],
     { title: `Pi Agent Chat: ${picked.label.trim()}` },
   );
@@ -48,11 +49,11 @@ export async function navigateSessionTree(runtime: PiRuntime, ui: SessionTreeUi)
   if (action.action === "switch") {
     const result = await runtime.session.navigateTree(picked.entryId);
     if (result.cancelled) {
-      ui.status("navigation cancelled");
+      ui.status(t("treeNavigationCancelled"));
       return;
     }
     if (result.editorText) ui.setInput(result.editorText);
-    ui.status("switched to the selected branch point");
+    ui.status(t("treeSwitched"));
     return;
   }
   if (action.action === "fork") {
@@ -62,23 +63,23 @@ export async function navigateSessionTree(runtime: PiRuntime, ui: SessionTreeUi)
 
   const current = runtime.session.sessionManager.getLabel(picked.entryId);
   const label = await vscode.window.showInputBox({
-    title: "Entry label (empty to clear)",
+    title: t("treeLabelInputTitle"),
     value: current ?? "",
   });
   if (label === undefined) return;
   runtime.session.sessionManager.appendLabelChange(picked.entryId, label.trim() || undefined);
-  ui.status(label.trim() ? `label set: ${label.trim()}` : "label cleared");
+  ui.status(label.trim() ? tf("treeLabelSet", label.trim()) : t("treeLabelCleared"));
 }
 
 /** Fork from a previous user message into a new session, like the CLI's `/fork`. */
 export async function pickForkPoint(runtime: PiRuntime, ui: SessionTreeUi): Promise<void> {
   const choices = buildTreeChoices(runtime.session.sessionManager, { userMessagesOnly: true });
   if (choices.length === 0) {
-    ui.status("no user message to fork from");
+    ui.status(t("forkNoUserMessage"));
     return;
   }
   const picked = await vscode.window.showQuickPick(choices, {
-    title: "Pi Agent Chat: fork from user message",
+    title: t("treeForkTitle"),
     matchOnDescription: true,
   });
   if (!picked) return;
@@ -89,11 +90,13 @@ export async function pickForkPoint(runtime: PiRuntime, ui: SessionTreeUi): Prom
 export async function cloneSession(runtime: PiRuntime, ui: SessionTreeUi): Promise<void> {
   const leaf = runtime.session.sessionManager.getLeafEntry();
   if (!leaf) {
-    ui.status("nothing to clone in an empty session");
+    ui.status(t("cloneEmpty"));
     return;
   }
   const result = await runtime.fork(leaf.id, { position: "at" });
-  ui.status(result.cancelled ? "clone cancelled" : `cloned into ${runtime.session.sessionFile ?? "(in-memory)"}`);
+  ui.status(
+    result.cancelled ? t("cloneCancelled") : tf("clonedInto", runtime.session.sessionFile ?? t("inMemorySession")),
+  );
 }
 
 /**
@@ -103,11 +106,11 @@ export async function cloneSession(runtime: PiRuntime, ui: SessionTreeUi): Promi
 async function forkSession(runtime: PiRuntime, entryId: string, ui: SessionTreeUi): Promise<void> {
   const result = await runtime.fork(entryId);
   if (result.cancelled) {
-    ui.status("fork cancelled");
+    ui.status(t("forkCancelled"));
     return;
   }
   if (result.selectedText) ui.setInput(result.selectedText);
-  ui.status(`forked into ${runtime.session.sessionFile ?? "(in-memory)"}`);
+  ui.status(tf("forkedInto", runtime.session.sessionFile ?? t("inMemorySession")));
 }
 
 /**
@@ -132,7 +135,7 @@ export function buildTreeChoices(
         choices.push({
           entryId: entry.id,
           label: `${"  ".repeat(depth)}${node.label ? `[${node.label}] ` : ""}${summary}`,
-          description: entry.id === currentLeafId ? "current" : undefined,
+          description: entry.id === currentLeafId ? t("current") : undefined,
           detail: entry.timestamp?.slice(0, 19).replace("T", " "),
         });
       }

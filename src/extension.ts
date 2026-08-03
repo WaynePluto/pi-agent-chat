@@ -14,6 +14,7 @@ import {
   runSubagentToolTest,
 } from "./agent/diagnostics.js";
 import { OriginalContentProvider, ORIGINAL_SCHEME } from "./agent/diff-view.js";
+import { describeWithStack } from "./agent/errors.js";
 import { configureHttpProxy } from "./agent/http.js";
 import { PiRuntime } from "./agent/runtime.js";
 import type { HostMessage, WebviewMessage } from "./shared/protocol.js";
@@ -158,7 +159,7 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
   }
 
   private reportError(error: unknown): void {
-    const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+    const message = describeWithStack(error);
     this.log(`error: ${message}`);
     this.post({ type: "state", state: { ready: false, isStreaming: false, error: message.split("\n")[0] } });
     vscode.window.showErrorMessage(`Pi Agent Chat: ${message.split("\n")[0]}`);

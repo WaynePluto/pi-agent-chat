@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { SlashCommand } from "../shared/protocol.js";
 import type { PiRuntime } from "./runtime.js";
+import { t, tf } from "./i18n.js";
 import { cloneSession, navigateSessionTree, pickForkPoint, type SessionTreeUi } from "./session-tree.js";
 
 /**
@@ -122,17 +123,17 @@ export async function runBuiltinCommand(
       await actions.pickThinkingLevel();
       break;
     case "compact": {
-      actions.status("compacting context...");
+      actions.status(t("compacting"));
       const result = await session.compact(argument || undefined);
       const after = result.estimatedTokensAfter ?? 0;
-      actions.status(`compaction done: ${result.tokensBefore} -> ~${after} tokens`);
+      actions.status(tf("compactionDone", result.tokensBefore, after));
       break;
     }
     case "name": {
-      const value = argument || (await vscode.window.showInputBox({ title: "Session name" }))?.trim();
+      const value = argument || (await vscode.window.showInputBox({ title: t("sessionNameTitle") }))?.trim();
       if (!value) break;
       session.setSessionName(value);
-      actions.status(`session renamed to "${value}"`);
+      actions.status(tf("sessionRenamed", value));
       break;
     }
     case "session":
@@ -141,11 +142,11 @@ export async function runBuiltinCommand(
     case "copy": {
       const last = session.getLastAssistantText();
       if (!last) {
-        actions.status("no assistant message to copy");
+        actions.status(t("noAssistantMessage"));
         break;
       }
       await vscode.env.clipboard.writeText(last);
-      actions.status("last assistant message copied");
+      actions.status(t("copiedLastMessage"));
       break;
     }
     case "import":
@@ -184,7 +185,7 @@ async function importSession(runtime: PiRuntime, argument: string, actions: Buil
   let target = argument;
   if (!target) {
     const picked = await vscode.window.showOpenDialog({
-      title: "Import Pi session",
+      title: t("importSessionTitle"),
       filters: { "Session JSONL": ["jsonl"] },
       canSelectMany: false,
     });
@@ -192,27 +193,27 @@ async function importSession(runtime: PiRuntime, argument: string, actions: Buil
   }
   if (!target) return;
   await runtime.importSession(target);
-  actions.status(`imported ${target}`);
+  actions.status(tf("importedSession", target));
 }
 
 async function exportSession(runtime: PiRuntime, argument: string, actions: BuiltinCommandActions): Promise<void> {
   const source = runtime.session.sessionFile;
   if (!source) {
-    actions.status("this session is not persisted, nothing to export");
+    actions.status(t("sessionNotPersisted"));
     return;
   }
   let target = argument;
   if (!target) {
     const picked = await vscode.window.showSaveDialog({
-      title: "Export Pi session",
+      title: t("exportSessionTitle"),
       filters: { "Session JSONL": ["jsonl"] },
-      saveLabel: "Export",
+      saveLabel: t("exportSessionAction"),
     });
     target = picked?.fsPath ?? "";
   }
   if (!target) return;
   await vscode.workspace.fs.copy(vscode.Uri.file(source), vscode.Uri.file(target), { overwrite: true });
-  actions.status(`exported to ${target}`);
+  actions.status(tf("exportedSession", target));
 }
 
 function formatSessionStats(stats: {

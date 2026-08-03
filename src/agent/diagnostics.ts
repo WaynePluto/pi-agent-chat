@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createAgentSession, getAgentDir, getPackageDir, SessionManager } from "@earendil-works/pi-coding-agent";
 import { buildHistoryEvents } from "./bridge.js";
 import { collectSlashCommands } from "./commands.js";
+import { describe } from "./errors.js";
 import { buildTreeChoices } from "./session-tree.js";
 import { SubagentCoordinator } from "./subagent.js";
 import { ProjectFileIndex } from "./project-files.js";
@@ -107,10 +108,6 @@ async function checkClipboardNative(): Promise<DiagnosticResult> {
   } catch (error) {
     return { name: "native clipboard (optional)", ok: false, detail: `not loadable (image paste disabled): ${describe(error)}` };
   }
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 }
 
 export function formatDiagnostics(results: DiagnosticResult[]): string {

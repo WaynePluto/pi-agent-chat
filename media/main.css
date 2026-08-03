@@ -28,7 +28,9 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 12px;
+  /* Slightly deeper bottom padding: these top blocks cast a drop shadow into
+     the area below, and the content needs breathing room above it. */
+  padding: 10px 12px 14px;
   position: relative;
   z-index: 1;
   background: var(
@@ -71,7 +73,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 6px 12px;
+  padding: 6px 12px 10px;
   position: relative;
   z-index: 1;
   color: var(--vscode-foreground);
@@ -129,7 +131,7 @@ button.resource-header:hover:not(:disabled) {
 
 button:disabled {
   opacity: 0.5;
-  cursor: default;
+  cursor: not-allowed;
 }
 
 button.secondary {
@@ -153,6 +155,12 @@ button.chip {
 
 button.chip:hover:not(:disabled) {
   background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+}
+
+/* Read-only states (preview, running child): visibly muted, dashed outline. */
+button.chip:disabled {
+  color: var(--vscode-disabledForeground, rgba(128, 128, 128, 0.8));
+  border-style: dashed;
 }
 
 button.icon-button {
@@ -1005,7 +1013,7 @@ textarea:disabled {
 /* ---------------------------------------------------------------- */
 
 .resources {
-  padding: 8px 12px;
+  padding: 8px 12px 12px;
   position: relative;
   z-index: 1;
   font-size: 0.9em;

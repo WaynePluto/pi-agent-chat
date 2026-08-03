@@ -11,6 +11,7 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import { SubagentCoordinator } from "./subagent.js";
+import { t } from "./i18n.js";
 
 export interface PiRuntimeOptions {
   cwd: string;
@@ -164,7 +165,7 @@ function createVsCodeExtensionUiContext(): ExtensionUIContext {
       return vscode.window.showQuickPick(options, { title, ignoreFocusOut: true });
     },
     async confirm(title: string, message: string): Promise<boolean> {
-      const yes = "Yes";
+      const yes = t("confirmYes");
       const answer = await vscode.window.showInformationMessage(title, { modal: true, detail: message }, yes);
       return answer === yes;
     },

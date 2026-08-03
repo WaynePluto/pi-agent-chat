@@ -7,6 +7,13 @@
 
 export type ThinkingLevelName = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
+/**
+ * Upper bound for `@` file references attached to a single prompt. Lives here
+ * because both ends enforce it: the composer stops adding chips, the host
+ * rejects over-long reference lists.
+ */
+export const MAX_FILE_REFERENCES = 10;
+
 /** CLI-style footer statistics (mirrors the pi TUI status line). */
 export interface ChatStats {
   inputTokens: number;
@@ -49,6 +56,8 @@ export interface ChatState {
   messageCount?: number;
   /** Present while a visible SDK child session is running. */
   delegation?: DelegationState;
+  /** Present while another session is opened read-only during a run. */
+  preview?: { file: string; title: string };
   /** Child sessions are read-only while delegated work is running. */
   inputDisabled?: boolean;
   stats?: ChatStats;
@@ -68,6 +77,8 @@ export interface SessionListItem {
   timestamp?: string;
   /** True when this session is currently displayed in the chat view. */
   current?: boolean;
+  /** True when this is the runtime session with a run in progress. */
+  running?: boolean;
   /** Active task-line role, if this is the running child or waiting parent. */
   delegationRole?: "parent" | "child";
 }
@@ -152,6 +163,10 @@ export type WebviewMessage =
   | { type: "listSessions" }
   | { type: "listCommands" }
   | { type: "resumeSession"; file: string }
+  /** Open another session read-only, without replacing the runtime session. */
+  | { type: "previewSession"; file: string }
+  /** Return from a read-only preview to the live transcript. */
+  | { type: "closePreview" }
   /** During delegation, switch only the displayed transcript (not the runtime). */
   | { type: "showDelegationSession"; target: "parent" | "child" }
   /** Delete a persisted session file (asks for confirmation host-side). */

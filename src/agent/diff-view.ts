@@ -1,5 +1,6 @@
 import { applyPatch, parsePatch, reversePatch } from "diff";
 import * as vscode from "vscode";
+import { tf } from "./i18n.js";
 
 /** URI scheme serving the pre-edit content of a file for `vscode.diff`. */
 export const ORIGINAL_SCHEME = "pi-agent-chat-original";
@@ -51,7 +52,7 @@ export async function openEditDiff(
       const originalUri = fileUri.with({ scheme: ORIGINAL_SCHEME, query: `t=${Date.now()}` });
       provider.set(originalUri, original);
       const name = filePath.split(/[\\/]/).pop() ?? filePath;
-      await vscode.commands.executeCommand("vscode.diff", originalUri, fileUri, `${name} (pi edit)`, {
+      await vscode.commands.executeCommand("vscode.diff", originalUri, fileUri, tf("diffEditorTitle", name), {
         preview: true,
       });
       return;

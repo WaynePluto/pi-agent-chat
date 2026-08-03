@@ -33,7 +33,7 @@ Like Pi itself, this extension stays minimal:
 
 ## Single-session mode (by design)
 
-Only one task line runs at a time. While a run is in progress you cannot switch to unrelated sessions or create sessions. A parent may delegate one sequential task to a visible SDK child session: the parent waits, and you may switch between the parent and child transcripts for observation. Different VS Code windows (different projects) are independent.
+Only one task line runs at a time. While a run is in progress you cannot switch to unrelated sessions or create sessions — but you can open any other session as a **read-only preview** (a banner shows on top; go back to the current session to send messages). A parent may delegate one sequential task to a visible SDK child session: the parent waits, and you may switch between the parent and child transcripts for observation. Different VS Code windows (different projects) are independent.
 
 This is intentional — parallel sessions are not planned:
 
@@ -41,12 +41,14 @@ This is intentional — parallel sessions are not planned:
 - With multiple tasks, it works better to send them as one task list and let the agent execute in order, or queue them up. Keeping context in a single session gives the AI a better grasp of the whole picture.
 - While a run is in progress, grab a coffee and come back to review the result — more efficient and less stressful than juggling parallel sessions.
 
+Overall, this extension bets on simplicity and on the continued progress of the models themselves: the less the agent harness interferes with the model, the better. Ideally we would not have added a `subagent` tool at all — it exists purely because of today's context-window limits (see below).
+
 ## Features
 
 - Streaming markdown rendering (marked + DOM sanitizing whitelist, frame-throttled repaint)
 - Tool cards: argument summary, collapsible output, compact colored diff for edit results
 - One-click native `vscode.diff` for edit results (reverse-applies the patch to reconstruct the old content) and open-target-file
-- Session new / list / resume / delete, with full transcript replay
+- Session new / list / resume / delete, with full transcript replay; while a run is in progress, other sessions can be opened as a read-only preview
 - Session tree navigation: the **Tree** button or `/tree` opens a QuickPick to switch branches, fork from any node, and label nodes; `/fork` forks from a past user message (original text refilled into the composer), `/clone` copies the current session in place
 - Slash command autocomplete: type `/` for candidates covering built-ins, prompt templates, extension commands and `/skill:*`, named and described consistently with the CLI
 - Model and thinking-level switching (QuickPick), abort, steer / follow-up
@@ -56,6 +58,8 @@ This is intentional — parallel sessions are not planned:
 - Visible, sequential SDK subagents: the built-in `subagent` tool creates a persistent child session without the Pi CLI; the parent waits, both transcripts remain inspectable, and nested/parallel delegation is disabled
 
 ### Subagent-aware skills
+
+Why does the subagent exist at all? Because current LLM context windows are limited: the `subagent` tool exists to peel off work that is irrelevant to the main task line, keeping the parent's context focused. For that reason, the agent is instructed **not to use the `subagent` tool by default** — it is only invoked when the user explicitly asks for it or an enabled skill specifically requires it. If context windows grow large enough one day (say, 1 GB of context), the subagent can simply be removed.
 
 Skills should detect capabilities rather than a particular UI. If the `subagent` tool is available, call it with a complete task. Otherwise a CLI skill may use `pi --print` or its own fallback. Pi Agent Chat does not intercept skill commands or emulate the `pi` executable.
 

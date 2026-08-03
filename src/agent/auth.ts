@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 import type { AuthEvent, AuthInteraction, AuthPrompt, AuthType } from "@earendil-works/pi-ai";
+import { describe } from "./errors.js";
+import { t, tf } from "./i18n.js";
 import type { PiRuntime } from "./runtime.js";
 
 /** Thrown when the user dismisses a login dialog; callers treat it as a no-op. */
@@ -60,26 +62,24 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
   }
   options.sort((a, b) => a.name.localeCompare(b.name) || a.authType.localeCompare(b.authType));
   if (options.length === 0) {
-    vscode.window.showWarningMessage("Pi Agent Chat: no login providers available.");
+    vscode.window.showWarningMessage(t("noLoginProviders"));
     return false;
   }
 
   const picked = await vscode.window.showQuickPick(
     options.map((option) => ({
       label: option.name,
-      description: option.authType === "oauth" ? (option.loginLabel ?? "OAuth / subscription") : "API key",
-      detail: option.configured ? `$(check) configured: ${option.configured}` : undefined,
+      description: option.authType === "oauth" ? (option.loginLabel ?? t("oauthDescription")) : t("apiKeyDescription"),
+      detail: option.configured ? tf("configuredDetail", option.configured) : undefined,
       option,
     })),
-    { title: "Pi Agent Chat: sign in to a provider", matchOnDescription: true, ignoreFocusOut: true },
+    { title: t("signInTitle"), matchOnDescription: true, ignoreFocusOut: true },
   );
   if (!picked) return false;
   const option = picked.option;
 
   if (!option.hasLogin) {
-    vscode.window.showInformationMessage(
-      `${option.name} uses ambient credentials (environment variables or config files). Set them outside of pi; there is nothing to store via login.`,
-    );
+    vscode.window.showInformationMessage(tf("ambientCredentials", option.name));
     return false;
   }
 
@@ -87,13 +87,13 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
     await modelRuntime.login(option.id, option.authType, createAuthInteraction());
     await modelRuntime.refresh();
     log(`logged in: ${option.id} (${option.authType})`);
-    vscode.window.showInformationMessage(`Pi Agent Chat: signed in to ${option.name}.`);
+    vscode.window.showInformationMessage(tf("signedIn", option.name));
     return true;
   } catch (error) {
     if (error instanceof LoginCancelledError) return false;
-    const message = error instanceof Error ? error.message : String(error);
+    const message = describe(error);
     log(`login failed: ${message}`);
-    vscode.window.showErrorMessage(`Pi Agent Chat: login failed — ${message}`);
+    vscode.window.showErrorMessage(tf("loginFailed", message));
     return false;
   }
 }
@@ -106,24 +106,22 @@ export async function logoutFlow(runtime: PiRuntime, log: (message: string) => v
   const modelRuntime = runtime.modelRuntime;
   const credentials = await modelRuntime.listCredentials();
   if (credentials.length === 0) {
-    vscode.window.showInformationMessage(
-      "Pi Agent Chat: no stored credentials to remove. Logout only removes credentials saved by login.",
-    );
+    vscode.window.showInformationMessage(t("noStoredCredentials"));
     return false;
   }
   const picked = await vscode.window.showQuickPick(
     credentials.map(({ providerId, type }) => ({
       label: modelRuntime.getProvider(providerId)?.name ?? providerId,
-      description: type === "oauth" ? "OAuth" : "API key",
+      description: type === "oauth" ? t("oauthLabel") : t("apiKeyDescription"),
       providerId,
     })),
-    { title: "Pi Agent Chat: remove stored credential", ignoreFocusOut: true },
+    { title: t("removeCredentialTitle"), ignoreFocusOut: true },
   );
   if (!picked) return false;
   await modelRuntime.logout(picked.providerId);
   await modelRuntime.refresh();
   log(`logged out: ${picked.providerId}`);
-  vscode.window.showInformationMessage(`Pi Agent Chat: removed credential for ${picked.label}.`);
+  vscode.window.showInformationMessage(tf("removedCredential", picked.label));
   return true;
 }
 
@@ -145,23 +143,21 @@ function createAuthInteraction(): AuthInteraction {
       switch (event.type) {
         case "auth_url":
           void vscode.env.openExternal(vscode.Uri.parse(event.url));
-          void vscode.window.showInformationMessage(
-            event.instructions ?? "Complete the sign-in in your browser, then return to VS Code.",
-          );
+          void vscode.window.showInformationMessage(event.instructions ?? t("browserSignIn"));
           break;
         case "device_code": {
           void vscode.env.clipboard.writeText(event.userCode);
           // Must stay visible while the user completes the flow in the browser:
           // toasts auto-dismiss, so use a modal dialog. Login polling continues
           // in the background because this promise is not awaited.
-          const open = "Open page & copy code";
-          const copy = "Copy code only";
+          const open = t("deviceOpenPage");
+          const copy = t("deviceCopyOnly");
           void vscode.window
             .showInformationMessage(
-              `Pi Agent Chat: device sign-in code ${event.userCode}`,
+              tf("deviceCodeTitle", event.userCode),
               {
                 modal: true,
-                detail: `Enter this code at:\n${event.verificationUri}\n\nCode: ${event.userCode}\n(already copied to the clipboard)`,
+                detail: tf("deviceCodeDetail", event.verificationUri, event.userCode),
               },
               open,
               copy,
@@ -171,7 +167,7 @@ function createAuthInteraction(): AuthInteraction {
               if (answer === open) void vscode.env.openExternal(vscode.Uri.parse(event.verificationUri));
             });
           // Also keep the code visible in the status bar as a fallback.
-          vscode.window.setStatusBarMessage(`Pi Agent Chat sign-in code: ${event.userCode}`, 300_000);
+          vscode.window.setStatusBarMessage(tf("deviceCodeStatusBar", event.userCode), 300_000);
           break;
         }
         case "info": {
