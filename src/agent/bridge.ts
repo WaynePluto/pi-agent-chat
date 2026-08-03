@@ -490,7 +490,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
             if (validated.sensitive.includes(path)) flags.push("potentially sensitive");
             return `@${path}${flags.length ? ` (${flags.join(", ")})` : ""}`;
           });
-          trimmed = `${trimmed ? `${trimmed}\n\n` : ""}Referenced project files (relative to the workspace root; use the read tool to inspect them):\n${lines.join("\n")}`;
+          trimmed = `${trimmed ? `${trimmed}\n\n` : ""}${tf("referencedFilesHeader", lines.join("\n"))}`;
         }
       } catch (error) {
         this.reportError(this.runtime.session, "file reference rejected", error);

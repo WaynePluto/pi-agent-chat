@@ -133,6 +133,12 @@ export const sharedMessages = {
 
 /** Strings with interpolated values. Both languages must take the same arguments. */
 export const sharedTemplates = {
+  /** Prompt prefix folded in before referenced `@file` lines when sending a message. */
+  referencedFilesHeader: {
+    en: (lines: string) =>
+      `Referenced project files (relative to the workspace root; use the read tool to inspect them):\n${lines}`,
+    zh: (lines: string) => `引用的项目文件（相对于工作区根目录，请使用 read 工具查看）：\n${lines}`,
+  },
   diffEditorTitle: {
     en: (name: string) => `${name} (pi edit)`,
     zh: (name: string) => `${name}（pi 修改）`,
