@@ -73,6 +73,52 @@ export const sharedMessages = {
     zh: "Pi Agent Chat：当前模型没有可选的思考等级。",
   },
   current: { en: "current", zh: "当前" },
+  modalityText: { en: "text", zh: "文本" },
+  modalityImage: { en: "image", zh: "图像" },
+  modelReasoning: { en: "reasoning", zh: "思考" },
+
+  /* Settings menu -------------------------------------------------------- */
+
+  settingsTitle: { en: "Pi Agent Chat: settings", zh: "Pi Agent Chat：设置" },
+  settingsProviders: { en: "Providers", zh: "供应商" },
+  settingsProvidersDetail: {
+    en: "Sign in / configure a model provider",
+    zh: "登录 / 配置模型供应商",
+  },
+  settingsShellPath: { en: "Shell path", zh: "Shell 路径" },
+  settingsHelp: { en: "Command help", zh: "命令帮助" },
+  renameRunningSession: {
+    en: "Pi Agent Chat: cannot rename a session while a subagent is writing to it.",
+    zh: "Pi Agent Chat：子代理正在写入该会话，暂时无法重命名。",
+  },
+  settingsHelpDetail: {
+    en: "List built-in slash commands",
+    zh: "查看内置斜杠命令列表",
+  },
+  settingsShellPathDetail: {
+    en: "Shell used by the bash tool",
+    zh: "bash 工具使用的 shell",
+  },
+  shellPathTitle: { en: "Pi Agent Chat: select shell", zh: "Pi Agent Chat：选择 shell" },
+  shellPathCustom: { en: "Enter path manually...", zh: "手动输入路径…" },
+  shellPathDefault: { en: "System default", zh: "系统默认" },
+  shellPathDefaultDetail: {
+    en: "Clear the custom shell path",
+    zh: "清除自定义 shell 路径",
+  },
+  shellPathInputTitle: { en: "Pi Agent Chat: shell path", zh: "Pi Agent Chat：Shell 路径" },
+  shellPathInputPrompt: {
+    en: "Absolute path to the shell executable",
+    zh: "shell 可执行文件的绝对路径",
+  },
+  shellPathNotFound: {
+    en: "Pi Agent Chat: that path does not exist.",
+    zh: "Pi Agent Chat：该路径不存在。",
+  },
+  shellPathCleared: {
+    en: "shell path reset to system default (applies to new sessions)",
+    zh: "shell 路径已恢复系统默认（对新会话生效）",
+  },
 
   /* Login / logout ------------------------------------------------------ */
 
@@ -178,9 +224,12 @@ export const sharedTemplates = {
     en: (code: string) => `Pi Agent Chat sign-in code: ${code}`,
     zh: (code: string) => `Pi Agent Chat 登录验证码：${code}`,
   },
-  modelCurrent: {
-    en: (provider: string) => `${provider} — current`,
-    zh: (provider: string) => `${provider} — 当前`,
+  /** QuickPick detail line for one model: input modalities, context window, max output. */
+  modelCapabilities: {
+    en: (input: string, context: string, maxOutput: string) =>
+      `${input} · ${context} context · ${maxOutput} max output`,
+    zh: (input: string, context: string, maxOutput: string) =>
+      `${input} · ${context} 上下文 · ${maxOutput} 最大输出`,
   },
   compactionDone: {
     en: (before: number, after: number) => `compaction done: ${before} -> ~${after} tokens`,
@@ -197,6 +246,10 @@ export const sharedTemplates = {
   exportedSession: {
     en: (path: string) => `exported to ${path}`,
     zh: (path: string) => `已导出到 ${path}`,
+  },
+  shellPathSet: {
+    en: (path: string) => `shell path set to ${path} (applies to new sessions)`,
+    zh: (path: string) => `shell 路径已设置为 ${path}（对新会话生效）`,
   },
   treeLabelSet: {
     en: (label: string) => `label set: ${label}`,

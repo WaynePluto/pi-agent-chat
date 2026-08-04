@@ -123,8 +123,9 @@ export class PiRuntime implements vscode.Disposable {
   }
 
   async switchSession(sessionFile: string): Promise<void> {
+    const started = Date.now();
     await this.runtime.switchSession(sessionFile);
-    this.log(`switched session: ${sessionFile}`);
+    this.log(`switched session: ${sessionFile} (load ${Date.now() - started}ms)`);
   }
 
   /** Import a session JSONL and make it the active session. */

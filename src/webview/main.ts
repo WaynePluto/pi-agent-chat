@@ -13,10 +13,12 @@ import {
   delegationLabelEl,
   delegationPeerBtn,
   followUpBtn,
+  headerTitleEl,
   inputEl,
-  messagesEl,
+  messagesWrapEl,
   modelBtn,
   newBtn,
+  recallBtn,
   resourcesEl,
   sendBtn,
   sessionsBtn,
@@ -27,7 +29,7 @@ import {
 } from "./shell.js";
 import { renderStatusLine } from "./statusline.js";
 import { setState, state } from "./store.js";
-import { applyEvent, applyHistory, clearMessages, updateWorkingIndicator } from "./transcript.js";
+import { applyEvent, applyHistory, clearMessages, hasPendingBubbles, removePendingBubbles, showLoading, updateWorkingIndicator } from "./transcript.js";
 
 /**
  * Application shell: wires the view modules together, owns page layout
@@ -46,7 +48,7 @@ const t = getDict();
 /** The sessions page replaces the chat: hide messages, composer and Tree. */
 function openSessions(): void {
   sessionsEl.classList.remove("hidden");
-  messagesEl.classList.add("hidden");
+  messagesWrapEl.classList.add("hidden");
   composerEl.classList.add("hidden");
   resourcesEl.classList.add("hidden");
   delegationBarEl.classList.add("hidden");
@@ -81,7 +83,7 @@ function updateHeaderButtons(): void {
 }
 
 function showChat(): void {
-  messagesEl.classList.remove("hidden");
+  messagesWrapEl.classList.remove("hidden");
   composerEl.classList.remove("hidden");
   resourcesEl.classList.toggle("hidden", !hasResources());
   delegationBarEl.classList.toggle("hidden", !state.delegation && !state.preview);
@@ -95,7 +97,7 @@ function applyAuthGate(): void {
   const gated = state.ready && Boolean(state.needsAuth);
   authEl.classList.toggle("hidden", !gated);
   if (gated) {
-    messagesEl.classList.add("hidden");
+    messagesWrapEl.classList.add("hidden");
     composerEl.classList.add("hidden");
     resourcesEl.classList.add("hidden");
     delegationBarEl.classList.add("hidden");
@@ -109,7 +111,7 @@ function renderDelegationBar(): void {
   const preview = state.preview;
   if (preview) {
     delegationBarEl.classList.remove("hidden");
-    delegationLabelEl.textContent = t.previewBanner(preview.title);
+    delegationLabelEl.textContent = t.previewBanner;
     delegationPeerBtn.textContent = t.previewBack;
     return;
   }
@@ -125,12 +127,26 @@ function renderDelegationBar(): void {
   }
 }
 
+/**
+ * The header title shows where the user is: the preview target, the current
+ * session's display name (or first message), or a "new session" placeholder.
+ * The extension name itself already appears in the VS Code view title.
+ */
+function renderHeaderTitle(): void {
+  const text = state.preview
+    ? t.previewLabel(state.preview.title)
+    : state.sessionName || t.newSessionLabel;
+  headerTitleEl.textContent = text;
+  headerTitleEl.title = text;
+}
+
 /* ---------------------------------------------------------------- */
 /* State                                                             */
 /* ---------------------------------------------------------------- */
 
 function applyState(next: ChatState): void {
   setState(next);
+  renderHeaderTitle();
   const childReadOnly = Boolean(state.inputDisabled) && !state.preview;
   const parentWaiting = state.delegation?.role === "parent";
   sendBtn.innerHTML = state.isStreaming ? STOP_ICON : SEND_ICON;
@@ -147,6 +163,7 @@ function applyState(next: ChatState): void {
   sendBtn.disabled = !state.ready || Boolean(state.preview);
   steerBtn.classList.toggle("hidden", !state.isStreaming || childReadOnly);
   followUpBtn.classList.toggle("hidden", !state.isStreaming || childReadOnly);
+  updateRecallButton();
   steerBtn.title = parentWaiting ? t.parentSteerTitle : t.steerTitle;
   followUpBtn.title = parentWaiting ? t.parentFollowUpTitle : t.followUpTitle;
   // Model / thinking values speak for themselves; no label prefix needed.
@@ -178,17 +195,30 @@ sendBtn.addEventListener("click", () => {
 });
 steerBtn.addEventListener("click", () => send("steer"));
 followUpBtn.addEventListener("click", () => send("followUp"));
+recallBtn.addEventListener("click", () => post({ type: "dequeue" }));
+
+/** Visible only while queued/steering messages are still waiting. */
+function updateRecallButton(): void {
+  recallBtn.classList.toggle("hidden", !hasPendingBubbles() || Boolean(state.inputDisabled) || Boolean(state.preview));
+}
+
+/** CLI dequeue: recalled texts go in front of whatever is being typed. */
+function prependToInput(texts: string[]): void {
+  const combined = [...texts, inputEl.value].filter((part) => part.trim()).join("\n\n");
+  setInput(combined);
+}
 modelBtn.addEventListener("click", () => post({ type: "pickModel" }));
 thinkingBtn.addEventListener("click", () => post({ type: "pickThinkingLevel" }));
 newBtn.addEventListener("click", () => {
   closeSessions();
   clearFileRefs();
+  showLoading();
   post({ type: "newSession" });
 });
 treeBtn.addEventListener("click", () => post({ type: "openSessionTree" }));
 byId("btn-login").addEventListener("click", () => post({ type: "login" }));
 byId("btn-logout").addEventListener("click", () => post({ type: "logout" }));
-byId("btn-providers").addEventListener("click", () => post({ type: "login" }));
+byId("btn-settings").addEventListener("click", () => post({ type: "openSettings" }));
 byId("btn-sessions").addEventListener("click", () => {
   if (!isSessionsOpen()) openSessions();
 });
@@ -204,8 +234,10 @@ delegationPeerBtn.addEventListener("click", () => {
 window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   const message = event.data;
   if (message.type === "state") applyState(message.state);
-  else if (message.type === "event") applyEvent(message.event);
-  else if (message.type === "history") applyHistory(message.events);
+  else if (message.type === "event") {
+    applyEvent(message.event);
+    updateRecallButton();
+  } else if (message.type === "history") applyHistory(message.events, message.live);
   else if (message.type === "sessions") renderSessions(message.items);
   else if (message.type === "commands") setSlashCommands(message.items);
   else if (message.type === "projectFiles") onProjectFiles(message.requestId, message.items, message.error);
@@ -213,6 +245,11 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
     renderResources(message.sections);
     if (!state.needsAuth && !isSessionsOpen()) resourcesEl.classList.toggle("hidden", !hasResources());
   } else if (message.type === "setInput") setInput(message.text);
+  else if (message.type === "dequeued") {
+    removePendingBubbles();
+    prependToInput(message.texts);
+    updateRecallButton();
+  }
   else if (message.type === "clear") clearMessages();
 });
 

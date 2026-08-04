@@ -13,6 +13,7 @@
 | bridge | `src/agent/bridge.ts` | `ChatBridge`：SDK `AgentSessionEvent` → `HostMessage`，webview 消息 → runtime 操作；历史回放（`buildHistoryEvents`）、资源清单、subagent 观察者 | vscode, pi-coding-agent, protocol, auth, commands, session-tree, diff-view, project-files, runtime, subagent |
 | commands | `src/agent/commands.ts` | 斜杠命令目录（命名对齐 CLI）与内置命令分发；prompt 模板/扩展命令仅做补全展示，实际由 `AgentSession.prompt()` 处理 | vscode, pi-coding-agent, protocol, runtime, session-tree |
 | session-tree | `src/agent/session-tree.ts` | `/tree` `/fork` `/clone`：用原生 QuickPick 驱动 session 条目树导航与分支操作 | vscode, pi-coding-agent, runtime |
+| settings-menu | `src/agent/settings-menu.ts` | header “设置”菜单与 `/shell-path`：供应商入口、shell 路径探测/设置（写入 `~/.pi/agent/settings.json`，与 CLI 互通） | vscode, runtime, host i18n |
 | auth | `src/agent/auth.ts` | 登录/登出流程：把 SDK `AuthInteraction` / `AuthPrompt` 映射到 VS Code 原生对话框 | vscode, pi-ai, runtime |
 | subagent | `src/agent/subagent.ts` | `SubagentCoordinator`：以自定义工具形式运行单个 SDK 子 session，父 session 在工具调用中等待；向观察者广播子会话事件 | typebox, pi-coding-agent |
 | project-files | `src/agent/project-files.ts` | `ProjectFileIndex`：`@` 文件引用的索引/搜索/校验，含缓存、二进制与敏感文件过滤、引用数上限 | node:child_process, node:fs, protocol |
@@ -48,6 +49,7 @@ graph TD
     runtime[agent/runtime]
     commands[agent/commands]
     sessiontree[agent/session-tree]
+    settingsmenu[agent/settings-menu]
     auth[agent/auth]
     subagent[agent/subagent]
     projectfiles[agent/project-files]
@@ -87,6 +89,10 @@ graph TD
   bridge --> runtime
   bridge --> auth
   bridge --> commands
+  bridge --> settingsmenu
+  commands --> settingsmenu
+  settingsmenu --> runtime
+  settingsmenu --> hosti18n
   bridge --> sessiontree
   bridge --> diffview
   bridge --> projectfiles

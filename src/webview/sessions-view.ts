@@ -6,6 +6,7 @@ import { getDict } from "./i18n.js";
 import { sessionsEl } from "./shell.js";
 import { spinner } from "./spinner.js";
 import { state } from "./store.js";
+import { showLoading } from "./transcript.js";
 
 /**
  * The sessions page: a full-height list replacing the chat while open.
@@ -60,15 +61,20 @@ function sessionRow(item: SessionListItem): HTMLElement {
 
   const main = button("session-main", undefined, () => onRowClick(item));
   main.title = t.sessionResumeTitle;
+  const titleRow = el("span", "session-title");
+  const badge = statusBadge(item);
+  if (badge) titleRow.appendChild(badge);
+  titleRow.appendChild(el("span", "session-title-text", truncate(item.title, MAX_SESSION_TITLE_CHARS)));
   main.append(
-    el("span", "session-title", truncate(item.title, MAX_SESSION_TITLE_CHARS)),
+    titleRow,
     el("span", "session-meta", item.timestamp?.slice(0, TIMESTAMP_CHARS).replace("T", " ") ?? ""),
   );
   row.appendChild(main);
 
-  row.appendChild(
-    item.current || item.running || item.delegationRole ? statusBadge(item) : deleteButton(item),
-  );
+  // Action buttons occupy fixed slots on every row; unavailable actions are
+  // disabled rather than hidden. Status badges live inline before the title.
+  row.appendChild(renameButton(item));
+  row.appendChild(deleteButton(item));
   return row;
 }
 
@@ -89,17 +95,21 @@ function onRowClick(item: SessionListItem): void {
     // replacing the active session. In preview `isStreaming` is reported
     // false (the visible transcript is static), so check `preview` too.
     if (state.isStreaming || state.delegation || state.preview) {
+      showLoading();
       post({ type: "previewSession", file: item.file });
       hooks.close();
       return;
     }
     hooks.onResume();
+    // Loading a large session file takes the host a moment; without this the
+    // previous transcript would stay on screen and read as a frozen UI.
+    showLoading();
     post({ type: "resumeSession", file: item.file });
   }
   hooks.close();
 }
 
-function statusBadge(item: SessionListItem): HTMLElement {
+function statusBadge(item: SessionListItem): HTMLElement | undefined {
   const badge = el("span", "session-badge");
   if (item.delegationRole === "child") {
     badge.append(spinner(), document.createTextNode(` ${t.sessionSubagentRunning}`));
@@ -107,9 +117,11 @@ function statusBadge(item: SessionListItem): HTMLElement {
     badge.textContent = t.sessionParentWaiting;
   } else if (item.running) {
     // Same braille spinner as the bottom "Working..." indicator.
-    badge.append(spinner(), document.createTextNode(` ${item.current ? t.sessionCurrent : t.sessionRunning}`));
-  } else if (item.current) {
-    badge.textContent = state.preview ? t.sessionPreviewing : t.sessionCurrent;
+    badge.append(spinner(), document.createTextNode(` ${t.sessionRunning}`));
+  } else if (item.current && state.preview) {
+    badge.textContent = t.sessionPreviewing;
+  } else {
+    return undefined;
   }
   return badge;
 }
@@ -119,6 +131,20 @@ function deleteButton(item: SessionListItem): HTMLElement {
     event.stopPropagation();
     post({ type: "deleteSession", file: item.file });
   });
-  del.title = t.sessionDeleteTitle;
+  if (item.current || item.running || item.delegationRole) {
+    del.disabled = true;
+    del.title = t.sessionDeleteCurrentTitle;
+  } else {
+    del.title = t.sessionDeleteTitle;
+  }
   return del;
+}
+
+function renameButton(item: SessionListItem): HTMLElement {
+  const rename = button("session-rename", t.sessionRename, (event) => {
+    event.stopPropagation();
+    post({ type: "renameSession", file: item.file });
+  });
+  rename.title = t.sessionRenameTitle;
+  return rename;
 }

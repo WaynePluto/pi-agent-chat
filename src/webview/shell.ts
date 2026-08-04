@@ -12,12 +12,12 @@ const t = getDict();
 const root = document.getElementById("root") as HTMLElement;
 root.innerHTML = `
   <header class="header">
-    <div class="header-title">${t.title} <span class="unofficial">${t.unofficial}</span></div>
+    <div id="header-title" class="header-title">${t.newSessionLabel}</div>
     <div class="header-actions">
       <button id="btn-new" title="${t.newSessionTitle}">${t.newSession}</button>
       <button id="btn-sessions" title="${t.sessionsTitle}">${t.sessions}</button>
       <button id="btn-tree" title="${t.treeTitle}">${t.tree}</button>
-      <button id="btn-providers" title="${t.providersTitle}">${t.providers}</button>
+      <button id="btn-settings" title="${t.settingsTitle}">${t.settings}</button>
     </div>
   </header>
   <div id="sessions" class="sessions hidden"></div>
@@ -34,7 +34,7 @@ root.innerHTML = `
     <span id="delegation-label"></span>
     <button id="delegation-peer" class="secondary"></button>
   </div>
-  <div class="messages-wrap">
+  <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages"></main>
     <button id="scroll-down" class="scroll-down hidden" title="${t.scrollDownTitle}">${CHEVRON_ICON}</button>
   </div>
@@ -49,6 +49,7 @@ root.innerHTML = `
       <span class="spacer"></span>
       <button id="btn-steer" class="secondary hidden" title="${t.steerTitle}">${t.steer}</button>
       <button id="btn-followup" class="secondary hidden" title="${t.followUpTitle}">${t.followUp}</button>
+      <button id="btn-recall" class="secondary hidden" title="${t.recallTitle}">${t.recall}</button>
       <button id="btn-send" class="icon-button" title="${t.sendIconTitle}">${SEND_ICON}</button>
     </div>
     <div id="statusline" class="statusline"></div>
@@ -62,12 +63,14 @@ export function byId<T extends HTMLElement = HTMLElement>(id: string): T {
 }
 
 export const messagesEl = byId("messages");
+export const messagesWrapEl = byId("messages-wrap");
 export const inputEl = byId<HTMLTextAreaElement>("input");
 export const sessionsEl = byId("sessions");
 export const composerEl = byId("composer");
 export const sendBtn = byId<HTMLButtonElement>("btn-send");
 export const steerBtn = byId<HTMLButtonElement>("btn-steer");
 export const followUpBtn = byId<HTMLButtonElement>("btn-followup");
+export const recallBtn = byId<HTMLButtonElement>("btn-recall");
 export const modelBtn = byId<HTMLButtonElement>("btn-model");
 export const thinkingBtn = byId<HTMLButtonElement>("btn-thinking");
 export const newBtn = byId<HTMLButtonElement>("btn-new");
@@ -83,3 +86,4 @@ export const delegationBarEl = byId("delegation-bar");
 export const delegationLabelEl = byId("delegation-label");
 export const delegationPeerBtn = byId<HTMLButtonElement>("delegation-peer");
 export const scrollDownBtn = byId<HTMLButtonElement>("scroll-down");
+export const headerTitleEl = byId("header-title");

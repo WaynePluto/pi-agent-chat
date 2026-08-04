@@ -66,6 +66,23 @@ let workingEl: HTMLElement | undefined;
 let workingLabelEl: HTMLElement | undefined;
 
 /* ---------------------------------------------------------------- */
+/* Batched history replay                                            */
+/* ---------------------------------------------------------------- */
+
+/**
+ * Where top-level transcript nodes are appended. While replaying a persisted
+ * session this is a detached fragment: building hundreds of cards directly in
+ * the live DOM makes the browser maintain layout for every single append.
+ */
+let sink: HTMLElement | DocumentFragment = messagesEl;
+
+/** Suppresses per-event scrolling (which forces a synchronous layout). */
+let replaying = false;
+
+/** The "no messages yet" / "loading" placeholder, tracked instead of queried. */
+let placeholderEl: HTMLElement | undefined;
+
+/* ---------------------------------------------------------------- */
 /* Sticky auto-scroll                                                */
 /* ---------------------------------------------------------------- */
 
@@ -204,25 +221,71 @@ export function applyEvent(event: ChatEvent): void {
       reconcilePendingBubbles(event.steering, event.followUp);
       break;
     case "status":
-      appendNoticeCard("status", event.text);
+      appendNoticeCard("status", event.text, event.scope);
       break;
     case "error":
-      appendNoticeCard("error", event.text);
+      appendNoticeCard("error", event.text, event.scope);
       break;
   }
-  messagesEl.querySelector(".empty-session")?.remove();
-  scrollToEnd();
+  if (placeholderEl) {
+    placeholderEl.remove();
+    placeholderEl = undefined;
+  }
+  // During replay every event would force a layout read; scroll once at the end.
+  if (!replaying) scrollToEnd();
 }
 
-export function applyHistory(events: ChatEvent[]): void {
+/**
+ * Replay a persisted transcript. Everything is built inside a detached
+ * fragment and attached in one go, so a long session costs one layout pass
+ * instead of one per event.
+ */
+export function applyHistory(events: ChatEvent[], live = false): void {
+  const started = performance.now();
   clearMessages();
   followBottom = true;
-  for (const event of events) applyEvent(event);
-  if (events.length === 0) appendBubble("status", t.emptySession).classList.add("empty-session");
+
+  const fragment = document.createDocumentFragment();
+  sink = fragment;
+  replaying = true;
+  try {
+    for (const event of events) applyEvent(event);
+  } finally {
+    replaying = false;
+    sink = messagesEl;
+  }
+  const built = performance.now();
+  messagesEl.appendChild(fragment);
+
+  if (events.length === 0) {
+    placeholderEl = appendBubble("status", t.emptySession);
+    placeholderEl.classList.add("empty-session");
+  }
   // Persisted history has no agent lifecycle events. Its final non-formal
-  // cards belong to a completed historical execution process, not a live one.
-  finishWorkBlock();
+  // cards belong to a completed historical execution process, not a live one —
+  // unless the session is still streaming (e.g. returning from a preview),
+  // where closing the block would split one execution process in two.
+  if (!live) finishWorkBlock();
   scrollToEnd();
+  // One line per session switch: the cheapest way to spot replay regressions
+  // on a real (large) session from the webview devtools.
+  console.log(
+    `[pi-agent-chat] history replay: ${events.length} events, build ${Math.round(built - started)}ms, total ${Math.round(performance.now() - started)}ms`,
+  );
+}
+
+/**
+ * Placeholder shown between "user picked a session" and the history arriving:
+ * without it the previous transcript stays on screen while the host loads and
+ * parses the session file, which reads as a frozen UI.
+ */
+export function showLoading(): void {
+  clearMessages();
+  const row = el("div", "working-row");
+  row.append(spinner(), el("span", undefined, ` ${t.loadingSession}`));
+  messagesEl.appendChild(row);
+  placeholderEl = row;
+  followBottom = true;
 }
 
 export function clearMessages(): void {
@@ -232,6 +295,7 @@ export function clearMessages(): void {
   assistantBubble = undefined;
   thinkingCard = undefined;
   activeWorkBlock = undefined;
+  placeholderEl = undefined;
 }
 
 /* ---------------------------------------------------------------- */
@@ -240,14 +304,14 @@ export function clearMessages(): void {
 
 function appendBubble(role: string, text: string): HTMLElement {
   const wrapper = el("div", `bubble ${role}`, text);
-  messagesEl.appendChild(wrapper);
+  sink.appendChild(wrapper);
   return wrapper;
 }
 
 function appendMarkdownBubble(role: string, text: string): HTMLElement {
   const wrapper = el("div", `bubble markdown ${role}`);
   wrapper.appendChild(renderMarkdown(text));
-  messagesEl.appendChild(wrapper);
+  sink.appendChild(wrapper);
   return wrapper;
 }
 
@@ -288,32 +352,50 @@ function normalizeUserBubble(element: HTMLElement): void {
   element.querySelector(".bubble-badge")?.remove();
 }
 
+/**
+ * Recall: queued messages went back to the composer, so their floating
+ * bubbles disappear from the transcript entirely (CLI dequeue behavior).
+ */
+export function removePendingBubbles(): void {
+  for (const pending of pendingUserBubbles) pending.element.remove();
+  pendingUserBubbles.length = 0;
+}
+
+/** Whether any queued/steering bubbles are still waiting to be consumed. */
+export function hasPendingBubbles(): boolean {
+  return pendingUserBubbles.length > 0;
+}
+
 function createStreamingBubble(role: string): StreamingBubble {
   const element = el("div", `bubble markdown ${role}`);
-  messagesEl.appendChild(element);
+  sink.appendChild(element);
   return { element, raw: "" };
 }
 
 /**
- * Status / error notices (retry, compaction, command feedback) render as
- * collapsed one-line cards; expanding shows the full text.
+ * Status / error notices. Run-scoped notices (retry, compaction) are grouped
+ * into the current work block as collapsed one-line cards. Command-scoped
+ * notices (e.g. /session output) are the direct result the user asked for:
+ * they render at the top level of the transcript, expanded by default.
  */
-export function appendNoticeCard(kind: "status" | "error", text: string): void {
-  const work = ensureWorkBlock();
+export function appendNoticeCard(kind: "status" | "error", text: string, scope?: "command"): void {
+  const command = scope === "command";
+  const parent = command ? sink : ensureWorkBlock().collapsible.body;
   const firstLine = text.split("\n")[0] ?? "";
   const short = firstLine.length > MAX_NOTICE_HEADER_CHARS ? `${firstLine.slice(0, MAX_NOTICE_HEADER_CHARS)}...` : firstLine;
   // Nothing hidden behind the fold: render a flat, non-expandable card.
   if (short === text) {
     const card = el("div", `notice-card flat ${kind}`);
     card.appendChild(el("span", "card-label", text));
-    work.collapsible.body.appendChild(card);
+    parent.appendChild(card);
     return;
   }
   createCollapsible({
     classes: CARD_CLASSES,
     rootClass: `notice-card ${kind}`,
     label: short,
-    parent: work.collapsible.body,
+    expanded: command,
+    parent,
     render: (body) => body.replaceChildren(el("pre", "notice-body", text)),
   });
 }
@@ -335,7 +417,7 @@ function ensureWorkBlock(): WorkBlock {
       rootClass: "work-block running",
       tag: "section",
       label: t.workHeader,
-      parent: messagesEl,
+      parent: sink,
     }),
     thinkingCount: 0,
     toolCount: 0,

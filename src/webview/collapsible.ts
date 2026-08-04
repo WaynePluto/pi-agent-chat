@@ -67,7 +67,8 @@ export interface CollapsibleOptions {
   label: string;
   status?: string;
   expanded?: boolean;
-  parent?: HTMLElement;
+  /** Attachment point; a detached fragment during history replay. */
+  parent?: HTMLElement | DocumentFragment;
   /** Builds the body on first expansion; omit for eagerly filled bodies. */
   render?: (body: HTMLElement) => void;
   onToggle?: (expanded: boolean) => void;

@@ -3,7 +3,9 @@ import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { SlashCommand } from "../shared/protocol.js";
 import type { PiRuntime } from "./runtime.js";
 import { t, tf } from "./i18n.js";
+import { isChinese } from "../shared/messages.js";
 import { cloneSession, navigateSessionTree, pickForkPoint, type SessionTreeUi } from "./session-tree.js";
+import { pickShellPath } from "./settings-menu.js";
 
 /**
  * Slash commands for the sidebar.
@@ -16,30 +18,47 @@ import { cloneSession, navigateSessionTree, pickForkPoint, type SessionTreeUi } 
  * here: `AgentSession.prompt()` already expands and dispatches them. This
  * module only surfaces them for autocomplete.
  */
-const BUILTIN_COMMANDS: Array<{ name: string; description: string; argumentHint?: string }> = [
-  { name: "model", description: "Select model (opens selector UI)", argumentHint: "<provider/model>" },
-  { name: "thinking", description: "Select thinking level" },
-  { name: "compact", description: "Manually compact the session context", argumentHint: "[instructions]" },
-  { name: "name", description: "Set session display name", argumentHint: "<name>" },
-  { name: "session", description: "Show session info and stats" },
-  { name: "copy", description: "Copy last agent message to clipboard" },
-  { name: "new", description: "Start a new session" },
-  { name: "resume", description: "Resume a different session" },
-  { name: "fork", description: "Create a new fork from a previous user message" },
-  { name: "clone", description: "Duplicate the current session at the current position" },
-  { name: "tree", description: "Navigate session tree (switch branches)" },
-  { name: "import", description: "Import and resume a session from a JSONL file", argumentHint: "<path.jsonl>" },
-  { name: "export", description: "Export the session JSONL to a file", argumentHint: "[path.jsonl]" },
-  { name: "reload", description: "Reload extensions, skills, prompts and context files" },
-  { name: "login", description: "Sign in to a model provider" },
-  { name: "logout", description: "Remove a stored provider credential" },
+const BUILTIN_COMMANDS: Array<{ name: string; description: string; descriptionZh: string; argumentHint?: string }> = [
+  { name: "help", description: "List built-in commands", descriptionZh: "查看内置命令列表" },
+  { name: "model", description: "Select model (opens selector UI)", descriptionZh: "选择模型（打开选择器）", argumentHint: "<provider/model>" },
+  { name: "thinking", description: "Select thinking level", descriptionZh: "选择思考等级" },
+  { name: "compact", description: "Manually compact the session context", descriptionZh: "手动压缩会话上下文", argumentHint: "[instructions]" },
+  { name: "name", description: "Set session display name", descriptionZh: "设置会话显示名称", argumentHint: "<name>" },
+  { name: "session", description: "Show session info and stats", descriptionZh: "显示会话信息与统计" },
+  { name: "copy", description: "Copy last agent message to clipboard", descriptionZh: "复制最后一条 agent 消息到剪贴板" },
+  { name: "new", description: "Start a new session", descriptionZh: "开始新会话" },
+  { name: "resume", description: "Resume a different session", descriptionZh: "恢复其他会话" },
+  { name: "fork", description: "Create a new fork from a previous user message", descriptionZh: "从历史用户消息创建分支" },
+  { name: "clone", description: "Duplicate the current session at the current position", descriptionZh: "在当前位置复制会话" },
+  { name: "tree", description: "Navigate session tree (switch branches)", descriptionZh: "导航会话树（切换分支）" },
+  { name: "import", description: "Import and resume a session from a JSONL file", descriptionZh: "从 JSONL 文件导入并恢复会话", argumentHint: "<path.jsonl>" },
+  { name: "export", description: "Export the session JSONL to a file", descriptionZh: "导出会话 JSONL 到文件", argumentHint: "[path.jsonl]" },
+  { name: "reload", description: "Reload extensions, skills, prompts and context files", descriptionZh: "重新加载扩展、技能、提示词与上下文文件" },
+  { name: "shell-path", description: "Configure the shell used by the bash tool", descriptionZh: "配置 bash 工具使用的 shell", argumentHint: "[path]" },
+  { name: "login", description: "Sign in to a model provider", descriptionZh: "登录模型供应商" },
+  { name: "logout", description: "Remove a stored provider credential", descriptionZh: "移除已存储的供应商凭据" },
 ];
 
 export const BUILTIN_COMMAND_NAMES = new Set(BUILTIN_COMMANDS.map((command) => command.name));
 
+/**
+ * `/help` output: the built-in command directory as plain text, in the VS Code
+ * display language. Note the `/` autocomplete list itself intentionally stays
+ * English to align with the CLI; only this human-readable summary localizes.
+ */
+export function formatHelp(): string {
+  const zh = isChinese(vscode.env.language);
+  const rows = BUILTIN_COMMANDS.map((command) => ({
+    usage: `/${command.name}${command.argumentHint ? ` ${command.argumentHint}` : ""}`,
+    description: zh ? command.descriptionZh : command.description,
+  }));
+  const width = Math.max(...rows.map((row) => row.usage.length));
+  return rows.map((row) => `${row.usage.padEnd(width)}  ${row.description}`).join("\n");
+}
+
 /** Collect every command offered by autocomplete, mirroring the CLI's sources. */
 export function collectSlashCommands(session: AgentSession): SlashCommand[] {
-  const commands: SlashCommand[] = BUILTIN_COMMANDS.map((command) => ({ ...command, kind: "builtin" }));
+  const commands: SlashCommand[] = BUILTIN_COMMANDS.map(({ name, description, argumentHint }) => ({ name, description, argumentHint, kind: "builtin" }));
 
   for (const template of session.promptTemplates) {
     commands.push({
@@ -110,6 +129,9 @@ export async function runBuiltinCommand(
 
   const session = runtime.session;
   switch (name) {
+    case "help":
+      actions.status(formatHelp());
+      break;
     case "new":
       await actions.newSession();
       break;
@@ -169,6 +191,9 @@ export async function runBuiltinCommand(
       break;
     case "reload":
       await actions.reload();
+      break;
+    case "shell-path":
+      await pickShellPath(runtime, { login: actions.login, status: actions.status, help: () => actions.status(formatHelp()) }, argument);
       break;
     case "login":
       await actions.login();

@@ -46,6 +46,8 @@ export interface ChatState {
   cwd?: string;
   sessionFile?: string;
   sessionId?: string;
+  /** User-set display name, falling back to the first user message. */
+  sessionName?: string;
   modelId?: string;
   providerId?: string;
   thinkingLevel?: string;
@@ -134,15 +136,15 @@ export type ChatEvent =
   /** All automatic retries, compaction and queued continuations have settled. */
   | { kind: "agent_settled" }
   | { kind: "queue_update"; steering: string[]; followUp: string[] }
-  | { kind: "status"; text: string }
-  | { kind: "error"; text: string };
+  | { kind: "status"; text: string; scope?: "command" }
+  | { kind: "error"; text: string; scope?: "command" };
 
 /** Extension host -> webview. */
 export type HostMessage =
   | { type: "state"; state: ChatState }
   | { type: "event"; event: ChatEvent }
   /** Full transcript replay after startup or a session switch. */
-  | { type: "history"; events: ChatEvent[] }
+  | { type: "history"; events: ChatEvent[]; live?: boolean }
   | { type: "sessions"; items: SessionListItem[] }
   | { type: "commands"; items: SlashCommand[] }
   /** Startup resource listing, pinned above the transcript. */
@@ -151,6 +153,8 @@ export type HostMessage =
   | { type: "projectFiles"; requestId: number; items: ProjectFileItem[]; error?: string }
   /** Prefill the composer, e.g. with the message a fork branched away from. */
   | { type: "setInput"; text: string }
+  /** Queued messages were recalled: remove their bubbles, return texts to the composer. */
+  | { type: "dequeued"; texts: string[] }
   | { type: "clear" };
 
 /** Webview -> extension host. */
@@ -159,6 +163,8 @@ export type WebviewMessage =
   | { type: "prompt"; text: string; references?: string[]; streamingBehavior?: "steer" | "followUp" }
   | { type: "listProjectFiles"; requestId: number; query: string; includeIgnored: boolean }
   | { type: "abort" }
+  /** Clear all queued (steer/follow-up) messages; texts return to the composer. */
+  | { type: "dequeue" }
   | { type: "newSession" }
   | { type: "listSessions" }
   | { type: "listCommands" }
@@ -171,6 +177,8 @@ export type WebviewMessage =
   | { type: "showDelegationSession"; target: "parent" | "child" }
   /** Delete a persisted session file (asks for confirmation host-side). */
   | { type: "deleteSession"; file: string }
+  /** Rename a session (host shows an input box; writes a session_info entry). */
+  | { type: "renameSession"; file: string }
   /** Open the session tree navigator (switch branch / fork / label). */
   | { type: "openSessionTree" }
   | { type: "pickModel" }
@@ -179,5 +187,7 @@ export type WebviewMessage =
   /** Remove a credential stored by login. */
   | { type: "logout" }
   | { type: "pickThinkingLevel" }
+  /** Open the settings menu (providers, shell path, ...). */
+  | { type: "openSettings" }
   | { type: "openDiff"; path: string; patch: string }
   | { type: "openFile"; path: string };

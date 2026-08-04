@@ -1,4 +1,25 @@
 /* Colors come from VS Code theme variables only (see vscode-pi-design.md §5). */
+
+/* Semantic aliases for the recurring theme-variable + fallback pairs.
+   Adjust look & feel here instead of touching every rule. */
+:root {
+  --border: var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+  --widget-border: var(--vscode-widget-border, var(--border));
+  --hover-bg: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.12));
+  --hover-bg-strong: var(
+    --vscode-toolbar-hoverBackground,
+    rgba(128, 128, 128, 0.2)
+  );
+  --section-bg: var(
+    --vscode-sideBarSectionHeader-background,
+    rgba(128, 128, 128, 0.08)
+  );
+  --shadow: var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75));
+  --accent: var(--vscode-focusBorder);
+  --pulse-color: var(--vscode-progressBar-background, var(--accent));
+  --code-bg: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.15));
+}
+
 html,
 body {
   height: 100%;
@@ -23,36 +44,51 @@ body {
   position: relative;
 }
 
+/* Single-line ellipsis pattern, shared by many labels/rows. */
+.work-status,
+.card-label,
+.delegation-bar > span,
+button.chip,
+.autocomplete-description,
+.file-ref-label,
+.statusline-row,
+.session-title,
+.resources-counts,
+.resource-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 66px;
   /* Slightly deeper bottom padding: these top blocks cast a drop shadow into
      the area below, and the content needs breathing room above it. */
   padding: 10px 12px 14px;
   position: relative;
   z-index: 1;
-  background: var(
-    --vscode-sideBarSectionHeader-background,
-    rgba(128, 128, 128, 0.08)
-  );
+  background: var(--section-bg);
   box-shadow: none;
 }
 
 .header-title {
   font-weight: 600;
-}
-
-.unofficial {
-  opacity: 0.6;
-  font-weight: 400;
-  font-size: 0.85em;
+  /* The menu bar wins the space fight: the title shrinks (flex-shrink
+     default 1) and truncates, while .header-actions refuses to shrink. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-actions {
   display: flex;
   gap: 6px;
+  flex: 0 0 auto;
 }
 
 /* Header buttons look like a menu bar: plain text, hover highlight only. */
@@ -65,7 +101,7 @@ body {
 
 .header-actions button:hover:not(:disabled) {
   color: var(--vscode-foreground);
-  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+  background: var(--hover-bg-strong);
 }
 
 .delegation-bar {
@@ -82,14 +118,14 @@ body {
     var(--vscode-sideBarSectionHeader-background)
   );
   box-shadow: none;
+  border: 1px solid var(--vscode-focusBorder);
+  border-radius: 4px;
+  margin: 0 8px 4px;
   font-size: 0.9em;
 }
 
 .delegation-bar > span {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .delegation-bar button {
@@ -113,10 +149,7 @@ button:hover:not(:disabled) {
 }
 
 button.secondary:hover:not(:disabled) {
-  background: var(
-    --vscode-button-secondaryHoverBackground,
-    var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2))
-  );
+  background: var(--vscode-button-secondaryHoverBackground, var(--hover-bg-strong));
 }
 
 /* Flat list-like buttons: beat the base button:hover:not(:disabled) rule
@@ -124,9 +157,11 @@ button.secondary:hover:not(:disabled) {
 button.card-header:hover:not(:disabled),
 button.work-header:hover:not(:disabled),
 button.session-main:hover:not(:disabled),
+button.session-rename:hover:not(:disabled),
 button.resources-toggle:hover:not(:disabled),
-button.resource-header:hover:not(:disabled) {
-  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.12));
+button.resource-header:hover:not(:disabled),
+button.resource-file:hover:not(:disabled) {
+  background: var(--hover-bg);
 }
 
 button:disabled {
@@ -142,19 +177,16 @@ button.secondary {
 button.chip {
   color: var(--vscode-foreground);
   background: transparent;
-  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 4px 12px;
   font-size: 0.85em;
   opacity: 0.85;
   max-width: 45%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 button.chip:hover:not(:disabled) {
-  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+  background: var(--hover-bg-strong);
 }
 
 /* Read-only states (preview, running child): visibly muted, dashed outline. */
@@ -182,7 +214,7 @@ button.icon-button.stop {
 }
 
 button:focus-visible {
-  outline: 1px solid var(--vscode-focusBorder);
+  outline: 1px solid var(--accent);
 }
 
 .messages-wrap {
@@ -193,8 +225,8 @@ button:focus-visible {
   display: flex;
   flex-direction: column;
   box-shadow:
-    0 -8px 18px -6px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75)),
-    0 -3px 8px -3px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75));
+    0 -8px 18px -6px var(--shadow),
+    0 -3px 8px -3px var(--shadow);
 }
 
 .messages {
@@ -211,8 +243,8 @@ button:focus-visible {
      section-header tone to stand apart without extra border lines. */
   background: var(--vscode-sideBar-background);
   box-shadow:
-    inset 0 8px 16px -6px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75)),
-    inset 0 3px 8px -3px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75));
+    inset 0 8px 16px -6px var(--shadow),
+    inset 0 3px 8px -3px var(--shadow);
 }
 
 /* Never let flex compress items when content overflows: cards use
@@ -222,12 +254,76 @@ button:focus-visible {
   flex-shrink: 0;
 }
 
+/* ---------------------------------------------------------------- */
+/* Collapsible primitives shared by work blocks, thinking/tool cards */
+/* and the resources panel: chevron, pulse dot, hidden body.         */
+/* ---------------------------------------------------------------- */
+
+.work-chevron,
+.card-chevron,
+.resources-chevron,
+.resource-chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: transform 0.15s ease;
+}
+
+.work-chevron,
+.card-chevron {
+  margin-left: auto;
+}
+
+.resources-chevron,
+.resource-chevron {
+  transform: rotate(180deg);
+}
+
+.resource-chevron {
+  opacity: 0.6;
+}
+
+.work-block.collapsed .work-chevron,
+.collapsed .card-chevron {
+  transform: rotate(-90deg);
+}
+
+.resources-panel.collapsed .resources-chevron,
+.resource-section.collapsed .resource-chevron {
+  transform: rotate(0deg);
+}
+
+.work-block.collapsed .work-body,
+.collapsed .card-body,
+.resources-panel.collapsed .resources-body,
+.resource-section.collapsed .resource-details {
+  display: none;
+}
+
+.work-pulse,
+.card-pulse {
+  border-radius: 50%;
+  background: var(--pulse-color);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
 /* A compact, UI-only group for non-formal agent output. The transcript keeps
    each work block at the top level, while its individual cards are nested in
    the body so a long tool-heavy turn occupies one collapsible unit. */
 .work-block {
   flex: 0 0 auto;
-  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3));
+  border: 1px solid var(--border);
   border-radius: 5px;
   overflow: hidden;
   background: var(--vscode-editorWidget-background, transparent);
@@ -235,7 +331,7 @@ button:focus-visible {
 }
 
 .work-block.running {
-  border-color: var(--vscode-focusBorder);
+  border-color: var(--accent);
 }
 
 .work-header {
@@ -256,9 +352,6 @@ button:focus-visible {
 .work-status {
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   opacity: 0.7;
 }
 
@@ -269,25 +362,12 @@ button:focus-visible {
 .work-pulse {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
-  background: var(--vscode-progressBar-background, var(--vscode-focusBorder));
   opacity: 0;
 }
 
 .work-block.running .work-pulse {
   opacity: 1;
   animation: pulse 1.2s ease-in-out infinite;
-}
-
-.work-chevron {
-  margin-left: auto;
-  display: inline-flex;
-  opacity: 0.7;
-  transition: transform 0.15s ease;
-}
-
-.work-block.collapsed .work-chevron {
-  transform: rotate(-90deg);
 }
 
 .work-body {
@@ -297,12 +377,7 @@ button:focus-visible {
   max-height: 420px;
   overflow-y: auto;
   padding: 8px 8px 10px;
-  border-top: 1px solid
-    var(--vscode-panel-border, rgba(128, 128, 128, 0.25));
-}
-
-.work-block.collapsed .work-body {
-  display: none;
+  border-top: 1px solid var(--border);
 }
 
 .work-body > * {
@@ -333,8 +408,8 @@ button:focus-visible {
 
 .bubble.user {
   background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3));
-  border-right: 2px solid var(--vscode-focusBorder);
+  border: 1px solid var(--border);
+  border-right: 2px solid var(--accent);
   align-self: flex-end;
   max-width: 88%;
 }
@@ -342,8 +417,7 @@ button:focus-visible {
 /* Queued (follow-up) messages: dashed border + muted accent while waiting. */
 .bubble.user.queued {
   border-style: dashed;
-  border-right: 2px dashed
-    var(--vscode-charts-yellow, var(--vscode-focusBorder));
+  border-right: 2px dashed var(--vscode-charts-yellow, var(--accent));
 }
 
 /* Steering messages: orange accent, they interrupt the current run. */
@@ -377,8 +451,8 @@ button:focus-visible {
 
 .bubble.assistant {
   background: transparent;
-  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3));
-  border-left: 2px solid var(--vscode-charts-green, var(--vscode-focusBorder));
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--vscode-charts-green, var(--accent));
   align-self: flex-start;
   max-width: 88%;
 }
@@ -390,7 +464,7 @@ button:focus-visible {
 
 /* Collapsed status/error notices (retry, compaction, command feedback) */
 .notice-card {
-  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3));
+  border: 1px solid var(--border);
   border-radius: 4px;
   overflow: hidden;
   font-size: 0.9em;
@@ -446,7 +520,8 @@ button:focus-visible {
   white-space: normal;
 }
 
-.bubble.markdown > :first-child {
+.bubble.markdown > :first-child,
+.bubble.markdown > .bubble-badge + * {
   margin-top: 0;
 }
 
@@ -473,13 +548,13 @@ button:focus-visible {
 .bubble.markdown code {
   font-family: var(--vscode-editor-font-family);
   font-size: 0.92em;
-  background: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.15));
+  background: var(--code-bg);
   border-radius: 3px;
   padding: 0 3px;
 }
 
 .bubble.markdown pre {
-  background: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.15));
+  background: var(--code-bg);
   border-radius: 4px;
   padding: 6px 8px;
   overflow-x: auto;
@@ -491,7 +566,7 @@ button:focus-visible {
 }
 
 .bubble.markdown blockquote {
-  border-left: 2px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.4));
+  border-left: 2px solid var(--border);
   padding-left: 8px;
   opacity: 0.85;
 }
@@ -506,14 +581,14 @@ button:focus-visible {
 
 .bubble.markdown th,
 .bubble.markdown td {
-  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.4));
+  border: 1px solid var(--border);
   padding: 2px 6px;
 }
 
 /* Collapsible cards (thinking + tool calls): single-line header, lazy body */
 .thinking-card,
 .tool-card {
-  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3));
+  border: 1px solid var(--border);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -524,7 +599,7 @@ button:focus-visible {
 }
 
 .tool-card.running {
-  border-color: var(--vscode-focusBorder);
+  border-color: var(--accent);
 }
 
 .tool-card.error {
@@ -543,7 +618,7 @@ button:focus-visible {
 }
 
 .card-header:hover {
-  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.12));
+  background: var(--hover-bg);
 }
 
 .thinking-card .card-header {
@@ -553,9 +628,6 @@ button:focus-visible {
 
 .card-label {
   font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   /* Italic glyphs overhang their box; keep the last char from being clipped. */
   padding-right: 0.15em;
 }
@@ -572,24 +644,11 @@ button:focus-visible {
   display: none;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
-  background: var(--vscode-progressBar-background, var(--vscode-focusBorder));
 }
 
 .streaming .card-pulse {
   display: inline-block;
   animation: pulse 1.2s ease-in-out infinite;
-}
-
-.card-chevron {
-  margin-left: auto;
-  display: inline-flex;
-  opacity: 0.7;
-  transition: transform 0.15s ease;
-}
-
-.collapsed .card-chevron {
-  transform: rotate(-90deg);
 }
 
 .card-body {
@@ -602,22 +661,6 @@ button:focus-visible {
 .thinking-card .card-body {
   opacity: 0.75;
   font-size: 0.92em;
-}
-
-.collapsed .card-body {
-  display: none;
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 0.35;
-    transform: scale(0.8);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.1);
-  }
 }
 
 .tool-args {
@@ -667,13 +710,10 @@ button:focus-visible {
 .composer {
   position: relative;
   z-index: 1;
-  background: var(
-    --vscode-sideBarSectionHeader-background,
-    rgba(128, 128, 128, 0.08)
-  );
+  background: var(--section-bg);
   box-shadow:
-    0 -6px 16px -5px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75)),
-    0 -2px 6px -2px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75));
+    0 -6px 16px -5px var(--shadow),
+    0 -2px 6px -2px var(--shadow);
   padding: 0 12px 12px;
 }
 
@@ -689,8 +729,8 @@ button:focus-visible {
 .resize-handle:active {
   background: linear-gradient(
     to bottom,
-    var(--vscode-focusBorder) 0,
-    var(--vscode-focusBorder) 2px,
+    var(--accent) 0,
+    var(--accent) 2px,
     transparent 2px
   );
 }
@@ -708,11 +748,7 @@ button:focus-visible {
     --vscode-editorSuggestWidget-background,
     var(--vscode-editor-background)
   );
-  border: 1px solid
-    var(
-      --vscode-editorSuggestWidget-border,
-      var(--vscode-panel-border, rgba(128, 128, 128, 0.4))
-    );
+  border: 1px solid var(--vscode-editorSuggestWidget-border, var(--border));
   border-radius: 3px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
@@ -752,9 +788,6 @@ button:focus-visible {
 
 .autocomplete-description {
   flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   opacity: 0.75;
   font-size: 0.9em;
 }
@@ -764,7 +797,7 @@ button:focus-visible {
   padding: 2px 6px;
   font-size: 0.8em;
   opacity: 0.7;
-  border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3));
+  border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   background: inherit;
@@ -788,7 +821,7 @@ button:focus-visible {
   gap: 2px;
   max-width: 100%;
   padding: 0 2px 0 6px;
-  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.4));
+  border: 1px solid var(--border);
   border-radius: 9px;
   font-size: 0.85em;
   font-family: var(--vscode-editor-font-family);
@@ -803,12 +836,6 @@ button:focus-visible {
 
 .file-ref-chip.sensitive {
   border-color: var(--vscode-errorForeground);
-}
-
-.file-ref-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .file-ref-remove {
@@ -839,7 +866,7 @@ textarea {
 }
 
 textarea:focus {
-  outline: 1px solid var(--vscode-focusBorder);
+  outline: 1px solid var(--accent);
 }
 
 textarea:disabled {
@@ -868,9 +895,6 @@ textarea:disabled {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .statusline-row.error {
@@ -885,7 +909,7 @@ textarea:disabled {
 
 .working-spinner {
   display: inline-block;
-  color: var(--vscode-progressBar-background, var(--vscode-focusBorder));
+  color: var(--pulse-color);
   font-weight: 600;
 }
 
@@ -926,7 +950,7 @@ textarea:disabled {
 }
 
 .session-row:hover {
-  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.12));
+  background: var(--hover-bg);
 }
 
 .session-row.current {
@@ -934,11 +958,12 @@ textarea:disabled {
     --vscode-list-inactiveSelectionBackground,
     rgba(128, 128, 128, 0.12)
   );
+  border-left: 2px solid var(--accent);
 }
 
 .session-row.delegation-child,
 .session-row.delegation-parent {
-  border-left: 2px solid var(--vscode-focusBorder);
+  border-left: 2px solid var(--accent);
 }
 
 .session-main {
@@ -960,6 +985,14 @@ textarea:disabled {
 
 .session-title {
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.session-title-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -973,15 +1006,15 @@ textarea:disabled {
 .session-badge {
   flex: 0 0 auto;
   font-size: 0.78em;
-  border: 1px solid var(--vscode-focusBorder);
-  color: var(--vscode-focusBorder);
+  border: 1px solid var(--accent);
+  color: var(--accent);
   border-radius: 10px;
   padding: 1px 8px;
   white-space: nowrap;
 }
 
 .session-badge .working-spinner {
-  color: var(--vscode-progressBar-background, var(--vscode-focusBorder));
+  color: var(--pulse-color);
 }
 
 .session-delete {
@@ -994,12 +1027,31 @@ textarea:disabled {
   opacity: 0;
 }
 
-.session-row:hover .session-delete {
+.session-rename {
+  flex: 0 0 auto;
+  color: var(--vscode-foreground);
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 0.85em;
+  padding: 3px 8px;
+  opacity: 0;
+}
+
+.session-row:hover .session-delete,
+.session-row:hover .session-rename {
   opacity: 0.85;
 }
 
-.session-delete:hover {
-  background: transparent;
+.session-row:hover .session-delete:disabled {
+  opacity: 0.4;
+}
+
+.session-rename:hover {
+  opacity: 1 !important;
+}
+
+button.session-delete:hover:not(:disabled) {
+  background: var(--hover-bg);
   border-color: var(--vscode-errorForeground);
   opacity: 1 !important;
 }
@@ -1018,10 +1070,7 @@ textarea:disabled {
   z-index: 1;
   font-size: 0.9em;
   /* Same family as the header block; separated from the chat area below. */
-  background: var(
-    --vscode-sideBarSectionHeader-background,
-    rgba(128, 128, 128, 0.08)
-  );
+  background: var(--section-bg);
   box-shadow: none;
 }
 
@@ -1030,17 +1079,13 @@ textarea:disabled {
 .resources:not(.hidden):not(:has(~ .delegation-bar:not(.hidden))),
 .delegation-bar:not(.hidden) {
   box-shadow:
-    0 6px 16px -5px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75)),
-    0 2px 5px -2px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75));
+    0 6px 16px -5px var(--shadow),
+    0 2px 5px -2px var(--shadow);
 }
 
 /* Bordered container; collapsed = only the slim toggle row is visible. */
 .resources-panel {
-  border: 1px solid
-    var(
-      --vscode-widget-border,
-      var(--vscode-panel-border, rgba(128, 128, 128, 0.35))
-    );
+  border: 1px solid var(--widget-border);
   border-radius: 6px;
   background: var(--vscode-editorWidget-background, transparent);
   overflow: hidden;
@@ -1060,7 +1105,7 @@ textarea:disabled {
 }
 
 .resources-toggle:hover {
-  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.12));
+  background: var(--hover-bg);
 }
 
 .resources-title {
@@ -1071,34 +1116,11 @@ textarea:disabled {
 .resources-counts {
   flex: 1;
   opacity: 0.6;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.resources-chevron {
-  display: inline-flex;
-  flex-shrink: 0;
-  opacity: 0.7;
-  transition: transform 0.15s ease;
-  transform: rotate(180deg);
-}
-
-.resources-panel.collapsed .resources-chevron {
-  transform: rotate(0deg);
 }
 
 .resources-body {
   padding: 4px 8px 8px;
-  border-top: 1px solid
-    var(
-      --vscode-widget-border,
-      var(--vscode-panel-border, rgba(128, 128, 128, 0.25))
-    );
-}
-
-.resources-panel.collapsed .resources-body {
-  display: none;
+  border-top: 1px solid var(--widget-border);
 }
 
 .resource-section {
@@ -1119,7 +1141,7 @@ textarea:disabled {
 }
 
 .resource-header:hover {
-  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.12));
+  background: var(--hover-bg);
 }
 
 .resource-name {
@@ -1131,31 +1153,12 @@ textarea:disabled {
 .resource-summary {
   flex: 1;
   opacity: 0.7;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.resource-chevron {
-  display: inline-flex;
-  flex-shrink: 0;
-  opacity: 0.6;
-  transition: transform 0.15s ease;
-  transform: rotate(180deg);
-}
-
-.resource-section.collapsed .resource-chevron {
-  transform: rotate(0deg);
 }
 
 .resource-details {
   padding: 2px 4px 4px 16px;
   opacity: 0.7;
   word-break: break-all;
-}
-
-.resource-section.collapsed .resource-details {
-  display: none;
 }
 
 /* Clickable file rows inside expanded resource sections */
@@ -1170,11 +1173,6 @@ textarea:disabled {
   padding: 0;
   cursor: pointer;
   word-break: break-all;
-}
-
-/* Match the flat resource headers rather than the base button's blue hover. */
-button.resource-file:hover:not(:disabled) {
-  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.12));
 }
 
 .resource-file:hover {
@@ -1235,11 +1233,7 @@ button.resource-file:hover:not(:disabled) {
     --vscode-editorWidget-background,
     var(--vscode-sideBar-background)
   );
-  border: 1px solid
-    var(
-      --vscode-widget-border,
-      var(--vscode-panel-border, rgba(128, 128, 128, 0.35))
-    );
+  border: 1px solid var(--widget-border);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
   opacity: 0.9;
 }
@@ -1249,7 +1243,7 @@ button.resource-file:hover:not(:disabled) {
 }
 
 .scroll-down:hover:not(:disabled) {
-  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+  background: var(--hover-bg-strong);
   opacity: 1;
 }
 
