@@ -65,11 +65,25 @@ const SCRIPT = [
   {
     label: "startup: resources + commands + empty state",
     messages: [
+      { type: "history", events: [] },
       {
         type: "resources",
         sections: [
-          { name: "Context", items: ["AGENTS.md"], details: ["/workspace/AGENTS.md"] },
-          { name: "Skills", items: ["demo"], details: ["/workspace/.agents/skills/demo/SKILL.md", "broken.md: parse failed"] },
+          { name: "Context", items: [{ label: "AGENTS.md", path: "/workspace/AGENTS.md", scope: "project" }] },
+          {
+            name: "Skills",
+            items: [
+              { label: "demo", path: "/workspace/.agents/skills/demo/SKILL.md", scope: "project" },
+              { label: "helper", path: "/home/me/.agents/skills/helper/SKILL.md", scope: "global" },
+            ],
+          },
+          {
+            name: "Extensions",
+            items: [
+              { label: "broken.ts (load failed)", detail: "broken.ts: parse failed", scope: "project" },
+              { label: "ext.ts", path: "/workspace/.pi/extensions/ext.ts", scope: "project" },
+            ],
+          },
         ],
       },
       {
@@ -81,6 +95,10 @@ const SCRIPT = [
       },
       { type: "state", state: { ...baseState, messageCount: 0 } },
     ],
+  },
+  {
+    label: "empty state: overridden system prompt warning",
+    messages: [{ type: "history", events: [], systemPromptOverridden: true }],
   },
   {
     label: "history replay: user + thinking + tool + assistant",
@@ -116,6 +134,30 @@ const SCRIPT = [
       { type: "event", event: { kind: "tool_start", id: "call-2", name: "bash", args: { cmd: "ls" } } },
       { type: "event", event: { kind: "tool_update", id: "call-2", text: "partial" } },
       { type: "event", event: { kind: "tool_end", id: "call-2", name: "bash", isError: true, text: "boom" } },
+      // Skill attribution: a SKILL.md read and a helper script run inside the
+      // same skill directory (badges + the active mark in the resource panel).
+      {
+        type: "event",
+        event: {
+          kind: "tool_start",
+          id: "call-3",
+          name: "read",
+          args: { path: "/workspace/.agents/skills/demo/SKILL.md" },
+          skill: { name: "demo", kind: "load" },
+        },
+      },
+      { type: "event", event: { kind: "tool_end", id: "call-3", name: "read", isError: false, text: "# Demo skill", skill: { name: "demo", kind: "load" } } },
+      {
+        type: "event",
+        event: {
+          kind: "tool_start",
+          id: "call-4",
+          name: "bash",
+          args: { command: "python /workspace/.agents/skills/demo/scripts/run.py" },
+          skill: { name: "demo", kind: "resource" },
+        },
+      },
+      { type: "event", event: { kind: "tool_end", id: "call-4", name: "bash", isError: false, text: "ok", skill: { name: "demo", kind: "resource" } } },
       { type: "event", event: { kind: "text_delta", delta: "Here is the **result**." } },
       { type: "event", event: { kind: "queue_update", steering: ["steer me"], followUp: ["later"] } },
     ],

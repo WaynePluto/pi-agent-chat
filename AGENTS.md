@@ -9,6 +9,7 @@
 - `src/agent/bridge.ts` — 双向翻译层：SDK 事件 → `HostMessage`，webview 消息 → runtime 操作；session 历史回放。
 - `src/agent/auth.ts` — 登录/登出流程：`ModelRuntime.login()` + `AuthInteraction` 映射到 VS Code 原生对话框。
 - `src/agent/commands.ts` — 斜杠命令目录与内置命令分发（命名对齐 CLI）。
+- `src/agent/skills.ts` — 技能路径索引：把 `read`/`bash` 调用判定为「加载技能」或「技能资源」，供 transcript 与资源面板区分展示。
 - `src/shared/protocol.ts` — host ↔ webview 消息协议与共享常量，**必须保持零依赖**（webview 打包不能引入 Node 代码）。
 - `src/shared/messages.ts` — 宿主侧文案的中英字典（含参数化模板），同样零依赖；宿主经 `agent/i18n.ts` 的 `t()`/`tf()` 取用，webview `i18n.ts` 也引用它以保持措辞一致。
 - `src/webview/` — webview 前端（无框架，DOM 直操作），按面板拆分：`main.ts` 只做布局/接线/路由，`transcript.ts`、`composer.ts`、`sessions-view.ts`、`resources-view.ts`、`statusline.ts` 各管一块，`shell.ts`/`store.ts`/`host.ts`/`collapsible.ts`/`dom.ts` 为公共设施；`i18n.ts` 提供 zh/en 双语。

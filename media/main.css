@@ -636,6 +636,27 @@ button:focus-visible {
   opacity: 0.7;
 }
 
+/*
+ * Skill attribution on tool cards: a skill the model loads on its own arrives
+ * as a plain `read`, so the badge is the only thing telling the two apart.
+ */
+.skill-badge {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.85em;
+  font-weight: 400;
+  opacity: 0.75;
+}
+
+.skill-badge.load {
+  border-color: transparent;
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background, rgba(128, 128, 128, 0.3));
+  opacity: 1;
+}
+
 .card-status:not(:empty)::before {
   content: "- ";
 }
@@ -863,6 +884,8 @@ textarea {
   border-radius: 3px;
   padding: 8px 10px;
   min-height: 48px;
+  max-height: min(30vh, 320px);
+  overflow-y: auto;
 }
 
 textarea:focus {
@@ -1085,6 +1108,9 @@ button.session-delete:hover:not(:disabled) {
 
 /* Bordered container; collapsed = only the slim toggle row is visible. */
 .resources-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: min(30vh, 320px);
   border: 1px solid var(--widget-border);
   border-radius: 6px;
   background: var(--vscode-editorWidget-background, transparent);
@@ -1093,6 +1119,7 @@ button.session-delete:hover:not(:disabled) {
 
 .resources-toggle {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -1119,8 +1146,12 @@ button.session-delete:hover:not(:disabled) {
 }
 
 .resources-body {
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 4px 8px 8px;
   border-top: 1px solid var(--widget-border);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .resource-section {
@@ -1161,6 +1192,25 @@ button.session-delete:hover:not(:disabled) {
   word-break: break-all;
 }
 
+/* Rows sit one level below their scope heading. */
+.resource-details > .resource-file,
+.resource-details > div:not(.resource-scope) {
+  padding-left: 10px;
+}
+
+/* Scope group heading inside an expanded section (Global / Project / ...) */
+.resource-scope {
+  margin: 2px 0 1px;
+  font-size: 0.92em;
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.resource-scope:not(:first-child) {
+  margin-top: 6px;
+}
+
 /* Clickable file rows inside expanded resource sections */
 .resource-file {
   display: block;
@@ -1178,6 +1228,19 @@ button.session-delete:hover:not(:disabled) {
 .resource-file:hover {
   color: var(--vscode-textLink-foreground);
   text-decoration: underline;
+}
+
+/* Skills that were actually loaded in the displayed transcript.
+   Same green as the assistant bubble's left edge: "the agent used this". */
+.resource-file.active {
+  color: var(--vscode-charts-green, var(--accent));
+  font-weight: 600;
+  opacity: 1;
+}
+
+.resource-summary .skill-active {
+  color: var(--vscode-charts-green, var(--accent));
+  font-weight: 600;
 }
 
 /* ---------------------------------------------------------------- */

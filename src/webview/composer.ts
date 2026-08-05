@@ -20,7 +20,9 @@ const t = getDict();
 const FILE_QUERY_DEBOUNCE_MS = 80;
 const AUTOCOMPLETE_BLUR_DELAY_MS = 120;
 const MIN_INPUT_HEIGHT_PX = 48;
-const MAX_INPUT_HEIGHT_RATIO = 0.6;
+/** Keep this drag limit aligned with textarea's CSS max-height. */
+const MAX_INPUT_HEIGHT_PX = 320;
+const MAX_INPUT_HEIGHT_RATIO = 0.3;
 
 /** `/` autocomplete state: full catalogue, current matches and selection. */
 let slashCommands: SlashCommand[] = [];
@@ -59,7 +61,7 @@ export function initComposer(composerHooks: ComposerHooks): void {
     const onMove = (move: PointerEvent) => {
       const height = Math.min(
         Math.max(startHeight + (startY - move.clientY), MIN_INPUT_HEIGHT_PX),
-        window.innerHeight * MAX_INPUT_HEIGHT_RATIO,
+        Math.min(window.innerHeight * MAX_INPUT_HEIGHT_RATIO, MAX_INPUT_HEIGHT_PX),
       );
       inputEl.style.height = `${height}px`;
     };

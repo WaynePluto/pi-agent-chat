@@ -1,10 +1,11 @@
-import { isAbsolute, basename, resolve as resolvePath } from "node:path";
+import { isAbsolute, basename, relative as relativePath, resolve as resolvePath } from "node:path";
+import { homedir } from "node:os";
 import * as vscode from "vscode";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { buildSessionContext, migrateSessionEntries, parseSessionEntries, parseSkillBlock, SessionManager } from "@earendil-works/pi-coding-agent";
+import { buildSessionContext, migrateSessionEntries, parseSessionEntries, SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
-import type { ChatEvent, ChatState, ChatStats, HostMessage, ResourceSection, SessionListItem, WebviewMessage } from "../shared/protocol.js";
+import type { ChatEvent, ChatState, ChatStats, HostMessage, ResourceItem, ResourceScope, ResourceSection, SessionListItem, WebviewMessage } from "../shared/protocol.js";
 import { loginFlow, logoutFlow } from "./auth.js";
 import { collectSlashCommands, formatHelp, runBuiltinCommand } from "./commands.js";
 import { describe } from "./errors.js";
@@ -15,6 +16,7 @@ import type { OriginalContentProvider } from "./diff-view.js";
 import { openEditDiff } from "./diff-view.js";
 import { ProjectFileIndex } from "./project-files.js";
 import type { PiRuntime } from "./runtime.js";
+import { EMPTY_SKILL_INDEX, buildSkillIndex, collapseSkillInvocation, matchSkill, type SkillIndex } from "./skills.js";
 import type { SubagentObserver, SubagentOutcome, SubagentRun } from "./subagent.js";
 
 export interface BridgeHost {
@@ -42,6 +44,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private readonly histories = new Map<string, ChatEvent[]>();
   /** Arguments of in-flight tool calls, used to resolve the edited file path. */
   private readonly pendingToolArgs = new Map<string, unknown>();
+  /** Absolute skill paths, used to label tool calls that load or run a skill. */
+  private skillIndex: SkillIndex = EMPTY_SKILL_INDEX;
   private readonly projectFiles: ProjectFileIndex;
 
   constructor(
@@ -61,7 +65,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.displayedSession = session;
     this.preview = undefined;
     this.histories.clear();
-    const events = buildHistoryEvents(session.messages, this.runtime.cwd);
+    this.skillIndex = buildSkillIndex(session);
+    const events = this.buildHistory(session.messages);
     this.histories.set(session.sessionId, events);
     this.unsubscribe = session.subscribe((event) => this.onSessionEvent(session, event));
     const built = Date.now();
@@ -89,6 +94,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    */
   postResources(): void {
     try {
+      // Extensions and skills are (re)loaded by now, so refresh the matcher too.
+      this.skillIndex = buildSkillIndex(this.runtime.session);
       this.host.post({ type: "resources", sections: collectResourceSections(this.runtime) });
     } catch (error) {
       this.host.log(`failed to collect resources: ${describe(error)}`);
@@ -106,16 +113,19 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
   /** Replay the persisted transcript so a resumed session is not shown empty. */
   postHistory(): void {
+    const session = this.displayedSession ?? this.runtime.session;
+    // SYSTEM.md replaces the SDK's default prompt, including the absolute paths
+    // that teach the model where Pi's bundled docs and examples live.
+    const systemPromptOverridden = Boolean(session.resourceLoader.getSystemPromptSource());
     if (this.preview) {
-      this.host.post({ type: "history", events: [...this.preview.events] });
+      this.host.post({ type: "history", events: [...this.preview.events], systemPromptOverridden });
       return;
     }
-    const session = this.displayedSession ?? this.runtime.session;
-    const events = this.histories.get(session.sessionId) ?? buildHistoryEvents(session.messages, this.runtime.cwd);
+    const events = this.histories.get(session.sessionId) ?? this.buildHistory(session.messages);
     this.histories.set(session.sessionId, events);
     // A replay of a still-streaming session must not close its open work
     // block in the webview; live events keep appending to the same card.
-    this.host.post({ type: "history", events: [...events], live: session.isStreaming });
+    this.host.post({ type: "history", events: [...events], live: session.isStreaming, systemPromptOverridden });
   }
 
   async postState(): Promise<void> {
@@ -188,9 +198,14 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     }
   }
 
+  /** History replay with the current skill index applied to tool cards. */
+  private buildHistory(messages: readonly unknown[]): ChatEvent[] {
+    return buildHistoryEvents(messages, this.runtime.cwd, this.skillIndex);
+  }
+
   private emit(session: AgentSession, event: ChatEvent): void {
     if (this.disposed) return;
-    const history = this.histories.get(session.sessionId) ?? buildHistoryEvents(session.messages, this.runtime.cwd);
+    const history = this.histories.get(session.sessionId) ?? this.buildHistory(session.messages);
     history.push(event);
     this.histories.set(session.sessionId, history);
     if (!this.preview && (this.displayedSession ?? this.runtime.session) === session) {
@@ -257,7 +272,13 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         break;
       case "tool_execution_start":
         this.pendingToolArgs.set(toolKey(event.toolCallId), event.args);
-        this.emit(session, { kind: "tool_start", id: event.toolCallId, name: event.toolName, args: event.args });
+        this.emit(session, {
+          kind: "tool_start",
+          id: event.toolCallId,
+          name: event.toolName,
+          args: event.args,
+          skill: matchSkill(this.skillIndex, event.toolName, event.args, this.runtime.cwd),
+        });
         break;
       case "tool_execution_update":
         this.emit(session, { kind: "tool_update", id: event.toolCallId, text: resultText(event.partialResult) });
@@ -275,6 +296,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
           text: resultText(event.result),
           patch: typeof details.patch === "string" ? details.patch : undefined,
           path: toolFilePath(args, this.runtime.cwd),
+          skill: matchSkill(this.skillIndex, event.toolName, args, this.runtime.cwd),
         });
         break;
       }
@@ -499,7 +521,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       const entries = parseSessionEntries(await readFile(file, "utf8"));
       migrateSessionEntries(entries);
       const context = buildSessionContext(entries.filter((entry): entry is SessionEntry => entry.type !== "session"));
-      const events = buildHistoryEvents(context.messages, this.runtime.cwd);
+      const events = this.buildHistory(context.messages);
       const firstUser = events.find((event) => event.kind === "user_message") as { text?: string } | undefined;
       this.preview = { file, title: (firstUser?.text ?? "").split("\n")[0] ?? "", events };
       this.postHistory();
@@ -822,6 +844,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 export function collectResourceSections(runtime: PiRuntime): ResourceSection[] {
   const loader = runtime.session.resourceLoader;
   const sections: ResourceSection[] = [];
+  // Every row can be opened in the editor, so it shows just the name (the path
+  // stays in the row's tooltip); provenance drives the webview's grouping.
+  const entry = (name: string, path: string, sourceInfo?: { origin?: string }) => resourceEntry(name, path, runtime.cwd, sourceInfo);
 
   const systemPromptSource = loader.getSystemPromptSource();
   const contextFiles = [
@@ -830,59 +855,87 @@ export function collectResourceSections(runtime: PiRuntime): ResourceSection[] {
     ...loader.getAgentsFiles().agentsFiles,
   ];
   if (contextFiles.length > 0) {
-    sections.push({
-      name: "Context",
-      items: contextFiles.map((file) => basename(file.path)),
-      details: contextFiles.map((file) => file.path),
-    });
+    sections.push(sortedSection("Context", contextFiles.map((file) => entry(basename(file.path), file.path))));
   }
 
   const skills = loader.getSkills().skills;
   if (skills.length > 0) {
-    sections.push({
-      name: "Skills",
-      items: skills.map((skill) => skill.name).sort((a, b) => a.localeCompare(b)),
-      details: skills.map((skill) => skill.filePath),
-    });
+    sections.push(sortedSection("Skills", skills.map((skill) => entry(skill.name, skill.filePath, skill.sourceInfo))));
   }
 
   const prompts = loader.getPrompts().prompts;
   if (prompts.length > 0) {
-    sections.push({
-      name: "Prompts",
-      items: prompts.map((prompt) => `/${prompt.name}`).sort((a, b) => a.localeCompare(b)),
-      details: prompts.map((prompt) => prompt.filePath),
-    });
+    sections.push(sortedSection("Prompts", prompts.map((prompt) => entry(`/${prompt.name}`, prompt.filePath, prompt.sourceInfo))));
   }
 
   const { extensions: allExtensions, errors: extensionErrors } = runtime.session.resourceLoader.getExtensions();
   const extensions = allExtensions.filter((extension) => !extension.hidden);
   if (extensions.length > 0 || extensionErrors.length > 0) {
-    sections.push({
-      name: "Extensions",
-      items: [
-        ...extensions.map((extension) => basename(extension.path)).sort((a, b) => a.localeCompare(b)),
-        ...extensionErrors.map((failure) => `${basename(failure.path)} (load failed)`),
-      ],
-      details: [
-        ...extensions.map((extension) => extension.path),
-        ...extensionErrors.map((failure) => `${failure.path}: ${String(failure.error)}`),
-      ],
-    });
+    sections.push(
+      sortedSection("Extensions", [
+        ...extensions.map((extension) => entry(basename(extension.path), extension.path, (extension as { sourceInfo?: { origin?: string } }).sourceInfo)),
+        // A failed extension has no loaded file to open, so it keeps the error
+        // as its row text.
+        ...extensionErrors.map((failure) => ({
+          label: `${basename(failure.path)} (load failed)`,
+          detail: `${failure.path}: ${String(failure.error)}`,
+          scope: resourceScope(failure.path, runtime.cwd),
+        })),
+      ]),
+    );
   }
 
   const themes = loader.getThemes().themes.filter((theme) => (theme as { sourcePath?: string }).sourcePath);
   if (themes.length > 0) {
-    sections.push({
-      name: "Themes",
-      items: themes
-        .map((theme) => (theme as { name?: string; sourcePath?: string }).name ?? basename((theme as { sourcePath?: string }).sourcePath ?? ""))
-        .sort((a, b) => a.localeCompare(b)),
-      details: themes.map((theme) => (theme as { sourcePath?: string }).sourcePath ?? ""),
-    });
+    sections.push(
+      sortedSection(
+        "Themes",
+        themes.map((theme) => {
+          const path = (theme as { sourcePath?: string }).sourcePath ?? "";
+          return entry((theme as { name?: string }).name ?? basename(path), path);
+        }),
+      ),
+    );
   }
 
   return sections;
+}
+
+/**
+ * Build one listing section, sorted by label. Rows carry their scope so the
+ * webview can group them (global first, then project) instead of tagging every
+ * row with its origin.
+ */
+function sortedSection(name: string, items: ResourceItem[]): ResourceSection {
+  return { name, items: [...items].sort((a, b) => a.label.localeCompare(b.label)) };
+}
+
+/**
+ * One listing row: the resource name as the text, the file behind it as the
+ * click/tooltip target.
+ */
+function resourceEntry(name: string, path: string, cwd: string, sourceInfo?: { origin?: string }): ResourceItem {
+  if (!path) return { label: name, scope: "other" };
+  return { label: name, path, scope: resourceScope(path, cwd, sourceInfo) };
+}
+
+/**
+ * Where a resource comes from, in the terms the SDK documents
+ * (`docs/skills.md`). `sourceInfo.scope` is not usable directly: skills under
+ * `~/.agents/skills` or a project `.agents/skills` are neither of the SDK's
+ * "user"/"project" roots and end up as "temporary", so classify by location.
+ */
+function resourceScope(filePath: string, cwd: string, sourceInfo?: { origin?: string }): ResourceScope {
+  if (sourceInfo?.origin === "package") return "package";
+  const path = resolvePath(filePath);
+  if (isInside(path, cwd)) return "project";
+  if (isInside(path, homedir())) return "global";
+  return "other";
+}
+
+function isInside(path: string, root: string): boolean {
+  const relative = relativePath(root, path);
+  return relative !== "" && !relative.startsWith("..") && !isAbsolute(relative);
 }
 
 /** Extract plain text from an `AgentToolResult`-shaped value. */
@@ -899,7 +952,7 @@ function resultText(result: unknown): string {
  * Convert a persisted transcript into the same `ChatEvent` shapes the live
  * stream produces, so the webview has a single rendering path.
  */
-export function buildHistoryEvents(messages: readonly unknown[], cwd: string): ChatEvent[] {
+export function buildHistoryEvents(messages: readonly unknown[], cwd: string, skills: SkillIndex = EMPTY_SKILL_INDEX): ChatEvent[] {
   const events: ChatEvent[] = [];
   const toolArgs = new Map<string, unknown>();
 
@@ -953,23 +1006,12 @@ export function buildHistoryEvents(messages: readonly unknown[], cwd: string): C
         args,
         patch: typeof message.details?.patch === "string" ? message.details.patch : undefined,
         path: toolFilePath(args, cwd),
+        skill: matchSkill(skills, message.toolName ?? "", args, cwd),
       });
     }
   }
 
   return events;
-}
-
-/**
- * `session.prompt()` persists `/skill:<name>` invocations already expanded into
- * the full `<skill>` block, so a replayed transcript would show the whole skill
- * file instead of the short command the user typed. Collapse it back to the
- * original command, mirroring what the live stream emitted.
- */
-function collapseSkillInvocation(text: string): string {
-  const block = parseSkillBlock(text);
-  if (!block) return text;
-  return block.userMessage ? `/skill:${block.name} ${block.userMessage}` : `/skill:${block.name}`;
 }
 
 /** The edit/write tools name their target file through the `path` argument. */

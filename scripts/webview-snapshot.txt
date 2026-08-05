@@ -29,7 +29,7 @@
         <span class="resources-title">
           "Loaded resources"
         <span class="resources-counts">
-          "Context 1 · Skills 1"
+          "Context 1 · Skills 2 · Extensions 2"
         <span class="resources-chevron">
           <svg/>
       <div class="resources-body">
@@ -42,26 +42,174 @@
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/AGENTS.md"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
         <div class="resource-section collapsed">
           <button class="resource-header" title="Expand" aria-expanded="false" type="button">
             <span class="resource-name">
               "[Skills]"
             <span class="resource-summary">
               "demo"
+              ","
+              "helper"
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/.agents/skills/demo/SKILL.md"
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/.agents/skills/demo/SKILL.md
+Open in editor" type="button">
+              "demo"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              "broken.ts (load failed), ext.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
             <div>
-              "broken.md: parse failed"
+              "broken.ts: parse failed"
+            <button class="resource-file" title="/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
   <div id="delegation-bar" class="delegation-bar hidden">
     <span id="delegation-label">
     <button id="delegation-peer" class="secondary">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
+      <div class="bubble status empty-session">
+        "No messages in this session yet. Pi can explain its own features and look up its docs. Ask it how to use or extend Pi."
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <footer id="composer" class="composer">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div class="composer-actions">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
+        "Recall"
+      <button id="btn-send" class="icon-button" title="Send (Enter)">
+        <svg/>
+    <div id="statusline" class="statusline">
+      <div class="statusline-row">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
+===== empty state: overridden system prompt warning =====
+<div id="root">
+  <header class="header">
+    <div id="header-title" class="header-title" title="New session">
+      "New session"
+    <div class="header-actions">
+      <button id="btn-new" title="Start a new session" disabled>
+        "New"
+      <button id="btn-sessions" title="Browse, resume or delete sessions">
+        "Sessions"
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)" disabled>
+        "Session tree"
+      <button id="btn-settings" title="Providers, shell path and other Pi settings">
+        "Settings"
+  <div id="sessions" class="sessions hidden">
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources">
+    <div class="resources-panel collapsed">
+      <button class="resources-toggle" title="Expand" aria-expanded="false" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 2 · Extensions 2"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo"
+              ","
+              "helper"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/.agents/skills/demo/SKILL.md
+Open in editor" type="button">
+              "demo"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              "broken.ts (load failed), ext.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <div>
+              "broken.ts: parse failed"
+            <button class="resource-file" title="/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+    <button id="delegation-peer" class="secondary">
+  <div id="messages-wrap" class="messages-wrap">
+    <main id="messages" class="messages">
+      <div class="bubble status empty-session">
+        "No messages in this session yet. Pi can explain its own features and look up its docs. Ask it how to use or extend Pi. The default system prompt has been overridden, so the model may not know where Pi's bundled docs are."
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <footer id="composer" class="composer">
@@ -119,7 +267,7 @@
         <span class="resources-title">
           "Loaded resources"
         <span class="resources-counts">
-          "Context 1 · Skills 1"
+          "Context 1 · Skills 2 · Extensions 2"
         <span class="resources-chevron">
           <svg/>
       <div class="resources-body">
@@ -132,21 +280,48 @@
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/AGENTS.md"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
         <div class="resource-section collapsed">
           <button class="resource-header" title="Expand" aria-expanded="false" type="button">
             <span class="resource-name">
               "[Skills]"
             <span class="resource-summary">
               "demo"
+              ","
+              "helper"
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/.agents/skills/demo/SKILL.md"
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/.agents/skills/demo/SKILL.md
+Open in editor" type="button">
+              "demo"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              "broken.ts (load failed), ext.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
             <div>
-              "broken.md: parse failed"
+              "broken.ts: parse failed"
+            <button class="resource-file" title="/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
   <div id="delegation-bar" class="delegation-bar hidden">
     <span id="delegation-label">
     <button id="delegation-peer" class="secondary">
@@ -254,7 +429,7 @@
         <span class="resources-title">
           "Loaded resources"
         <span class="resources-counts">
-          "Context 1 · Skills 1"
+          "Context 1 · Skills 2 · Extensions 2"
         <span class="resources-chevron">
           <svg/>
       <div class="resources-body">
@@ -267,21 +442,49 @@
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/AGENTS.md"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
         <div class="resource-section collapsed">
           <button class="resource-header" title="Expand" aria-expanded="false" type="button">
             <span class="resource-name">
               "[Skills]"
             <span class="resource-summary">
-              "demo"
+              <span class="skill-active">
+                "demo"
+              ","
+              "helper"
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/.agents/skills/demo/SKILL.md"
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file active" title="/workspace/.agents/skills/demo/SKILL.md
+Skill demo was loaded in this session · click to open" type="button">
+              "demo"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              "broken.ts (load failed), ext.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
             <div>
-              "broken.md: parse failed"
+              "broken.ts: parse failed"
+            <button class="resource-file" title="/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
   <div id="delegation-bar" class="delegation-bar hidden">
     <span id="delegation-label">
     <button id="delegation-peer" class="secondary">
@@ -337,7 +540,7 @@
           <span class="work-label">
             "Work"
           <span class="work-status">
-            "done · thinking 1 · tools 1 · failed 1"
+            "done · thinking 1 · tools 3 · failed 1"
           <span class="work-pulse">
           <span class="work-chevron">
             <svg/>
@@ -357,6 +560,30 @@
                 "bash"
               <span class="card-status">
                 "error"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+          <div class="tool-card collapsed skill-load">
+            <button class="card-header" title="Expand" aria-expanded="false" type="button">
+              <span class="card-label">
+                "read"
+                <span class="skill-badge load" title="The agent loaded this skill's instructions">
+                  "skill: demo"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+          <div class="tool-card collapsed skill-resource">
+            <button class="card-header" title="Expand" aria-expanded="false" type="button">
+              <span class="card-label">
+                "bash"
+                <span class="skill-badge" title="File belonging to this skill">
+                  "demo"
+              <span class="card-status">
+                "done"
               <span class="card-pulse">
               <span class="card-chevron">
                 <svg/>
@@ -424,7 +651,7 @@
         <span class="resources-title">
           "Loaded resources"
         <span class="resources-counts">
-          "Context 1 · Skills 1"
+          "Context 1 · Skills 2 · Extensions 2"
         <span class="resources-chevron">
           <svg/>
       <div class="resources-body">
@@ -437,21 +664,49 @@
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/AGENTS.md"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
         <div class="resource-section collapsed">
           <button class="resource-header" title="Expand" aria-expanded="false" type="button">
             <span class="resource-name">
               "[Skills]"
             <span class="resource-summary">
-              "demo"
+              <span class="skill-active">
+                "demo"
+              ","
+              "helper"
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/.agents/skills/demo/SKILL.md"
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file active" title="/workspace/.agents/skills/demo/SKILL.md
+Skill demo was loaded in this session · click to open" type="button">
+              "demo"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              "broken.ts (load failed), ext.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
             <div>
-              "broken.md: parse failed"
+              "broken.ts: parse failed"
+            <button class="resource-file" title="/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
   <div id="delegation-bar" class="delegation-bar hidden">
     <span id="delegation-label">
     <button id="delegation-peer" class="secondary">
@@ -507,7 +762,7 @@
           <span class="work-label">
             "Work"
           <span class="work-status">
-            "done · thinking 1 · tools 1 · failed 1"
+            "done · thinking 1 · tools 3 · failed 1"
           <span class="work-pulse">
           <span class="work-chevron">
             <svg/>
@@ -527,6 +782,30 @@
                 "bash"
               <span class="card-status">
                 "error"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+          <div class="tool-card collapsed skill-load">
+            <button class="card-header" title="Expand" aria-expanded="false" type="button">
+              <span class="card-label">
+                "read"
+                <span class="skill-badge load" title="The agent loaded this skill's instructions">
+                  "skill: demo"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+          <div class="tool-card collapsed skill-resource">
+            <button class="card-header" title="Expand" aria-expanded="false" type="button">
+              <span class="card-label">
+                "bash"
+                <span class="skill-badge" title="File belonging to this skill">
+                  "demo"
+              <span class="card-status">
+                "done"
               <span class="card-pulse">
               <span class="card-chevron">
                 <svg/>
@@ -610,7 +889,7 @@
         <span class="resources-title">
           "Loaded resources"
         <span class="resources-counts">
-          "Context 1 · Skills 1"
+          "Context 1 · Skills 2 · Extensions 2"
         <span class="resources-chevron">
           <svg/>
       <div class="resources-body">
@@ -623,21 +902,49 @@
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/AGENTS.md"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
         <div class="resource-section">
           <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
             <span class="resource-name">
               "[Skills]"
             <span class="resource-summary">
-              "demo"
+              <span class="skill-active">
+                "demo"
+              ","
+              "helper"
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/.agents/skills/demo/SKILL.md"
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file active" title="/workspace/.agents/skills/demo/SKILL.md
+Skill demo was loaded in this session · click to open" type="button">
+              "demo"
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              "broken.ts (load failed), ext.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
             <div>
-              "broken.md: parse failed"
+              "broken.ts: parse failed"
+            <button class="resource-file" title="/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
   <div id="delegation-bar" class="delegation-bar hidden">
     <span id="delegation-label">
     <button id="delegation-peer" class="secondary">
@@ -713,7 +1020,7 @@
           <span class="work-label">
             "Work"
           <span class="work-status">
-            "done · thinking 1 · tools 1 · failed 1"
+            "done · thinking 1 · tools 3 · failed 1"
           <span class="work-pulse">
           <span class="work-chevron">
             <svg/>
@@ -743,6 +1050,38 @@
                 "{"cmd":"ls"}"
               <pre class="tool-body">
                 "boom"
+          <div class="tool-card skill-load">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "read"
+                <span class="skill-badge load" title="The agent loaded this skill's instructions">
+                  "skill: demo"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"path":"/workspace/.agents/skills/demo/SKILL.md"}"
+              <pre class="tool-body">
+                "# Demo skill"
+          <div class="tool-card skill-resource">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "bash"
+                <span class="skill-badge" title="File belonging to this skill">
+                  "demo"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"command":"python /workspace/.agents/skills/demo/scripts/run.py"}"
+              <pre class="tool-body">
+                "ok"
       <div class="bubble markdown assistant">
         <p>
           "Here is the"
@@ -822,7 +1161,7 @@
         <span class="resources-title">
           "Loaded resources"
         <span class="resources-counts">
-          "Context 1 · Skills 1"
+          "Context 1 · Skills 2 · Extensions 2"
         <span class="resources-chevron">
           <svg/>
       <div class="resources-body">
@@ -835,21 +1174,49 @@
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/AGENTS.md"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
         <div class="resource-section">
           <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
             <span class="resource-name">
               "[Skills]"
             <span class="resource-summary">
-              "demo"
+              <span class="skill-active">
+                "demo"
+              ","
+              "helper"
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/.agents/skills/demo/SKILL.md"
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file active" title="/workspace/.agents/skills/demo/SKILL.md
+Skill demo was loaded in this session · click to open" type="button">
+              "demo"
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              "broken.ts (load failed), ext.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
             <div>
-              "broken.md: parse failed"
+              "broken.ts: parse failed"
+            <button class="resource-file" title="/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
   <div id="delegation-bar" class="delegation-bar">
     <span id="delegation-label">
       "Subagent running: research task"
@@ -927,7 +1294,7 @@
           <span class="work-label">
             "Work"
           <span class="work-status">
-            "done · thinking 1 · tools 1 · failed 1"
+            "done · thinking 1 · tools 3 · failed 1"
           <span class="work-pulse">
           <span class="work-chevron">
             <svg/>
@@ -957,6 +1324,38 @@
                 "{"cmd":"ls"}"
               <pre class="tool-body">
                 "boom"
+          <div class="tool-card skill-load">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "read"
+                <span class="skill-badge load" title="The agent loaded this skill's instructions">
+                  "skill: demo"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"path":"/workspace/.agents/skills/demo/SKILL.md"}"
+              <pre class="tool-body">
+                "# Demo skill"
+          <div class="tool-card skill-resource">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "bash"
+                <span class="skill-badge" title="File belonging to this skill">
+                  "demo"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"command":"python /workspace/.agents/skills/demo/scripts/run.py"}"
+              <pre class="tool-body">
+                "ok"
       <div class="bubble markdown assistant">
         <p>
           "Here is the"
@@ -1081,7 +1480,7 @@
         <span class="resources-title">
           "Loaded resources"
         <span class="resources-counts">
-          "Context 1 · Skills 1"
+          "Context 1 · Skills 2 · Extensions 2"
         <span class="resources-chevron">
           <svg/>
       <div class="resources-body">
@@ -1094,21 +1493,49 @@
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/AGENTS.md"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
         <div class="resource-section">
           <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
             <span class="resource-name">
               "[Skills]"
             <span class="resource-summary">
-              "demo"
+              <span class="skill-active">
+                "demo"
+              ","
+              "helper"
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/.agents/skills/demo/SKILL.md"
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file active" title="/workspace/.agents/skills/demo/SKILL.md
+Skill demo was loaded in this session · click to open" type="button">
+              "demo"
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              "broken.ts (load failed), ext.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
             <div>
-              "broken.md: parse failed"
+              "broken.ts: parse failed"
+            <button class="resource-file" title="/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
   <div id="delegation-bar" class="delegation-bar hidden">
     <span id="delegation-label">
       "Subagent running: research task"
@@ -1186,7 +1613,7 @@
           <span class="work-label">
             "Work"
           <span class="work-status">
-            "done · thinking 1 · tools 1 · failed 1"
+            "done · thinking 1 · tools 3 · failed 1"
           <span class="work-pulse">
           <span class="work-chevron">
             <svg/>
@@ -1216,6 +1643,38 @@
                 "{"cmd":"ls"}"
               <pre class="tool-body">
                 "boom"
+          <div class="tool-card skill-load">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "read"
+                <span class="skill-badge load" title="The agent loaded this skill's instructions">
+                  "skill: demo"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"path":"/workspace/.agents/skills/demo/SKILL.md"}"
+              <pre class="tool-body">
+                "# Demo skill"
+          <div class="tool-card skill-resource">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "bash"
+                <span class="skill-badge" title="File belonging to this skill">
+                  "demo"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"command":"python /workspace/.agents/skills/demo/scripts/run.py"}"
+              <pre class="tool-body">
+                "ok"
       <div class="bubble markdown assistant">
         <p>
           "Here is the"
@@ -1335,7 +1794,7 @@
         <span class="resources-title">
           "Loaded resources"
         <span class="resources-counts">
-          "Context 1 · Skills 1"
+          "Context 1 · Skills 2 · Extensions 2"
         <span class="resources-chevron">
           <svg/>
       <div class="resources-body">
@@ -1348,21 +1807,49 @@
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/AGENTS.md"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
         <div class="resource-section">
           <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
             <span class="resource-name">
               "[Skills]"
             <span class="resource-summary">
-              "demo"
+              <span class="skill-active">
+                "demo"
+              ","
+              "helper"
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
-            <button class="resource-file" title="Open in editor" type="button">
-              "/workspace/.agents/skills/demo/SKILL.md"
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file active" title="/workspace/.agents/skills/demo/SKILL.md
+Skill demo was loaded in this session · click to open" type="button">
+              "demo"
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              "broken.ts (load failed), ext.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
             <div>
-              "broken.md: parse failed"
+              "broken.ts: parse failed"
+            <button class="resource-file" title="/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
   <div id="delegation-bar" class="delegation-bar hidden">
     <span id="delegation-label">
       "Subagent running: research task"
@@ -1440,7 +1927,7 @@
           <span class="work-label">
             "Work"
           <span class="work-status">
-            "done · thinking 1 · tools 1 · failed 1"
+            "done · thinking 1 · tools 3 · failed 1"
           <span class="work-pulse">
           <span class="work-chevron">
             <svg/>
@@ -1470,6 +1957,38 @@
                 "{"cmd":"ls"}"
               <pre class="tool-body">
                 "boom"
+          <div class="tool-card skill-load">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "read"
+                <span class="skill-badge load" title="The agent loaded this skill's instructions">
+                  "skill: demo"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"path":"/workspace/.agents/skills/demo/SKILL.md"}"
+              <pre class="tool-body">
+                "# Demo skill"
+          <div class="tool-card skill-resource">
+            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
+              <span class="card-label">
+                "bash"
+                <span class="skill-badge" title="File belonging to this skill">
+                  "demo"
+              <span class="card-status">
+                "done"
+              <span class="card-pulse">
+              <span class="card-chevron">
+                <svg/>
+            <div class="card-body">
+              <div class="tool-args">
+                "{"command":"python /workspace/.agents/skills/demo/scripts/run.py"}"
+              <pre class="tool-body">
+                "ok"
       <div class="bubble markdown assistant">
         <p>
           "Here is the"

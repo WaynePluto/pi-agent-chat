@@ -237,7 +237,7 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   else if (message.type === "event") {
     applyEvent(message.event);
     updateRecallButton();
-  } else if (message.type === "history") applyHistory(message.events, message.live);
+  } else if (message.type === "history") applyHistory(message.events, message.live, message.systemPromptOverridden);
   else if (message.type === "sessions") renderSessions(message.items);
   else if (message.type === "commands") setSlashCommands(message.items);
   else if (message.type === "projectFiles") onProjectFiles(message.requestId, message.items, message.error);

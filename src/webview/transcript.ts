@@ -1,4 +1,4 @@
-import type { ChatEvent } from "../shared/protocol.js";
+import type { ChatEvent, SkillRef } from "../shared/protocol.js";
 import { CARD_CLASSES, WORK_CLASSES, createCollapsible, type Collapsible } from "./collapsible.js";
 import { button, el } from "./dom.js";
 import {
@@ -11,6 +11,7 @@ import {
 import { post } from "./host.js";
 import { getDict } from "./i18n.js";
 import { renderMarkdown } from "./markdown.js";
+import { clearActiveSkills, markSkillActive } from "./resources-view.js";
 import { messagesEl, scrollDownBtn } from "./shell.js";
 import { spinner } from "./spinner.js";
 import { state } from "./store.js";
@@ -185,7 +186,7 @@ export function applyEvent(event: ChatEvent): void {
       assistantBubble = undefined;
       break;
     case "tool_start":
-      startToolCard(event.id, event.name, event.args);
+      startToolCard(event.id, event.name, event.args, event.skill);
       break;
     case "tool_update": {
       const card = toolCards.get(event.id);
@@ -240,7 +241,7 @@ export function applyEvent(event: ChatEvent): void {
  * fragment and attached in one go, so a long session costs one layout pass
  * instead of one per event.
  */
-export function applyHistory(events: ChatEvent[], live = false): void {
+export function applyHistory(events: ChatEvent[], live = false, systemPromptOverridden = false): void {
   const started = performance.now();
   clearMessages();
   followBottom = true;
@@ -258,7 +259,7 @@ export function applyHistory(events: ChatEvent[], live = false): void {
   messagesEl.appendChild(fragment);
 
   if (events.length === 0) {
-    placeholderEl = appendBubble("status", t.emptySession);
+    placeholderEl = appendBubble("status", t.emptySession(systemPromptOverridden));
     placeholderEl.classList.add("empty-session");
   }
   // Persisted history has no agent lifecycle events. Its final non-formal
@@ -296,6 +297,8 @@ export function clearMessages(): void {
   thinkingCard = undefined;
   activeWorkBlock = undefined;
   placeholderEl = undefined;
+  // Skill marks describe the displayed transcript, so they go with it.
+  clearActiveSkills();
 }
 
 /* ---------------------------------------------------------------- */
@@ -478,11 +481,11 @@ function finishCard(card: ThinkingCard): void {
   card.refresh();
 }
 
-function startToolCard(id: string, name: string, args: unknown): void {
+function startToolCard(id: string, name: string, args: unknown, skill?: SkillRef): void {
   const work = ensureWorkBlock();
   work.toolCount += 1;
   work.activeTools.set(id, name);
-  updateWorkStatus(work, t.workCalling(name));
+  updateWorkStatus(work, skill?.kind === "load" ? t.workLoadingSkill(skill.name) : t.workCalling(name));
   const entry = createCollapsible({
     classes: CARD_CLASSES,
     rootClass: "tool-card",
@@ -492,14 +495,29 @@ function startToolCard(id: string, name: string, args: unknown): void {
     render: (body) => renderToolBody(toolCards.get(id) ?? entry, body),
   }) as ToolCard;
   entry.root.classList.add("running", "streaming");
+  if (skill) markToolCardSkill(entry, skill);
   entry.argsText = summarizeArgs(args);
   entry.bodyText = "";
   toolCards.set(id, entry);
 }
 
+/**
+ * Set a skill apart from an ordinary file access: the SDK reports a skill the
+ * model loads on its own as a plain `read` of its SKILL.md, which is otherwise
+ * indistinguishable from any other read in the work block.
+ */
+function markToolCardSkill(entry: ToolCard, skill: SkillRef): void {
+  const load = skill.kind === "load";
+  entry.root.classList.add(load ? "skill-load" : "skill-resource");
+  const badge = el("span", load ? "skill-badge load" : "skill-badge", load ? t.skillLoadBadge(skill.name) : skill.name);
+  badge.title = load ? t.skillLoadTitle : t.skillResourceTitle;
+  entry.labelEl.appendChild(badge);
+  if (load) markSkillActive(skill.name);
+}
+
 function endToolCard(event: Extract<ChatEvent, { kind: "tool_end" }>): void {
   // History replay has no preceding `tool_start`, so create the card on demand.
-  if (!toolCards.has(event.id)) startToolCard(event.id, event.name, event.args);
+  if (!toolCards.has(event.id)) startToolCard(event.id, event.name, event.args, event.skill);
   const entry = toolCards.get(event.id);
   if (!entry) return;
 

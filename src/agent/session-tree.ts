@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import type { SessionManager, SessionTreeNode } from "@earendil-works/pi-coding-agent";
 import { t, tf } from "./i18n.js";
 import type { PiRuntime } from "./runtime.js";
+import { collapseSkillInvocation } from "./skills.js";
 
 /**
  * Session tree operations (`/tree`, `/fork`, `/clone`).
@@ -52,7 +53,7 @@ export async function navigateSessionTree(runtime: PiRuntime, ui: SessionTreeUi)
       ui.status(t("treeNavigationCancelled"));
       return;
     }
-    if (result.editorText) ui.setInput(result.editorText);
+    if (result.editorText) ui.setInput(collapseSkillInvocation(result.editorText));
     ui.status(t("treeSwitched"));
     return;
   }
@@ -109,7 +110,7 @@ async function forkSession(runtime: PiRuntime, entryId: string, ui: SessionTreeU
     ui.status(t("forkCancelled"));
     return;
   }
-  if (result.selectedText) ui.setInput(result.selectedText);
+  if (result.selectedText) ui.setInput(collapseSkillInvocation(result.selectedText));
   ui.status(tf("forkedInto", runtime.session.sessionFile ?? t("inMemorySession")));
 }
 
@@ -160,7 +161,7 @@ function describeEntry(entry: { type: string; message?: unknown }): string | und
   if (!message?.role) return undefined;
   if (message.role === "toolResult") return undefined;
 
-  const text = messageText(message.content);
+  const text = message.role === "user" ? collapseSkillInvocation(messageText(message.content)) : messageText(message.content);
   if (!text.trim()) return undefined;
   const prefix = message.role === "user" ? "> " : "· ";
   return `${prefix}${truncate(text.replace(/\s+/g, " ").trim(), 90)}`;

@@ -92,10 +92,36 @@ export interface SessionListItem {
  */
 export interface ResourceSection {
   name: string;
-  /** Compact one-line labels (skill names, /prompt names, file basenames). */
-  items: string[];
-  /** Full paths, shown when the card is expanded. */
-  details: string[];
+  /** Rows of the section, sorted by label; the webview groups them by scope. */
+  items: ResourceItem[];
+}
+
+/**
+ * Where a resource comes from. The webview groups each section by this instead
+ * of tagging every row, so a row only carries its own name.
+ */
+export type ResourceScope = "global" | "project" | "package" | "other";
+
+/** One row of a resource section. */
+export interface ResourceItem {
+  /** Compact label (skill name, `/prompt` name, file basename). */
+  label: string;
+  /** Absolute file to open on click; absent for rows that open nothing. */
+  path?: string;
+  /** Replaces `label` in the expanded row, e.g. an extension load error. */
+  detail?: string;
+  scope: ResourceScope;
+}
+
+/**
+ * Attribution of a tool call to a skill, resolved host-side by matching tool
+ * arguments against the loaded skill paths. `load` marks the `SKILL.md` read
+ * through which the model pulls in the skill's instructions; `resource` marks
+ * any other file inside the same skill directory (scripts, references).
+ */
+export interface SkillRef {
+  name: string;
+  kind: "load" | "resource";
 }
 
 /** One entry of the `/` autocomplete list. */
@@ -117,7 +143,7 @@ export type ChatEvent =
   /** Complete thinking text from history, rendered as a collapsed card. */
   | { kind: "thinking_message"; text: string }
   | { kind: "assistant_end" }
-  | { kind: "tool_start"; id: string; name: string; args: unknown }
+  | { kind: "tool_start"; id: string; name: string; args: unknown; skill?: SkillRef }
   | { kind: "tool_update"; id: string; text: string }
   | {
       kind: "tool_end";
@@ -130,6 +156,8 @@ export type ChatEvent =
       /** Unified patch from the `edit` tool, used to open a native diff view. */
       patch?: string;
       path?: string;
+      /** Set when this call reads or runs part of a skill. */
+      skill?: SkillRef;
     }
   | { kind: "agent_start" }
   | { kind: "agent_end" }
@@ -144,7 +172,13 @@ export type HostMessage =
   | { type: "state"; state: ChatState }
   | { type: "event"; event: ChatEvent }
   /** Full transcript replay after startup or a session switch. */
-  | { type: "history"; events: ChatEvent[]; live?: boolean }
+  | {
+      type: "history";
+      events: ChatEvent[];
+      live?: boolean;
+      /** True when SYSTEM.md replaces Pi's default prompt and its bundled-docs guidance. */
+      systemPromptOverridden?: boolean;
+    }
   | { type: "sessions"; items: SessionListItem[] }
   | { type: "commands"; items: SlashCommand[] }
   /** Startup resource listing, pinned above the transcript. */
