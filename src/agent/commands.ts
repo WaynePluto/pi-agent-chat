@@ -191,6 +191,7 @@ export async function runBuiltinCommand(
       break;
     case "reload":
       await actions.reload();
+      actions.status(t("resourcesReloaded"));
       break;
     case "shell-path":
       await pickShellPath(runtime, { login: actions.login, status: actions.status, help: () => actions.status(formatHelp()) }, argument);

@@ -169,12 +169,19 @@ export const sharedMessages = {
   /* Built-in commands --------------------------------------------------- */
 
   compacting: { en: "compacting context...", zh: "正在压缩上下文……" },
+  resourcesReloaded: {
+    en: "reloaded extensions, skills, prompts and context files",
+    zh: "已重新加载扩展、技能、提示词与上下文文件",
+  },
   noAssistantMessage: { en: "no assistant message to copy", zh: "没有可复制的助手消息" },
   copiedLastMessage: { en: "last assistant message copied", zh: "已复制最后一条助手消息" },
 
   /* Extension UI hooks -------------------------------------------------- */
 
   confirmYes: { en: "Yes", zh: "确定" },
+
+  /* Resource listing --------------------------------------------------- */
+
 } satisfies Record<string, LocalizedText>;
 
 /** Strings with interpolated values. Both languages must take the same arguments. */
