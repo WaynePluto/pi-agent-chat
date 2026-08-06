@@ -35,6 +35,7 @@ const baseState = {
   modelId: "test-model",
   providerId: "test-provider",
   thinkingLevel: "medium",
+  canSelectThinkingLevel: true,
   isStreaming: false,
   needsAuth: false,
   messageCount: 2,
@@ -122,6 +123,10 @@ const SCRIPT = [
       },
       { type: "state", state: baseState },
     ],
+  },
+  {
+    label: "model without selectable thinking level hides composer control",
+    messages: [{ type: "state", state: { ...baseState, thinkingLevel: "off", canSelectThinkingLevel: false } }],
   },
   {
     label: "per-message tree actions bound to session entries",

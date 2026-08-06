@@ -8,7 +8,7 @@ import type { ChatState } from "../shared/protocol.js";
  * Exported as a live binding — modules read `state.*` directly and only
  * `setState()` writes.
  */
-export let state: ChatState = { ready: false, isStreaming: false };
+export let state: ChatState = { ready: false, canSelectThinkingLevel: false, isStreaming: false };
 
 export function setState(next: ChatState): void {
   state = next;

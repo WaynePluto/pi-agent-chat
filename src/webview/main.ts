@@ -182,8 +182,11 @@ function applyState(next: ChatState): void {
   modelBtn.textContent = state.modelId ?? "-";
   modelBtn.title = state.providerId ? `${t.modelTitle}: ${state.providerId}/${state.modelId}` : t.modelTitle;
   thinkingBtn.textContent = state.thinkingLevel ?? "-";
+  // Models without selectable thinking levels report only one fixed value
+  // (usually "off"); hiding the control avoids a dead-end picker.
+  thinkingBtn.classList.toggle("hidden", !state.canSelectThinkingLevel);
   modelBtn.disabled = childReadOnly || Boolean(state.preview);
-  thinkingBtn.disabled = childReadOnly || Boolean(state.preview);
+  thinkingBtn.disabled = !state.canSelectThinkingLevel || childReadOnly || Boolean(state.preview);
   // A brand-new empty session cannot be re-created or navigated, and
   // single-task-line mode forbids switching mid-run: shown disabled.
   updateHeaderButtons();

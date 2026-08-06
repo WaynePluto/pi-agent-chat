@@ -51,6 +51,8 @@ export interface ChatState {
   modelId?: string;
   providerId?: string;
   thinkingLevel?: string;
+  /** Whether the current model exposes more than one selectable thinking level. */
+  canSelectThinkingLevel: boolean;
   isStreaming: boolean;
   /** True when no provider has working auth: show the setup page instead of chat. */
   needsAuth?: boolean;

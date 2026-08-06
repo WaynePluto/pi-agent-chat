@@ -183,6 +183,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       modelId: model?.id,
       providerId: model?.provider,
       thinkingLevel: session.thinkingLevel,
+      // Keep the composer selector aligned with the same capability check
+      // used by pickThinkingLevel(): one fixed level is not selectable.
+      canSelectThinkingLevel: session.getAvailableThinkingLevels().length > 1,
       // In preview the live run keeps going, but the transcript on screen is
       // static history: no stop button, no working indicator.
       isStreaming: preview ? false : session.isStreaming,
