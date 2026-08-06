@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import {
+  type AgentSessionServices,
   AgentSessionRuntime,
   type AgentSession,
   type CreateAgentSessionRuntimeFactory,
@@ -8,6 +9,8 @@ import {
   createAgentSessionServices,
   type ExtensionUIContext,
   getAgentDir,
+  resolveModelScopeWithDiagnostics,
+  type ScopedModel,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import { SubagentCoordinator } from "./subagent.js";
@@ -45,6 +48,7 @@ export class PiRuntime implements vscode.Disposable {
           sessionManager,
           sessionStartEvent,
           customTools: [subagents.tool],
+          scopedModels: await resolveScopedModels(services, log),
         })),
         services,
         diagnostics: services.diagnostics,
@@ -94,11 +98,69 @@ export class PiRuntime implements vscode.Disposable {
     return this.runtime.services.modelRuntime;
   }
 
+  /** Shared settings store (`~/.pi/agent/settings.json`), also read by the CLI. */
+  get settingsManager() {
+    return this.runtime.services.settingsManager;
+  }
+
+  /**
+   * Frequently used ("scoped") models for this session, resolved from the
+   * shared `enabledModels` setting. Empty means "no scoping, all models".
+   */
+  get scopedModels(): ReadonlyArray<ScopedModel> {
+    return this.runtime.session.scopedModels;
+  }
+
+  /**
+   * Persist the frequently used model list into `~/.pi/agent/settings.json`
+   * and re-scope the running session, mirroring the CLI's `/scoped-models`.
+   *
+   * `undefined` (or an empty list) clears the setting, meaning every model is
+   * offered again.
+   */
+  async setEnabledModels(references: string[] | undefined): Promise<void> {
+    const settings = this.runtime.services.settingsManager;
+    settings.setEnabledModels(references?.length ? references : undefined);
+    await settings.flush();
+    const scoped = await resolveScopedModels(this.runtime.services, this.log);
+    this.runtime.session.setScopedModels([...scoped]);
+    this.log(`enabled models: ${references?.length ? references.join(", ") : "(all)"}`);
+  }
+
+  /**
+   * Switch the model for the current session only.
+   *
+   * `AgentSession.setModel()` also rewrites `defaultProvider`/`defaultModel`
+   * (CLI semantics: picking a model there means "make it the default"). The
+   * sidebar keeps the two apart — only the picker's pin button changes the
+   * startup default — so the previous default is written back here.
+   */
   async setModel(providerId: string, modelId: string): Promise<void> {
     const model = this.runtime.services.modelRuntime.getModel(providerId, modelId);
     if (!model) throw new Error(`Model not found: ${providerId}/${modelId}`);
+    const settings = this.runtime.services.settingsManager;
+    const previousProvider = settings.getDefaultProvider();
+    const previousModel = settings.getDefaultModel();
     await this.runtime.session.setModel(model);
+    if (previousProvider && previousModel && (previousProvider !== providerId || previousModel !== modelId)) {
+      settings.setDefaultModelAndProvider(previousProvider, previousModel);
+      await settings.flush();
+    }
     this.log(`model switched to ${providerId}/${modelId}`);
+  }
+
+  /**
+   * Persist the startup default model (CLI selector's Ctrl+S).
+   *
+   * Flushed eagerly: every session replacement builds fresh services that
+   * re-read settings.json, so an unflushed write would be lost to a `/new`
+   * issued right after.
+   */
+  async setDefaultModel(providerId: string, modelId: string): Promise<void> {
+    const settings = this.runtime.services.settingsManager;
+    settings.setDefaultModelAndProvider(providerId, modelId);
+    await settings.flush();
+    this.log(`default model set to ${providerId}/${modelId}`);
   }
 
   /** Bind the webview-backed extension UI to the current session. */
@@ -151,6 +213,20 @@ export class PiRuntime implements vscode.Disposable {
   dispose(): void {
     void this.subagents.dispose().finally(() => this.runtime.dispose());
   }
+}
+
+/**
+ * Resolve the shared `enabledModels` patterns against the authenticated model
+ * catalogue, using the same matching rules as the CLI's `--models` flag.
+ */
+async function resolveScopedModels(services: AgentSessionServices, log: (message: string) => void): Promise<ScopedModel[]> {
+  const patterns = services.settingsManager.getEnabledModels();
+  if (!patterns?.length) return [];
+  const { scopedModels, diagnostics } = await resolveModelScopeWithDiagnostics(patterns, services.modelRuntime);
+  for (const diagnostic of diagnostics) {
+    log(`[${diagnostic.type}] ${diagnostic.message}`);
+  }
+  return scopedModels;
 }
 
 /**

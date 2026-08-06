@@ -48,27 +48,44 @@ export async function navigateSessionTree(runtime: PiRuntime, ui: SessionTreeUi)
   if (!action) return;
 
   if (action.action === "switch") {
-    const result = await runtime.session.navigateTree(picked.entryId);
-    if (result.cancelled) {
-      ui.status(t("treeNavigationCancelled"));
-      return;
-    }
-    if (result.editorText) ui.setInput(collapseSkillInvocation(result.editorText));
-    ui.status(t("treeSwitched"));
+    await switchToEntry(runtime, picked.entryId, ui);
     return;
   }
   if (action.action === "fork") {
-    await forkSession(runtime, picked.entryId, ui);
+    await forkFromEntry(runtime, picked.entryId, ui);
     return;
   }
 
-  const current = runtime.session.sessionManager.getLabel(picked.entryId);
+  await editEntryLabel(runtime, picked.entryId, ui);
+}
+
+/**
+ * Move the leaf pointer to `entryId`, staying in the same session file.
+ *
+ * The session is append-only: the abandoned path is kept and stays reachable
+ * from the tree navigator. Landing on a user message puts its text back in the
+ * composer and the leaf on its parent, so re-sending (possibly with another
+ * model) grows a new branch instead of duplicating the message.
+ */
+export async function switchToEntry(runtime: PiRuntime, entryId: string, ui: SessionTreeUi): Promise<void> {
+  const result = await runtime.session.navigateTree(entryId);
+  if (result.cancelled) {
+    ui.status(t("treeNavigationCancelled"));
+    return;
+  }
+  if (result.editorText) ui.setInput(collapseSkillInvocation(result.editorText));
+  ui.status(t("treeSwitched"));
+}
+
+/** Set or clear the bookmark label on one entry (append-only, no branching). */
+export async function editEntryLabel(runtime: PiRuntime, entryId: string, ui: SessionTreeUi): Promise<void> {
+  const current = runtime.session.sessionManager.getLabel(entryId);
   const label = await vscode.window.showInputBox({
     title: t("treeLabelInputTitle"),
     value: current ?? "",
   });
   if (label === undefined) return;
-  runtime.session.sessionManager.appendLabelChange(picked.entryId, label.trim() || undefined);
+  runtime.session.sessionManager.appendLabelChange(entryId, label.trim() || undefined);
   ui.status(label.trim() ? tf("treeLabelSet", label.trim()) : t("treeLabelCleared"));
 }
 
@@ -84,7 +101,7 @@ export async function pickForkPoint(runtime: PiRuntime, ui: SessionTreeUi): Prom
     matchOnDescription: true,
   });
   if (!picked) return;
-  await forkSession(runtime, picked.entryId, ui);
+  await forkFromEntry(runtime, picked.entryId, ui);
 }
 
 /** Duplicate the session at its current position, like the CLI's `/clone`. */
@@ -104,7 +121,7 @@ export async function cloneSession(runtime: PiRuntime, ui: SessionTreeUi): Promi
  * Fork before an entry: the new session keeps everything up to it, and the
  * message itself comes back as editor text so it can be edited and re-sent.
  */
-async function forkSession(runtime: PiRuntime, entryId: string, ui: SessionTreeUi): Promise<void> {
+export async function forkFromEntry(runtime: PiRuntime, entryId: string, ui: SessionTreeUi): Promise<void> {
   const result = await runtime.fork(entryId);
   if (result.cancelled) {
     ui.status(t("forkCancelled"));

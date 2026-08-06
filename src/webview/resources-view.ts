@@ -28,6 +28,8 @@ const SKILLS_SECTION = "Skills";
 const SCOPE_ORDER: readonly ResourceScope[] = ["global", "project", "package", "other"];
 
 let resourcesExpanded = false;
+/** Section expansion survives full re-renders triggered by skill highlighting. */
+const expandedSections = new Set<string>();
 let lastSections: ResourceSection[] = [];
 /** Skills loaded in the displayed transcript; reset on session/transcript swap. */
 const activeSkills = new Set<string>();
@@ -56,7 +58,12 @@ export function renderResources(sections: ResourceSection[]): void {
       rootClass: "resource-section",
       label: `[${section.name}]`,
       status: section.items.map((item) => item.label).join(", "),
+      expanded: expandedSections.has(section.name),
       parent: panel.body,
+      onToggle: (expanded) => {
+        if (expanded) expandedSections.add(section.name);
+        else expandedSections.delete(section.name);
+      },
     });
     // Loaded skills are coloured rather than prefixed, so the summary line
     // keeps reading as a plain comma-separated list.

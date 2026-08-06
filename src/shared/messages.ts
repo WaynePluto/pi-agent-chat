@@ -54,10 +54,6 @@ export const sharedMessages = {
   importSessionTitle: { en: "Import Pi session", zh: "导入 Pi 会话" },
   exportSessionTitle: { en: "Export Pi session", zh: "导出 Pi 会话" },
   exportSessionAction: { en: "Export", zh: "导出" },
-  sessionNotPersisted: {
-    en: "this session is not persisted, nothing to export",
-    zh: "当前会话未持久化，没有可导出的内容",
-  },
 
   /* Model / thinking level --------------------------------------------- */
 
@@ -73,6 +69,24 @@ export const sharedMessages = {
     zh: "Pi Agent Chat：当前模型没有可选的思考等级。",
   },
   current: { en: "current", zh: "当前" },
+  favoriteModels: { en: "Frequently used", zh: "常用模型" },
+  manageFavoriteModels: { en: "Manage frequently used models…", zh: "管理常用模型…" },
+  manageFavoriteModelsDetail: {
+    en: "Shared with the pi CLI via enabledModels in ~/.pi/agent/settings.json",
+    zh: "保存到 ~/.pi/agent/settings.json 的 enabledModels，与终端 pi 共用",
+  },
+  favoriteModelsTitle: { en: "Pi Agent Chat: frequently used models", zh: "Pi Agent Chat：常用模型" },
+  favoriteModelsPlaceholder: {
+    en: "Select the models to show first; selecting all or none removes the filter",
+    zh: "勾选优先展示的模型；全选或全不选则取消筛选",
+  },
+  favoriteModelsCleared: {
+    en: "frequently used models cleared: every model is offered",
+    zh: "已清空常用模型：选择器将列出全部模型",
+  },
+  setDefaultModel: { en: "Set current model as default", zh: "将当前模型设为默认" },
+  defaultModelMarker: { en: "default", zh: "默认" },
+  openExportedHtml: { en: "Open in browser", zh: "在浏览器中打开" },
   modalityText: { en: "text", zh: "文本" },
   modalityImage: { en: "image", zh: "图像" },
   modelReasoning: { en: "reasoning", zh: "思考" },
@@ -86,7 +100,78 @@ export const sharedMessages = {
     zh: "登录 / 配置模型供应商",
   },
   settingsShellPath: { en: "Shell path", zh: "Shell 路径" },
+  settingsScopedModels: { en: "Frequently used models", zh: "常用模型" },
+  settingsScopedModelsDetail: {
+    en: "Choose the models listed first in the model picker",
+    zh: "选择模型选择器中优先列出的模型",
+  },
   settingsHelp: { en: "Command help", zh: "命令帮助" },
+  settingsSectionOptions: { en: "Options (shared with the pi CLI)", zh: "选项（与终端 pi 共用）" },
+  settingsOpenFile: { en: "Open settings file", zh: "打开设置文件" },
+  settingsOpenFileDetail: { en: "Edit ~/.pi/agent/settings.json directly", zh: "直接编辑 ~/.pi/agent/settings.json" },
+  settingAutoCompact: { en: "Auto-compact", zh: "自动压缩" },
+  settingAutoCompactDetail: {
+    en: "Automatically compact context when it gets too large",
+    zh: "上下文接近上限时自动压缩",
+  },
+  settingDefaultThinking: { en: "Default thinking level", zh: "默认思考等级" },
+  settingDefaultThinkingDetail: {
+    en: "Reasoning depth for new sessions (thinking-capable models)",
+    zh: "新会话的思考深度（仅支持思考的模型）",
+  },
+  settingSteeringMode: { en: "Steering mode", zh: "插话模式" },
+  settingSteeringModeDetail: {
+    en: "How messages sent while streaming are delivered: one at a time, or all at once",
+    zh: "运行中发送的消息如何送达：逐条等回复，或一次全部送达",
+  },
+  settingFollowUpMode: { en: "Follow-up mode", zh: "后续消息模式" },
+  settingFollowUpModeDetail: {
+    en: "How queued follow-up messages are delivered after the agent finishes",
+    zh: "agent 完成后，排队的后续消息如何送达",
+  },
+  settingProjectTrust: { en: "Default project trust", zh: "默认项目信任" },
+  settingProjectTrustDetail: {
+    en: "Fallback when no saved trust decision exists for a project",
+    zh: "项目没有已保存的信任决定时的默认行为",
+  },
+  trustAsk: { en: "ask", zh: "询问" },
+  trustAlways: { en: "always trust", zh: "总是信任" },
+  trustNever: { en: "never trust", zh: "从不信任" },
+  settingSkillCommands: { en: "Skill commands", zh: "技能命令" },
+  settingSkillCommandsDetail: {
+    en: "Register skills as /skill:name commands",
+    zh: "把技能注册为 /skill:名称 命令",
+  },
+  settingRetry: { en: "Auto-retry", zh: "自动重试" },
+  settingRetryDetail: {
+    en: "Retry failed provider requests automatically",
+    zh: "请求失败时自动重试",
+  },
+  settingTransport: { en: "Transport", zh: "传输方式" },
+  settingTransportDetail: {
+    en: "Preferred transport for providers that support multiple transports",
+    zh: "支持多种传输方式的供应商的首选传输",
+  },
+  settingHttpIdleTimeout: { en: "HTTP idle timeout", zh: "HTTP 空闲超时" },
+  settingHttpIdleTimeoutDetail: {
+    en: "Max idle gap while waiting for response data; disable for slow local models",
+    zh: "等待响应数据的最大空闲间隔；本地慢模型可禁用",
+  },
+  settingAutoResizeImages: { en: "Auto-resize images", zh: "自动缩放图片" },
+  settingAutoResizeImagesDetail: {
+    en: "Resize large images to 2000x2000 max for better model compatibility",
+    zh: "大图自动缩到 2000x2000 以内，提升模型兼容性",
+  },
+  settingBlockImages: { en: "Block images", zh: "阻止图片" },
+  settingBlockImagesDetail: {
+    en: "Prevent images from being sent to LLM providers",
+    zh: "禁止向 LLM 供应商发送图片",
+  },
+  settingAnthropicWarning: { en: "Anthropic extra usage warning", zh: "Anthropic 额外用量警告" },
+  settingAnthropicWarningDetail: {
+    en: "Warn when Anthropic subscription auth may use paid extra usage",
+    zh: "订阅认证可能产生付费额外用量时警告",
+  },
   renameRunningSession: {
     en: "Pi Agent Chat: cannot rename a session while a subagent is writing to it.",
     zh: "Pi Agent Chat：子代理正在写入该会话，暂时无法重命名。",
@@ -245,6 +330,18 @@ export const sharedTemplates = {
   sessionRenamed: {
     en: (name: string) => `session renamed to "${name}"`,
     zh: (name: string) => `会话已重命名为“${name}”`,
+  },
+  favoriteModelsSaved: {
+    en: (count: number) => `${count} frequently used model(s) saved to settings`,
+    zh: (count: number) => `已保存 ${count} 个常用模型到设置`,
+  },
+  defaultModelSet: {
+    en: (reference: string) => `default model set to ${reference}`,
+    zh: (reference: string) => `默认模型已设为 ${reference}`,
+  },
+  settingChanged: {
+    en: (label: string, value: string) => `${label}: ${value}`,
+    zh: (label: string, value: string) => `${label}：${value}`,
   },
   importedSession: {
     en: (path: string) => `imported ${path}`,

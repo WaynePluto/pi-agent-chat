@@ -1,5 +1,7 @@
 import { promises as fs } from "node:fs";
+import { join } from "node:path";
 import * as vscode from "vscode";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { PiRuntime } from "./runtime.js";
 import { t, tf } from "./i18n.js";
 
@@ -7,6 +9,9 @@ import { t, tf } from "./i18n.js";
  * The header "Settings" menu: a QuickPick over Pi settings that make sense in
  * the sidebar. Everything writes through the SDK's SettingsManager into
  * `~/.pi/agent/settings.json`, so changes are shared with the pi CLI.
+ *
+ * Terminal-only display settings (theme, image rendering, paddings, cursor,
+ * startup verbosity) are deliberately not offered here.
  */
 
 export interface SettingsMenuUi {
@@ -14,21 +19,241 @@ export interface SettingsMenuUi {
   status(text: string): void;
   /** Show the built-in command directory (the /help text). */
   help(): void;
+  /** Maintain the frequently used model list (`/scoped-models`). */
+  manageScopedModels(): Promise<void>;
+  /** The slash command catalogue changed (e.g. skill commands toggled). */
+  commandsChanged?(): void;
+}
+
+/** One selectable value of an enum-ish setting. */
+interface SettingChoice {
+  value: string;
+  label: string;
+  description?: string;
+}
+
+/**
+ * A settings entry backed by a `SettingsManager` getter/setter pair.
+ * Booleans are modelled as two-choice enums so one submenu serves all.
+ */
+interface SettingDescriptor {
+  id: string;
+  label: string;
+  detail: string;
+  choices: SettingChoice[];
+  get(runtime: PiRuntime): string;
+  set(runtime: PiRuntime, value: string): void;
+  /** Slash command autocomplete must be re-posted after this changes. */
+  affectsCommands?: boolean;
+}
+
+const ON_OFF: SettingChoice[] = [
+  { value: "true", label: "on" },
+  { value: "false", label: "off" },
+];
+
+const QUEUE_MODES: SettingChoice[] = [
+  { value: "one-at-a-time", label: "one-at-a-time" },
+  { value: "all", label: "all" },
+];
+
+const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+
+/** Mirrors the CLI settings selector's HTTP idle timeout choices. */
+const HTTP_IDLE_TIMEOUTS: SettingChoice[] = [
+  { value: "30000", label: "30 sec" },
+  { value: "60000", label: "1 min" },
+  { value: "120000", label: "2 min" },
+  { value: "300000", label: "5 min" },
+  { value: "0", label: "disabled" },
+];
+
+/**
+ * The offered settings. Labels/details resolve through `t()` lazily so the
+ * table itself stays declarative.
+ */
+function settingDescriptors(): SettingDescriptor[] {
+  const bool = (get: (r: PiRuntime) => boolean, set: (r: PiRuntime, v: boolean) => void) => ({
+    choices: ON_OFF,
+    get: (r: PiRuntime) => String(get(r)),
+    set: (r: PiRuntime, v: string) => set(r, v === "true"),
+  });
+  return [
+    {
+      id: "autoCompact",
+      label: t("settingAutoCompact"),
+      detail: t("settingAutoCompactDetail"),
+      ...bool(
+        (r) => r.settingsManager.getCompactionEnabled(),
+        // Persists through the session so the running agent also picks it up.
+        (r, v) => r.session.setAutoCompactionEnabled(v),
+      ),
+    },
+    {
+      id: "defaultThinkingLevel",
+      label: t("settingDefaultThinking"),
+      detail: t("settingDefaultThinkingDetail"),
+      choices: THINKING_LEVELS.map((level) => ({ value: level, label: level })),
+      get: (r) => r.settingsManager.getDefaultThinkingLevel() ?? "off",
+      set: (r, v) => r.settingsManager.setDefaultThinkingLevel(v as (typeof THINKING_LEVELS)[number]),
+    },
+    {
+      id: "steeringMode",
+      label: t("settingSteeringMode"),
+      detail: t("settingSteeringModeDetail"),
+      choices: QUEUE_MODES,
+      get: (r) => r.settingsManager.getSteeringMode(),
+      set: (r, v) => r.session.setSteeringMode(v as "all" | "one-at-a-time"),
+    },
+    {
+      id: "followUpMode",
+      label: t("settingFollowUpMode"),
+      detail: t("settingFollowUpModeDetail"),
+      choices: QUEUE_MODES,
+      get: (r) => r.settingsManager.getFollowUpMode(),
+      set: (r, v) => r.session.setFollowUpMode(v as "all" | "one-at-a-time"),
+    },
+    {
+      id: "defaultProjectTrust",
+      label: t("settingProjectTrust"),
+      detail: t("settingProjectTrustDetail"),
+      choices: [
+        { value: "ask", label: t("trustAsk") },
+        { value: "always", label: t("trustAlways") },
+        { value: "never", label: t("trustNever") },
+      ],
+      get: (r) => r.settingsManager.getDefaultProjectTrust(),
+      set: (r, v) => r.settingsManager.setDefaultProjectTrust(v as "ask" | "always" | "never"),
+    },
+    {
+      id: "skillCommands",
+      label: t("settingSkillCommands"),
+      detail: t("settingSkillCommandsDetail"),
+      affectsCommands: true,
+      ...bool(
+        (r) => r.settingsManager.getEnableSkillCommands(),
+        (r, v) => r.settingsManager.setEnableSkillCommands(v),
+      ),
+    },
+    {
+      id: "retry",
+      label: t("settingRetry"),
+      detail: t("settingRetryDetail"),
+      ...bool(
+        (r) => r.settingsManager.getRetryEnabled(),
+        (r, v) => r.settingsManager.setRetryEnabled(v),
+      ),
+    },
+    {
+      id: "transport",
+      label: t("settingTransport"),
+      detail: t("settingTransportDetail"),
+      choices: ["auto", "sse", "websocket", "websocket-cached"].map((v) => ({ value: v, label: v })),
+      get: (r) => r.settingsManager.getTransport(),
+      set: (r, v) => r.settingsManager.setTransport(v as "auto" | "sse" | "websocket" | "websocket-cached"),
+    },
+    {
+      id: "httpIdleTimeout",
+      label: t("settingHttpIdleTimeout"),
+      detail: t("settingHttpIdleTimeoutDetail"),
+      choices: HTTP_IDLE_TIMEOUTS,
+      get: (r) => String(r.settingsManager.getHttpIdleTimeoutMs()),
+      set: (r, v) => r.settingsManager.setHttpIdleTimeoutMs(Number(v)),
+    },
+    {
+      id: "autoResizeImages",
+      label: t("settingAutoResizeImages"),
+      detail: t("settingAutoResizeImagesDetail"),
+      ...bool(
+        (r) => r.settingsManager.getImageAutoResize(),
+        (r, v) => r.settingsManager.setImageAutoResize(v),
+      ),
+    },
+    {
+      id: "blockImages",
+      label: t("settingBlockImages"),
+      detail: t("settingBlockImagesDetail"),
+      ...bool(
+        (r) => r.settingsManager.getBlockImages(),
+        (r, v) => r.settingsManager.setBlockImages(v),
+      ),
+    },
+    {
+      id: "anthropicExtraUsageWarning",
+      label: t("settingAnthropicWarning"),
+      detail: t("settingAnthropicWarningDetail"),
+      ...bool(
+        (r) => r.settingsManager.getWarnings().anthropicExtraUsage ?? true,
+        (r, v) => r.settingsManager.setWarnings({ ...r.settingsManager.getWarnings(), anthropicExtraUsage: v }),
+      ),
+    },
+  ];
+}
+
+function choiceLabel(descriptor: SettingDescriptor, value: string): string {
+  return descriptor.choices.find((choice) => choice.value === value)?.label ?? value;
 }
 
 export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): Promise<void> {
-  const picked = await vscode.window.showQuickPick(
-    [
+  type Item = vscode.QuickPickItem & { id: string; descriptor?: SettingDescriptor };
+  // Loop so several settings can be changed in one visit, like the CLI list.
+  for (;;) {
+    const descriptors = settingDescriptors();
+    const items: Item[] = [
       { id: "providers", label: t("settingsProviders"), description: t("settingsProvidersDetail") },
+      { id: "scopedModels", label: t("settingsScopedModels"), description: t("settingsScopedModelsDetail") },
       { id: "shellPath", label: t("settingsShellPath"), description: t("settingsShellPathDetail") },
+      { id: "openFile", label: t("settingsOpenFile"), description: t("settingsOpenFileDetail") },
       { id: "help", label: t("settingsHelp"), description: t("settingsHelpDetail") },
-    ],
-    { title: t("settingsTitle") },
+      { id: "", label: t("settingsSectionOptions"), kind: vscode.QuickPickItemKind.Separator },
+      ...descriptors.map((descriptor) => ({
+        id: descriptor.id,
+        descriptor,
+        label: descriptor.label,
+        description: choiceLabel(descriptor, descriptor.get(runtime)),
+        detail: descriptor.detail,
+      })),
+    ];
+    const picked = await vscode.window.showQuickPick(items, { title: t("settingsTitle"), matchOnDetail: true });
+    if (!picked) return;
+    if (picked.id === "providers") return void (await ui.login());
+    if (picked.id === "scopedModels") return void (await ui.manageScopedModels());
+    if (picked.id === "shellPath") return void (await pickShellPath(runtime, ui, ""));
+    if (picked.id === "help") return ui.help();
+    if (picked.id === "openFile") return void (await openSettingsFile());
+    if (picked.descriptor) await editSetting(runtime, ui, picked.descriptor);
+  }
+}
+
+/** Submenu for one setting: pick a value, persist it, report to transcript. */
+async function editSetting(runtime: PiRuntime, ui: SettingsMenuUi, descriptor: SettingDescriptor): Promise<void> {
+  const current = descriptor.get(runtime);
+  const picked = await vscode.window.showQuickPick(
+    descriptor.choices.map((choice) => ({
+      label: `${choice.value === current ? "$(check) " : ""}${choice.label}`,
+      description: choice.value === current ? t("current") : undefined,
+      value: choice.value,
+    })),
+    { title: descriptor.label, placeHolder: descriptor.detail },
   );
-  if (!picked) return;
-  if (picked.id === "providers") await ui.login();
-  else if (picked.id === "shellPath") await pickShellPath(runtime, ui, "");
-  else if (picked.id === "help") ui.help();
+  if (!picked || picked.value === current) return;
+  descriptor.set(runtime, picked.value);
+  await runtime.settingsManager.flush();
+  ui.status(tf("settingChanged", descriptor.label, choiceLabel(descriptor, picked.value)));
+  if (descriptor.affectsCommands) ui.commandsChanged?.();
+}
+
+/** Open the shared `~/.pi/agent/settings.json` in an editor tab. */
+async function openSettingsFile(): Promise<void> {
+  const path = join(getAgentDir(), "settings.json");
+  try {
+    await fs.access(path);
+  } catch {
+    // First run: the CLI creates the file lazily; create an empty object so
+    // the editor does not open a phantom untitled file.
+    await fs.writeFile(path, "{}\n", { flag: "wx" }).catch(() => {});
+  }
+  await vscode.window.showTextDocument(vscode.Uri.file(path));
 }
 
 /** Candidate shells probed on this machine; only existing ones are offered. */
@@ -76,7 +301,7 @@ async function firstExisting(paths: string[]): Promise<string | undefined> {
  * the path is validated and set directly; otherwise a QuickPick lists detected
  * shells plus manual entry and reset-to-default.
  */
-export async function pickShellPath(runtime: PiRuntime, ui: SettingsMenuUi, argument: string): Promise<void> {
+export async function pickShellPath(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "status">, argument: string): Promise<void> {
   const settings = runtime.session.settingsManager;
   const current = settings.getShellPath();
 

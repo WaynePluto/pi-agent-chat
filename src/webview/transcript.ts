@@ -1,6 +1,6 @@
 import type { ChatEvent, SkillRef } from "../shared/protocol.js";
 import { CARD_CLASSES, WORK_CLASSES, createCollapsible, type Collapsible } from "./collapsible.js";
-import { button, el } from "./dom.js";
+import { button, el, icon } from "./dom.js";
 import {
   MAX_DIFF_LINES,
   MAX_NOTICE_HEADER_CHARS,
@@ -9,6 +9,7 @@ import {
   truncate,
 } from "./format.js";
 import { post } from "./host.js";
+import { BRANCH_ICON, REWIND_ICON, TAG_ICON } from "./icons.js";
 import { getDict } from "./i18n.js";
 import { renderMarkdown } from "./markdown.js";
 import { clearActiveSkills, markSkillActive } from "./resources-view.js";
@@ -324,10 +325,79 @@ function appendMarkdownBubble(role: string, text: string): HTMLElement {
  */
 function appendUserBubble(text: string, mode?: "steer" | "followUp"): void {
   const wrapper = appendMarkdownBubble("user", text);
+  wrapper.appendChild(entryActionBar());
   if (!mode) return;
   wrapper.classList.add(mode === "steer" ? "steered" : "queued");
   wrapper.prepend(el("span", "bubble-badge", mode === "steer" ? t.steerBadge : t.queuedBadge));
   pendingUserBubbles.push({ element: wrapper, text, mode });
+}
+
+/**
+ * Per-message session-tree actions, shown beside the bubble on hover once the
+ * host has told us which entry it maps to (see `assignEntryIds`).
+ *
+ * "Rewind" is the frequent one: it moves the session back to this message and
+ * returns its text to the composer, which is how a failed run gets retried
+ * (optionally with another model). The session file is append-only, so the
+ * abandoned branch survives and stays reachable from the tree navigator.
+ */
+function entryActionBar(): HTMLElement {
+  const bar = el("div", "bubble-actions");
+  bar.append(
+    entryActionButton("switch", REWIND_ICON, t.entrySwitch, t.entrySwitchTitle),
+    entryActionButton("fork", BRANCH_ICON, t.entryFork, t.entryForkTitle),
+    entryActionButton("label", TAG_ICON, t.entryLabel, t.entryLabelTitle),
+  );
+  return bar;
+}
+
+function entryActionButton(
+  action: "switch" | "fork" | "label",
+  svg: string,
+  label: string,
+  title: string,
+): HTMLButtonElement {
+  const element = button(`bubble-action ${action}`, undefined, (event) => {
+    const entryId = (event.currentTarget as HTMLElement).closest<HTMLElement>(".bubble.user")?.dataset.entryId;
+    if (entryId) post({ type: "entryAction", action, entryId });
+  });
+  element.appendChild(icon(svg));
+  // Icon-only button: the name survives in the tooltip and for screen readers.
+  element.title = `${label} — ${title}`;
+  element.setAttribute("aria-label", label);
+  return element;
+}
+
+/**
+ * Bind the user bubbles on screen to their session entries, in order.
+ *
+ * The host sends one id per user bubble it can act on; bubbles beyond that
+ * (a message still queued, or any bubble in a read-only transcript) stay
+ * unbound and therefore show no actions.
+ */
+export function assignEntryIds(ids: string[], labels: (string | undefined)[]): void {
+  const bubbles = messagesEl.querySelectorAll<HTMLElement>(".bubble.user");
+  bubbles.forEach((bubble, index) => {
+    const id = ids[index];
+    if (id) bubble.dataset.entryId = id;
+    else delete bubble.dataset.entryId;
+    const label = id ? labels[index] : undefined;
+    const existing = bubble.querySelector(".label-badge");
+    if (!label) {
+      existing?.remove();
+      return;
+    }
+    if (existing) existing.textContent = label;
+    else bubble.prepend(el("span", "bubble-badge label-badge", label));
+  });
+}
+
+/**
+ * Hide every per-message action while the transcript is not a stable, editable
+ * view of the live session (a run in progress, a subagent, a preview).
+ */
+export function setEntryActionsLocked(locked: boolean): void {
+  messagesEl.classList.toggle("actions-locked", locked);
 }
 
 /**
@@ -352,7 +422,7 @@ function reconcilePendingBubbles(steering: string[], followUp: string[]): void {
 
 function normalizeUserBubble(element: HTMLElement): void {
   element.classList.remove("queued", "steered");
-  element.querySelector(".bubble-badge")?.remove();
+  element.querySelector(".bubble-badge:not(.label-badge)")?.remove();
 }
 
 /**

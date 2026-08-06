@@ -10,6 +10,7 @@ const t = getDict();
 
 export function renderStatusLine(): void {
   statusLineEl.replaceChildren();
+  statusLineEl.classList.remove("hidden");
 
   if (state.error) {
     statusLineEl.appendChild(el("div", "statusline-row error", state.error));
@@ -35,4 +36,21 @@ export function renderStatusLine(): void {
   const row = el("div", "statusline-row");
   row.append(el("span", undefined, parts.join("  ")));
   statusLineEl.appendChild(row);
+  updateStatusLineFit();
+}
+
+/**
+ * Drop the whole line when the panel is too narrow for it.
+ *
+ * These counters only make sense read as a set, so a truncated "↑12k ↓678 R1..."
+ * is worse than nothing: it costs a row of height and tells the user less than
+ * the transcript above it would.
+ */
+export function updateStatusLineFit(): void {
+  const row = statusLineEl.firstElementChild as HTMLElement | null;
+  if (!row) return;
+  // Measure unhidden, otherwise the row has no size to compare.
+  statusLineEl.classList.remove("hidden");
+  if (statusLineEl.offsetParent === null) return;
+  statusLineEl.classList.toggle("hidden", row.scrollWidth > row.clientWidth + 1);
 }

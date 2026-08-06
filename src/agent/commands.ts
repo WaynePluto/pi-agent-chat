@@ -21,6 +21,7 @@ import { pickShellPath } from "./settings-menu.js";
 const BUILTIN_COMMANDS: Array<{ name: string; description: string; descriptionZh: string; argumentHint?: string }> = [
   { name: "help", description: "List built-in commands", descriptionZh: "查看内置命令列表" },
   { name: "model", description: "Select model (opens selector UI)", descriptionZh: "选择模型（打开选择器）", argumentHint: "<provider/model>" },
+  { name: "scoped-models", description: "Enable/disable models for the model picker", descriptionZh: "设置模型选择器中的常用模型" },
   { name: "thinking", description: "Select thinking level", descriptionZh: "选择思考等级" },
   { name: "compact", description: "Manually compact the session context", descriptionZh: "手动压缩会话上下文", argumentHint: "[instructions]" },
   { name: "name", description: "Set session display name", descriptionZh: "设置会话显示名称", argumentHint: "<name>" },
@@ -32,7 +33,7 @@ const BUILTIN_COMMANDS: Array<{ name: string; description: string; descriptionZh
   { name: "clone", description: "Duplicate the current session at the current position", descriptionZh: "在当前位置复制会话" },
   { name: "tree", description: "Navigate session tree (switch branches)", descriptionZh: "导航会话树（切换分支）" },
   { name: "import", description: "Import and resume a session from a JSONL file", descriptionZh: "从 JSONL 文件导入并恢复会话", argumentHint: "<path.jsonl>" },
-  { name: "export", description: "Export the session JSONL to a file", descriptionZh: "导出会话 JSONL 到文件", argumentHint: "[path.jsonl]" },
+  { name: "export", description: "Export session (HTML default, or specify path: .html/.jsonl)", descriptionZh: "导出会话（默认 HTML，可指定 .html/.jsonl 路径）", argumentHint: "[path]" },
   { name: "reload", description: "Reload extensions, skills, prompts and context files", descriptionZh: "重新加载扩展、技能、提示词与上下文文件" },
   { name: "shell-path", description: "Configure the shell used by the bash tool", descriptionZh: "配置 bash 工具使用的 shell", argumentHint: "[path]" },
   { name: "login", description: "Sign in to a model provider", descriptionZh: "登录模型供应商" },
@@ -101,6 +102,8 @@ export interface BuiltinCommandActions extends SessionTreeUi {
   newSession(): Promise<void>;
   resumeSession(): Promise<void>;
   pickModel(argument: string): Promise<void>;
+  /** `/scoped-models`: maintain the frequently used model list. */
+  manageScopedModels(): Promise<void>;
   pickThinkingLevel(): Promise<void>;
   reload(): Promise<void>;
   login(): Promise<void>;
@@ -140,6 +143,9 @@ export async function runBuiltinCommand(
       break;
     case "model":
       await actions.pickModel(argument);
+      break;
+    case "scoped-models":
+      await actions.manageScopedModels();
       break;
     case "thinking":
       await actions.pickThinkingLevel();
@@ -194,7 +200,7 @@ export async function runBuiltinCommand(
       actions.status(t("resourcesReloaded"));
       break;
     case "shell-path":
-      await pickShellPath(runtime, { login: actions.login, status: actions.status, help: () => actions.status(formatHelp()) }, argument);
+      await pickShellPath(runtime, { status: actions.status }, argument);
       break;
     case "login":
       await actions.login();
@@ -222,24 +228,30 @@ async function importSession(runtime: PiRuntime, argument: string, actions: Buil
   actions.status(tf("importedSession", target));
 }
 
+/**
+ * `/export`: mirror the CLI — default to a styled HTML transcript, fall back
+ * to raw JSONL only when the target path ends with `.jsonl`.
+ */
 async function exportSession(runtime: PiRuntime, argument: string, actions: BuiltinCommandActions): Promise<void> {
-  const source = runtime.session.sessionFile;
-  if (!source) {
-    actions.status(t("sessionNotPersisted"));
-    return;
-  }
   let target = argument;
   if (!target) {
     const picked = await vscode.window.showSaveDialog({
       title: t("exportSessionTitle"),
-      filters: { "Session JSONL": ["jsonl"] },
+      filters: { "Session HTML": ["html"], "Session JSONL": ["jsonl"] },
       saveLabel: t("exportSessionAction"),
     });
     target = picked?.fsPath ?? "";
   }
   if (!target) return;
-  await vscode.workspace.fs.copy(vscode.Uri.file(source), vscode.Uri.file(target), { overwrite: true });
-  actions.status(tf("exportedSession", target));
+  const exported = target.endsWith(".jsonl")
+    ? runtime.session.exportToJsonl(target)
+    : await runtime.session.exportToHtml(target);
+  actions.status(tf("exportedSession", exported));
+  if (!exported.endsWith(".jsonl")) {
+    const open = t("openExportedHtml");
+    const answer = await vscode.window.showInformationMessage(tf("exportedSession", exported), open);
+    if (answer === open) await vscode.env.openExternal(vscode.Uri.file(exported));
+  }
 }
 
 function formatSessionStats(stats: {

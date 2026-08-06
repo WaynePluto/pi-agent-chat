@@ -60,32 +60,31 @@ const PATCH = [
   " const c = 4;",
 ].join("\n");
 
+const RESOURCE_SECTIONS = [
+  { name: "Context", items: [{ label: "AGENTS.md", path: "/workspace/AGENTS.md", scope: "project" }] },
+  {
+    name: "Skills",
+    items: [
+      { label: "demo", path: "/workspace/.agents/skills/demo/SKILL.md", scope: "project" },
+      { label: "helper", path: "/home/me/.agents/skills/helper/SKILL.md", scope: "global" },
+    ],
+  },
+  {
+    name: "Extensions",
+    items: [
+      { label: "broken.ts (load failed)", detail: "broken.ts: parse failed", scope: "project" },
+      { label: "ext.ts", path: "/workspace/.pi/extensions/ext.ts", scope: "project" },
+    ],
+  },
+];
+
 /** Each step: a label plus the HostMessages delivered before the snapshot. */
 const SCRIPT = [
   {
     label: "startup: resources + commands + empty state",
     messages: [
       { type: "history", events: [] },
-      {
-        type: "resources",
-        sections: [
-          { name: "Context", items: [{ label: "AGENTS.md", path: "/workspace/AGENTS.md", scope: "project" }] },
-          {
-            name: "Skills",
-            items: [
-              { label: "demo", path: "/workspace/.agents/skills/demo/SKILL.md", scope: "project" },
-              { label: "helper", path: "/home/me/.agents/skills/helper/SKILL.md", scope: "global" },
-            ],
-          },
-          {
-            name: "Extensions",
-            items: [
-              { label: "broken.ts (load failed)", detail: "broken.ts: parse failed", scope: "project" },
-              { label: "ext.ts", path: "/workspace/.pi/extensions/ext.ts", scope: "project" },
-            ],
-          },
-        ],
-      },
+      { type: "resources", sections: RESOURCE_SECTIONS },
       {
         type: "commands",
         items: [
@@ -121,6 +120,21 @@ const SCRIPT = [
           { kind: "assistant_message", text: "Done.\n\n- changed `b` to 3\n- nothing else" },
         ],
       },
+      { type: "state", state: baseState },
+    ],
+  },
+  {
+    label: "per-message tree actions bound to session entries",
+    messages: [
+      {
+        type: "history",
+        events: [
+          { kind: "user_message", text: "first prompt" },
+          { kind: "assistant_message", text: "first answer" },
+          { kind: "user_message", text: "second prompt" },
+        ],
+      },
+      { type: "entryIds", ids: ["entry-1", "entry-2"], labels: [undefined, "before refactor"] },
       { type: "state", state: baseState },
     ],
   },
@@ -181,6 +195,9 @@ const SCRIPT = [
       for (const selector of [".work-header", ".resources-toggle", ".resource-header", ".card-header"]) {
         for (const header of window.document.querySelectorAll(selector)) header.click();
       }
+      // Resource updates and skill highlights both rebuild this panel. Expanded
+      // sections must survive that rebuild instead of snapping shut.
+      window.dispatchEvent(new window.MessageEvent("message", { data: { type: "resources", sections: RESOURCE_SECTIONS } }));
     },
   },
   {
@@ -281,6 +298,13 @@ async function run() {
     pretendToBeVisual: true,
   });
   const { window } = dom;
+  // jsdom has no ResizeObserver; the responsive collapse it drives is a layout
+  // concern jsdom could not evaluate anyway (every element measures 0).
+  window.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
   const posted = [];
   window.acquireVsCodeApi = () => ({ postMessage: (message) => posted.push(message) });
 

@@ -18,6 +18,10 @@ import { showLoading } from "./transcript.js";
 const t = getDict();
 
 const TIMESTAMP_CHARS = 16; // "YYYY-MM-DDTHH:MM"
+/** Rows rendered per batch; more are appended as the list scrolls near the bottom. */
+const PAGE_SIZE = 20;
+/** Distance from the bottom (px) at which the next batch is appended. */
+const SCROLL_THRESHOLD = 200;
 
 interface SessionsHooks {
   /** Leave the sessions page (layout lives in main.ts). */
@@ -28,8 +32,21 @@ interface SessionsHooks {
 
 let hooks: SessionsHooks = { close: () => {}, onResume: () => {} };
 
+/** Latest list from the host; search filters this in memory, no rescans. */
+let allItems: SessionListItem[] = [];
+let searchQuery = "";
+/** How many filtered rows are currently in the DOM. */
+let renderedCount = 0;
+let listEl: HTMLElement | undefined;
+let searchInputEl: HTMLInputElement | undefined;
+
 export function initSessions(sessionsHooks: SessionsHooks): void {
   hooks = sessionsHooks;
+  sessionsEl.addEventListener("scroll", () => {
+    if (sessionsEl.scrollTop + sessionsEl.clientHeight >= sessionsEl.scrollHeight - SCROLL_THRESHOLD) {
+      renderMore();
+    }
+  });
 }
 
 export function isSessionsOpen(): boolean {
@@ -37,19 +54,69 @@ export function isSessionsOpen(): boolean {
 }
 
 export function renderSessions(items: SessionListItem[]): void {
+  allItems = items;
   if (!isSessionsOpen()) return;
+  // Rebuilding steals focus from the search box; remember the caret.
+  const focusSearch = document.activeElement === searchInputEl;
+  const caret = searchInputEl?.selectionStart ?? searchQuery.length;
   sessionsEl.replaceChildren();
 
   const header = el("div", "sessions-header");
   header.append(el("span", undefined, t.sessionsHeader));
   sessionsEl.appendChild(header);
 
+  searchInputEl = document.createElement("input");
+  searchInputEl.type = "text";
+  searchInputEl.className = "sessions-search";
+  searchInputEl.placeholder = t.sessionsSearchPlaceholder;
+  searchInputEl.value = searchQuery;
+  searchInputEl.addEventListener("input", () => {
+    searchQuery = searchInputEl?.value ?? "";
+    renderList();
+  });
+  sessionsEl.appendChild(searchInputEl);
+
+  listEl = el("div", "sessions-list");
+  sessionsEl.appendChild(listEl);
+  renderList();
+  if (focusSearch && searchInputEl) {
+    searchInputEl.focus();
+    searchInputEl.setSelectionRange(caret, caret);
+  }
+}
+
+function filteredItems(): SessionListItem[] {
+  const query = searchQuery.trim().toLowerCase();
+  if (!query) return allItems;
+  return allItems.filter((item) => item.title.toLowerCase().includes(query));
+}
+
+/** (Re)fill the list container with the first batch of filtered rows. */
+function renderList(): void {
+  if (!listEl) return;
+  listEl.replaceChildren();
+  renderedCount = 0;
+  const items = filteredItems();
   if (items.length === 0) {
-    sessionsEl.appendChild(el("div", "sessions-empty", t.sessionsEmpty));
+    listEl.appendChild(el("div", "sessions-empty", allItems.length === 0 ? t.sessionsEmpty : t.sessionsNoMatch));
     return;
   }
+  appendRows(items, PAGE_SIZE);
+}
 
-  for (const item of items) sessionsEl.appendChild(sessionRow(item));
+/** Append the next batch when the page scrolls near the bottom. */
+function renderMore(): void {
+  if (!listEl || !isSessionsOpen()) return;
+  const items = filteredItems();
+  if (renderedCount >= items.length) return;
+  appendRows(items, renderedCount + PAGE_SIZE);
+}
+
+function appendRows(items: SessionListItem[], upTo: number): void {
+  if (!listEl) return;
+  const end = Math.min(upTo, items.length);
+  for (let i = renderedCount; i < end; i++) listEl.appendChild(sessionRow(items[i]!));
+  renderedCount = end;
 }
 
 function sessionRow(item: SessionListItem): HTMLElement {

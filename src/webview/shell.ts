@@ -1,5 +1,5 @@
 import { getDict } from "./i18n.js";
-import { CHEVRON_ICON, SEND_ICON } from "./icons.js";
+import { CHEVRON_ICON, MORE_ICON, SEND_ICON } from "./icons.js";
 
 /**
  * The static page skeleton and the element references every view module works
@@ -11,13 +11,15 @@ const t = getDict();
 
 const root = document.getElementById("root") as HTMLElement;
 root.innerHTML = `
-  <header class="header">
+  <header id="header" class="header">
     <div id="header-title" class="header-title">${t.newSessionLabel}</div>
-    <div class="header-actions">
+    <div id="header-actions" class="header-actions">
       <button id="btn-new" title="${t.newSessionTitle}">${t.newSession}</button>
       <button id="btn-sessions" title="${t.sessionsTitle}">${t.sessions}</button>
       <button id="btn-tree" title="${t.treeTitle}">${t.tree}</button>
       <button id="btn-settings" title="${t.settingsTitle}">${t.settings}</button>
+      <button id="btn-header-more" class="overflow-toggle hidden" title="${t.moreActions}" aria-label="${t.moreActions}" aria-expanded="false">${MORE_ICON}</button>
+      <div id="header-menu" class="overflow-menu hidden"></div>
     </div>
   </header>
   <div id="sessions" class="sessions hidden"></div>
@@ -43,14 +45,16 @@ root.innerHTML = `
     <div id="file-refs" class="file-refs hidden"></div>
     <div id="resize-handle" class="resize-handle"></div>
     <textarea id="input" rows="3" placeholder="${t.inputPlaceholder}"></textarea>
-    <div class="composer-actions">
+    <div id="composer-actions" class="composer-actions">
       <button id="btn-model" class="chip" title="${t.modelTitle}">-</button>
       <button id="btn-thinking" class="chip" title="${t.thinkingTitle}">-</button>
       <span class="spacer"></span>
       <button id="btn-steer" class="secondary hidden" title="${t.steerTitle}">${t.steer}</button>
       <button id="btn-followup" class="secondary hidden" title="${t.followUpTitle}">${t.followUp}</button>
       <button id="btn-recall" class="secondary hidden" title="${t.recallTitle}">${t.recall}</button>
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="${t.moreActions}" aria-label="${t.moreActions}" aria-expanded="false">${MORE_ICON}</button>
       <button id="btn-send" class="icon-button" title="${t.sendIconTitle}">${SEND_ICON}</button>
+      <div id="composer-menu" class="overflow-menu hidden"></div>
     </div>
     <div id="statusline" class="statusline"></div>
   </footer>
@@ -86,4 +90,12 @@ export const delegationBarEl = byId("delegation-bar");
 export const delegationLabelEl = byId("delegation-label");
 export const delegationPeerBtn = byId<HTMLButtonElement>("delegation-peer");
 export const scrollDownBtn = byId<HTMLButtonElement>("scroll-down");
+export const headerEl = byId("header");
 export const headerTitleEl = byId("header-title");
+export const headerActionsEl = byId("header-actions");
+export const headerMoreBtn = byId<HTMLButtonElement>("btn-header-more");
+export const headerMenuEl = byId("header-menu");
+export const composerActionsEl = byId("composer-actions");
+export const composerMoreBtn = byId<HTMLButtonElement>("btn-composer-more");
+export const composerMenuEl = byId("composer-menu");
+export const settingsBtn = byId<HTMLButtonElement>("btn-settings");

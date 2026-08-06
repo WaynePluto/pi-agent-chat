@@ -2,7 +2,7 @@ import { isAbsolute, basename, relative as relativePath, resolve as resolvePath 
 import { homedir } from "node:os";
 import * as vscode from "vscode";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { buildSessionContext, migrateSessionEntries, parseSessionEntries, SessionManager } from "@earendil-works/pi-coding-agent";
+import { buildSessionContext, migrateSessionEntries, parseSessionEntries, sessionEntryToContextMessages, SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
 import type { ChatEvent, ChatState, ChatStats, HostMessage, ResourceItem, ResourceScope, ResourceSection, SessionListItem, WebviewMessage } from "../shared/protocol.js";
@@ -10,11 +10,12 @@ import { loginFlow, logoutFlow } from "./auth.js";
 import { collectSlashCommands, formatHelp, runBuiltinCommand } from "./commands.js";
 import { describe } from "./errors.js";
 import { t, tf } from "./i18n.js";
-import { navigateSessionTree } from "./session-tree.js";
+import { editEntryLabel, forkFromEntry, navigateSessionTree, switchToEntry } from "./session-tree.js";
 import { openSettingsMenu } from "./settings-menu.js";
 import type { OriginalContentProvider } from "./diff-view.js";
 import { openEditDiff } from "./diff-view.js";
 import { ProjectFileIndex } from "./project-files.js";
+import { manageScopedModels, pickModel } from "./model-picker.js";
 import type { PiRuntime } from "./runtime.js";
 import { EMPTY_SKILL_INDEX, buildSkillIndex, collapseSkillInvocation, matchSkill, type SkillIndex } from "./skills.js";
 import type { SubagentObserver, SubagentOutcome, SubagentRun } from "./subagent.js";
@@ -38,6 +39,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private activeDelegation?: SubagentRun;
   /** Read-only preview of another session while a run is in progress. */
   private preview?: { file: string; title: string; events: ChatEvent[] };
+  /** Whether the webview's sessions page is on screen. */
+  private sessionsVisible = false;
+  /** Trailing debounce so bursts of session events cause one file scan. */
+  private sessionsRefreshTimer?: ReturnType<typeof setTimeout>;
   /** Only the newest async state snapshot may reach the webview. */
   private statePostVersion = 0;
   /** Replay buffers keep parent and child transcripts intact while viewing either. */
@@ -85,7 +90,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         `bind ${bound - posted}ms, resources+state ${Date.now() - bound}ms`,
     );
     // Only the sessions page needs this; never make the transcript wait for it.
-    void this.refreshSessions();
+    this.refreshSessions();
   }
 
   /**
@@ -119,6 +124,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     const systemPromptOverridden = Boolean(session.resourceLoader.getSystemPromptSource());
     if (this.preview) {
       this.host.post({ type: "history", events: [...this.preview.events], systemPromptOverridden });
+      this.postEntryIds();
       return;
     }
     const events = this.histories.get(session.sessionId) ?? this.buildHistory(session.messages);
@@ -126,6 +132,31 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     // A replay of a still-streaming session must not close its open work
     // block in the webview; live events keep appending to the same card.
     this.host.post({ type: "history", events: [...events], live: session.isStreaming, systemPromptOverridden });
+    // Every replay rebuilds the bubbles, so their entry bindings must follow.
+    this.postEntryIds();
+  }
+
+  /**
+   * Tell the webview which session entry each user bubble belongs to, so the
+   * per-bubble actions (switch / fork / label) can address it.
+   *
+   * Only the live runtime transcript is actionable: a read-only preview or a
+   * subagent's transcript gets an empty list, which hides the buttons.
+   */
+  postEntryIds(): void {
+    const session = this.runtime.session;
+    const actionable = !this.preview && !this.activeDelegation && (this.displayedSession ?? session) === session;
+    if (!actionable) {
+      this.host.post({ type: "entryIds", ids: [], labels: [] });
+      return;
+    }
+    try {
+      const ids = userEntryIds(session.sessionManager.buildContextEntries());
+      const labels = ids.map((id) => session.sessionManager.getLabel(id));
+      this.host.post({ type: "entryIds", ids, labels });
+    } catch (error) {
+      this.host.log(`failed to collect entry ids: ${describe(error)}`);
+    }
   }
 
   async postState(): Promise<void> {
@@ -221,7 +252,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         void this.postState();
         // Push the in-memory merged entry (see listSessions) to an open list
         // as soon as the run starts, before the session is flushed to disk.
-        void this.refreshSessions();
+        this.refreshSessions();
         break;
       case "agent_end":
         // A low-level run can end before Pi retries or continues with
@@ -246,7 +277,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
           break;
         }
         void this.postState();
-        void this.refreshSessions();
+        this.postEntryIds();
+        this.refreshSessions();
         break;
       case "message_start":
         this.emit(session, { kind: "assistant_start" });
@@ -262,7 +294,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         // The SDK defers writing a brand-new session to disk until the first
         // assistant message completes; refresh here so the sessions list can
         // show the new session before the whole run settles.
-        if (event.message.role === "assistant") void this.refreshSessions();
+        if (event.message.role === "assistant") this.refreshSessions();
         // Provider failures are encoded on the completed assistant message.
         // AgentState.errorMessage is only updated at turn_end, so it is not
         // available yet when message_end is delivered.
@@ -329,7 +361,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.displayedSession = run.child;
     if (!this.preview) this.postHistory();
     void this.postState();
-    void this.refreshSessions();
+    this.refreshSessions();
   }
 
   onSubagentEvent(run: SubagentRun, event: AgentSessionEvent): void {
@@ -349,7 +381,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.displayedSession = run.parent;
     if (!this.preview) this.postHistory();
     void this.postState();
-    void this.refreshSessions();
+    this.refreshSessions();
   }
 
   private delegationState(session: AgentSession): ChatState["delegation"] {
@@ -420,8 +452,14 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         await this.runtime.newSession();
         await this.attach();
         break;
-      case "listSessions":
-        this.host.post({ type: "sessions", items: await this.listSessions() });
+      case "sessionsVisible":
+        this.sessionsVisible = message.visible;
+        if (message.visible) {
+          await this.pushSessions();
+        } else if (this.sessionsRefreshTimer) {
+          clearTimeout(this.sessionsRefreshTimer);
+          this.sessionsRefreshTimer = undefined;
+        }
         break;
       case "listCommands":
         this.postCommands();
@@ -451,6 +489,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         await navigateSessionTree(this.runtime, this.builtinActions());
         await this.attach();
         break;
+      case "entryAction":
+        await this.runEntryAction(message.action, message.entryId);
+        break;
       case "pickModel":
         await this.pickModel();
         break;
@@ -471,6 +512,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
           },
           status,
           help: () => status(formatHelp()),
+          manageScopedModels: () => manageScopedModels(this.runtime, this.modelPickerUi()),
+          commandsChanged: () => this.postCommands(),
         });
         await this.postState();
         break;
@@ -512,6 +555,29 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   }
 
   /**
+   * Apply one session-tree operation triggered from a transcript bubble.
+   *
+   * `switch` and `fork` change what the transcript must show, so they replay
+   * through `attach()`. A label only annotates an entry, so it just refreshes
+   * the id/label mapping.
+   */
+  private async runEntryAction(action: "switch" | "fork" | "label", entryId: string): Promise<void> {
+    if (this.preview || this.activeDelegation) return;
+    if (action !== "label" && this.guardStreaming()) return;
+    const ui = this.builtinActions();
+    try {
+      if (action === "switch") await switchToEntry(this.runtime, entryId, ui);
+      else if (action === "fork") await forkFromEntry(this.runtime, entryId, ui);
+      else await editEntryLabel(this.runtime, entryId, ui);
+    } catch (error) {
+      this.reportError(this.runtime.session, `${action} failed`, error);
+      return;
+    }
+    if (action === "label") this.postEntryIds();
+    else await this.attach();
+  }
+
+  /**
    * Open another session's transcript read-only, without touching the runtime
    * session: the JSONL file is replayed into events. Used while a run is in
    * progress, when switching the active session is not allowed.
@@ -526,7 +592,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       this.preview = { file, title: (firstUser?.text ?? "").split("\n")[0] ?? "", events };
       this.postHistory();
       await this.postState();
-      await this.refreshSessions();
+      this.refreshSessions();
     } catch (error) {
       this.reportError(this.runtime.session, "session preview failed", error);
     }
@@ -538,7 +604,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.preview = undefined;
     this.postHistory();
     void this.postState();
-    void this.refreshSessions();
+    this.refreshSessions();
   }
 
   /** Answer a webview @ picker query; errors are reported inline, never thrown. */
@@ -648,6 +714,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         }
         await this.pickModel();
       },
+      manageScopedModels: async () => {
+        await manageScopedModels(this.runtime, this.modelPickerUi());
+        await this.postState();
+      },
       pickThinkingLevel: async () => this.pickThinkingLevel(),
       login: async () => {
         await this.login();
@@ -667,47 +737,17 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     };
   }
 
+  private modelPickerUi() {
+    return {
+      login: async () => {
+        await this.login();
+      },
+      status: (text: string) => this.emit(this.runtime.session, { kind: "status", text, scope: "command" }),
+    };
+  }
+
   private async pickModel(): Promise<void> {
-    const models = await this.runtime.getAvailableModels();
-    if (models.length === 0) {
-      const signIn = t("signInAction");
-      const answer = await vscode.window.showWarningMessage(t("noAuthenticatedModel"), signIn);
-      if (answer === signIn) await this.login();
-      return;
-    }
-    const current = this.runtime.session.model as { id?: string; provider?: string } | undefined;
-    // Grouping by provider is also the only way to add vertical breathing room:
-    // QuickPick row height is fixed, separators are the one spacing primitive.
-    type ModelItem = vscode.QuickPickItem & { model?: (typeof models)[number] };
-    const byProvider = new Map<string, (typeof models)[number][]>();
-    for (const model of models) {
-      const list = byProvider.get(model.provider) ?? [];
-      list.push(model);
-      byProvider.set(model.provider, list);
-    }
-    const items: ModelItem[] = [];
-    for (const [provider, list] of byProvider) {
-      items.push({ label: provider, kind: vscode.QuickPickItemKind.Separator });
-      for (const model of list) {
-        const isCurrent = model.id === current?.id && model.provider === current?.provider;
-        items.push({
-          label: `${isCurrent ? "$(check) " : ""}${model.id}`,
-          // Separators disappear while filtering, so each row carries its provider.
-          description: model.provider,
-          detail: describeModel(model),
-          picked: isCurrent,
-          model,
-        });
-      }
-    }
-    const picked = await vscode.window.showQuickPick(items, {
-      title: t("selectModelTitle"),
-      matchOnDescription: true,
-      matchOnDetail: true,
-    });
-    if (!picked?.model) return;
-    await this.runtime.setModel(picked.model.provider, picked.model.id);
-    await this.postState();
+    if (await pickModel(this.runtime, this.modelPickerUi())) await this.postState();
   }
 
   private async pickThinkingLevel(): Promise<void> {
@@ -771,7 +811,22 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     return items;
   }
 
-  private async refreshSessions(): Promise<void> {
+  /**
+   * Scanning session files costs O(total JSONL size), so it only happens
+   * while the sessions page is visible, and bursts of triggers (agent events
+   * arrive in clusters) coalesce into a single delayed scan.
+   */
+  private refreshSessions(): void {
+    if (!this.sessionsVisible || this.disposed) return;
+    if (this.sessionsRefreshTimer) return;
+    this.sessionsRefreshTimer = setTimeout(() => {
+      this.sessionsRefreshTimer = undefined;
+      void this.pushSessions();
+    }, 300);
+  }
+
+  private async pushSessions(): Promise<void> {
+    if (!this.sessionsVisible || this.disposed) return;
     this.host.post({ type: "sessions", items: await this.listSessions() });
   }
 
@@ -790,7 +845,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     );
     if (answer !== confirmLabel) return;
     await vscode.workspace.fs.delete(vscode.Uri.file(file));
-    this.host.post({ type: "sessions", items: await this.listSessions() });
+    await this.pushSessions();
   }
 
   /**
@@ -824,12 +879,16 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       this.reportError(this.runtime.session, "rename session failed", error);
       return;
     }
-    this.host.post({ type: "sessions", items: await this.listSessions() });
+    await this.pushSessions();
   }
 
   dispose(): void {
     this.disposed = true;
     this.statePostVersion++;
+    if (this.sessionsRefreshTimer) {
+      clearTimeout(this.sessionsRefreshTimer);
+      this.sessionsRefreshTimer = undefined;
+    }
     this.runtime.subagents.setObserver(undefined);
     this.unsubscribe?.();
     this.unsubscribe = undefined;
@@ -1014,6 +1073,25 @@ export function buildHistoryEvents(messages: readonly unknown[], cwd: string, sk
   return events;
 }
 
+/**
+ * Session-entry ids of the user bubbles a transcript shows, in the same order.
+ *
+ * Mirrors the `role === "user"` branch of `buildHistoryEvents` (same projection,
+ * same "skip empty text" rule) so the k-th id belongs to the k-th user bubble.
+ * Exported for diagnostics.
+ */
+export function userEntryIds(entries: readonly SessionEntry[]): string[] {
+  const ids: string[] = [];
+  for (const entry of entries) {
+    for (const message of sessionEntryToContextMessages(entry)) {
+      if ((message as { role?: string }).role !== "user") continue;
+      const text = collapseSkillInvocation(contentText((message as { content?: unknown }).content));
+      if (text.trim()) ids.push(entry.id);
+    }
+  }
+  return ids;
+}
+
 /** The edit/write tools name their target file through the `path` argument. */
 function toolFilePath(args: unknown, cwd: string): string | undefined {
   const path = (args as { path?: unknown } | undefined)?.path;
@@ -1029,38 +1107,4 @@ function contentText(content: unknown): string {
     .filter((part) => (part as { type?: string })?.type === "text")
     .map((part) => (part as { text?: string }).text ?? "")
     .join("\n");
-}
-
-/**
- * QuickPick detail line for one model: input modalities (text / image),
- * context window, max output tokens, plus a reasoning marker when supported.
- */
-function describeModel(model: {
-  input?: readonly string[];
-  contextWindow?: number;
-  maxTokens?: number;
-  reasoning?: boolean;
-}): string {
-  const modalities = (model.input ?? [])
-    .map((kind) => (kind === "image" ? t("modalityImage") : kind === "text" ? t("modalityText") : kind))
-    .join(" + ");
-  const detail = tf(
-    "modelCapabilities",
-    modalities || "-",
-    formatTokens(model.contextWindow),
-    formatTokens(model.maxTokens),
-  );
-  return model.reasoning ? `${detail} · ${t("modelReasoning")}` : detail;
-}
-
-/** 200000 -> "200K", 1000000 -> "1M"; unknown values render as "?". */
-function formatTokens(value?: number): string {
-  if (!value || !Number.isFinite(value) || value <= 0) return "?";
-  if (value >= 1_000_000) return `${trimZero(value / 1_000_000)}M`;
-  if (value >= 1_000) return `${trimZero(value / 1_000)}K`;
-  return String(value);
-}
-
-function trimZero(value: number): string {
-  return value.toFixed(1).replace(/\.0$/, "");
 }

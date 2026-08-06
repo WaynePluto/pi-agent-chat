@@ -9,6 +9,7 @@
 - `src/agent/bridge.ts` — 双向翻译层：SDK 事件 → `HostMessage`，webview 消息 → runtime 操作；session 历史回放。
 - `src/agent/auth.ts` — 登录/登出流程：`ModelRuntime.login()` + `AuthInteraction` 映射到 VS Code 原生对话框。
 - `src/agent/commands.ts` — 斜杠命令目录与内置命令分发（命名对齐 CLI）。
+- `src/agent/model-picker.ts` — 模型选择器与 `/scoped-models`：常用模型置顶，勾选结果写入共享设置 `enabledModels`。
 - `src/agent/skills.ts` — 技能路径索引：把 `read`/`bash` 调用判定为「加载技能」或「技能资源」，供 transcript 与资源面板区分展示。
 - `src/shared/protocol.ts` — host ↔ webview 消息协议与共享常量，**必须保持零依赖**（webview 打包不能引入 Node 代码）。
 - `src/shared/messages.ts` — 宿主侧文案的中英字典（含参数化模板），同样零依赖；宿主经 `agent/i18n.ts` 的 `t()`/`tf()` 取用，webview `i18n.ts` 也引用它以保持措辞一致。
@@ -19,7 +20,8 @@
 
 ## 关键约定
 
-- 会话文件与配置完全复用 `~/.pi/agent/`（auth.json、models.json、settings、extensions、skills），与终端 Pi 可互操作；不要引入插件私有的配置副本。
+- 会话文件与配置完全复用 `~/.pi/agent/`（auth.json、models.json、settings、extensions、skills），与终端 Pi 可互操作；不要引入插件私有的配置副本。常用模型同理：只读写全局 settings 的 `enabledModels`，语义对齐 CLI `/scoped-models`（显式 `provider/modelId` 列表，全选或空则清空该项）。
+- 有意偏离 CLI 的一处：SDK 的 `AgentSession.setModel()` 会顺带改写 `defaultProvider`/`defaultModel`（CLI 语义是「选中即设为默认」）。插件把两者分开——切换模型只影响当前会话，默认模型只由模型选择器行内的 📌 按钮设置——所以 `PiRuntime.setModel()` 在调用后会把原默认值写回。改动这一段前先确认该语义。
 - 每次 `runtime.session` 被替换（new/resume/fork/tree）后必须重新 `bindExtensions()` 并重订阅事件 —— 走 `ChatBridge.attach()`。
 - 不要与终端 Pi 同时 resume 同一个 session（JSONL 追加写无锁）。
 - protocol.ts 修改后需同步 host 端（bridge）与 webview 端（main.ts）两侧。

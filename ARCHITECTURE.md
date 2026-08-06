@@ -9,12 +9,13 @@
 | 模块 | 路径 | 职责 | 主要依赖 |
 |------|------|------|----------|
 | extension | `src/extension.ts` | 插件入口：`activate()` 注册 webview view `piAgentChat.view`、4 个命令、diff content provider；`ChatViewProvider` 懒创建 `PiRuntime` + `ChatBridge`；静态注册 OAuth flows | vscode, pi-ai/bun-oauth, bridge, diagnostics, diff-view, http, runtime, protocol |
-| runtime | `src/agent/runtime.ts` | `PiRuntime`：SDK `AgentSessionRuntime` 薄封装；session 新建/继续、替换后重新 bindExtensions、注入 subagent 自定义工具 | vscode, pi-coding-agent, subagent |
+| runtime | `src/agent/runtime.ts` | `PiRuntime`：SDK `AgentSessionRuntime` 薄封装；session 新建/继续、替换后重新 bindExtensions、注入 subagent 自定义工具、按 `enabledModels` 解析会话 scoped models | vscode, pi-coding-agent, subagent |
 | bridge | `src/agent/bridge.ts` | `ChatBridge`：SDK `AgentSessionEvent` → `HostMessage`，webview 消息 → runtime 操作；历史回放（`buildHistoryEvents`）、资源清单、技能归属标注、subagent 观察者 | vscode, pi-coding-agent, protocol, auth, commands, session-tree, diff-view, project-files, runtime, skills, subagent |
 | commands | `src/agent/commands.ts` | 斜杠命令目录（命名对齐 CLI）与内置命令分发；prompt 模板/扩展命令仅做补全展示，实际由 `AgentSession.prompt()` 处理 | vscode, pi-coding-agent, protocol, runtime, session-tree |
 | skills | `src/agent/skills.ts` | 技能路径索引与工具调用归属判定（`SKILL.md` 读取 = 自动加载，技能目录内文件 = 技能资源），弥补 SDK 无「技能已加载」事件 | node:path, pi-coding-agent, protocol |
 | session-tree | `src/agent/session-tree.ts` | `/tree` `/fork` `/clone`：用原生 QuickPick 驱动 session 条目树导航与分支操作 | vscode, pi-coding-agent, runtime |
-| settings-menu | `src/agent/settings-menu.ts` | header “设置”菜单与 `/shell-path`：供应商入口、shell 路径探测/设置（写入 `~/.pi/agent/settings.json`，与 CLI 互通） | vscode, runtime, host i18n |
+| settings-menu | `src/agent/settings-menu.ts` | header “设置”菜单与 `/shell-path`：供应商/常用模型/shell 路径入口 + 11 项 CLI `/settings` 选项（auto-compact、默认思考等级、steering/follow-up、信任、skill 命令、重试、transport、超时、图片、警告）+ 打开设置文件；全部写 `~/.pi/agent/settings.json`，与 CLI 互通 | vscode, pi-coding-agent, runtime, host i18n |
+| model-picker | `src/agent/model-picker.ts` | 模型选择器与 `/scoped-models` 管理 UI：常用（scoped）模型置顶展示，多选结果以 `provider/modelId` 写入共享设置 `enabledModels`（语义对齐 CLI） | vscode, runtime, host i18n |
 | auth | `src/agent/auth.ts` | 登录/登出流程：把 SDK `AuthInteraction` / `AuthPrompt` 映射到 VS Code 原生对话框 | vscode, pi-ai, runtime |
 | subagent | `src/agent/subagent.ts` | `SubagentCoordinator`：以自定义工具形式运行单个 SDK 子 session，父 session 在工具调用中等待；向观察者广播子会话事件 | typebox, pi-coding-agent |
 | project-files | `src/agent/project-files.ts` | `ProjectFileIndex`：`@` 文件引用的索引/搜索/校验，含缓存、二进制与敏感文件过滤、引用数上限 | node:child_process, node:fs, protocol |
@@ -35,6 +36,7 @@
 | webview/resources-view | `src/webview/resources-view.ts` | 资源面板（Context / Skills / Prompts / Extensions），并高亮本会话已加载的技能 | collapsible, dom, host, shell |
 | webview/statusline | `src/webview/statusline.ts` | CLI 风格底部状态行（tokens / 缓存 / 成本 / 上下文占用） | dom, format, shell, store |
 | webview/collapsible | `src/webview/collapsible.ts` | 唯一的「折叠头 + 懒渲染 body」组件；四套 class 命名作为配置 | dom, icons, i18n |
+| webview/overflow | `src/webview/overflow.ts` | 工具栏收纳组：面板过窄时把次要按钮搬进「⋯」弹层（换行探针判定，非硬编码断点） | dom |
 | webview/dom · spinner · icons · format | `src/webview/{dom,spinner,icons,format}.ts` | DOM 构造helper、共享 spinner 动画、SVG 图标常量、截断/格式化与显示上限 | — |
 | webview/i18n | `src/webview/i18n.ts` | zh/en 双语字典，按 `<html lang>` 选择 | shared/messages |
 | webview/markdown | `src/webview/markdown.ts` | marked 渲染 + DOM 层标签/属性白名单净化 | marked |
@@ -52,6 +54,7 @@ graph TD
     skills[agent/skills]
     sessiontree[agent/session-tree]
     settingsmenu[agent/settings-menu]
+    modelpicker[agent/model-picker]
     auth[agent/auth]
     subagent[agent/subagent]
     projectfiles[agent/project-files]
@@ -69,6 +72,7 @@ graph TD
     resourcesview[webview/resources-view]
     statusline[webview/statusline]
     collapsible[webview/collapsible]
+    overflow[webview/overflow]
     shell[webview/shell]
     store[webview/store]
     hostapi[webview/host]
@@ -92,6 +96,9 @@ graph TD
   bridge --> auth
   bridge --> commands
   bridge --> settingsmenu
+  bridge --> modelpicker
+  modelpicker --> runtime
+  modelpicker --> hosti18n
   commands --> settingsmenu
   settingsmenu --> runtime
   settingsmenu --> hosti18n
@@ -137,6 +144,8 @@ graph TD
   main --> sessionsview
   main --> resourcesview
   main --> statusline
+  main --> overflow
+  overflow --> domutil
   main --> shell
   main --> store
   main --> hostapi

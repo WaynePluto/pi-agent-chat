@@ -5,14 +5,22 @@ import { getDict } from "./i18n.js";
 import { SEND_ICON, STOP_ICON } from "./icons.js";
 import { hasResources, renderResources } from "./resources-view.js";
 import { initSessions, isSessionsOpen, renderSessions } from "./sessions-view.js";
+import { createOverflowGroup } from "./overflow.js";
 import {
   authEl,
   byId,
+  composerActionsEl,
   composerEl,
+  composerMenuEl,
+  composerMoreBtn,
   delegationBarEl,
   delegationLabelEl,
   delegationPeerBtn,
   followUpBtn,
+  headerActionsEl,
+  headerEl,
+  headerMenuEl,
+  headerMoreBtn,
   headerTitleEl,
   inputEl,
   messagesWrapEl,
@@ -23,13 +31,14 @@ import {
   sendBtn,
   sessionsBtn,
   sessionsEl,
+  settingsBtn,
   steerBtn,
   thinkingBtn,
   treeBtn,
 } from "./shell.js";
-import { renderStatusLine } from "./statusline.js";
+import { renderStatusLine, updateStatusLineFit } from "./statusline.js";
 import { setState, state } from "./store.js";
-import { applyEvent, applyHistory, clearMessages, hasPendingBubbles, removePendingBubbles, showLoading, updateWorkingIndicator } from "./transcript.js";
+import { applyEvent, applyHistory, assignEntryIds, clearMessages, hasPendingBubbles, removePendingBubbles, setEntryActionsLocked, showLoading, updateWorkingIndicator } from "./transcript.js";
 
 /**
  * Application shell: wires the view modules together, owns page layout
@@ -53,10 +62,11 @@ function openSessions(): void {
   resourcesEl.classList.add("hidden");
   delegationBarEl.classList.add("hidden");
   updateHeaderButtons();
-  post({ type: "listSessions" });
+  post({ type: "sessionsVisible", visible: true });
 }
 
 function closeSessions(): void {
+  if (isSessionsOpen()) post({ type: "sessionsVisible", visible: false });
   sessionsEl.classList.add("hidden");
   updateHeaderButtons();
   if (state.needsAuth) {
@@ -87,6 +97,8 @@ function showChat(): void {
   composerEl.classList.remove("hidden");
   resourcesEl.classList.toggle("hidden", !hasResources());
   delegationBarEl.classList.toggle("hidden", !state.delegation && !state.preview);
+  // The composer was unmeasurable while hidden; settle its layout now.
+  updateResponsiveLayout();
 }
 
 /**
@@ -175,11 +187,62 @@ function applyState(next: ChatState): void {
   // A brand-new empty session cannot be re-created or navigated, and
   // single-task-line mode forbids switching mid-run: shown disabled.
   updateHeaderButtons();
+  // Per-message tree actions need a settled, live transcript to act on.
+  setEntryActionsLocked(state.isStreaming || Boolean(state.delegation) || Boolean(state.preview));
   renderDelegationBar();
   applyAuthGate();
   renderStatusLine();
   updateWorkingIndicator();
+  // Button labels and visibility just changed, so the rows may fit differently.
+  updateResponsiveLayout();
 }
+
+/* ---------------------------------------------------------------- */
+/* Responsive layout                                                 */
+/* ---------------------------------------------------------------- */
+
+/**
+ * Secondary actions collapse into a "..." popup instead of wrapping, and the
+ * status line disappears entirely, once the panel gets too narrow for them.
+ * The session title keeps a minimum width (CSS) so it never vanishes first.
+ */
+const headerOverflow = createOverflowGroup({
+  row: headerActionsEl,
+  items: [newBtn, sessionsBtn, treeBtn, settingsBtn],
+  toggle: headerMoreBtn,
+  menu: headerMenuEl,
+  // What is left of the header once the title has been given its floor.
+  available: () => {
+    const style = getComputedStyle(headerEl);
+    const inner = headerEl.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const titleFloor = parseFloat(getComputedStyle(headerTitleEl).minWidth) || 0;
+    return inner - titleFloor - (parseFloat(style.columnGap) || 0);
+  },
+});
+const composerOverflow = createOverflowGroup({
+  row: composerActionsEl,
+  items: [modelBtn, thinkingBtn, steerBtn, followUpBtn, recallBtn],
+  toggle: composerMoreBtn,
+  menu: composerMenuEl,
+  // The action row spans the composer, so its own box is the budget.
+  available: () => composerActionsEl.clientWidth,
+});
+
+function updateResponsiveLayout(): void {
+  headerOverflow.update();
+  composerOverflow.update();
+  updateStatusLineFit();
+}
+
+// Only width matters here, and re-measuring on every height change (the input
+// box is user-resizable) would be wasted work.
+let lastWidth = 0;
+new ResizeObserver((entries) => {
+  const width = entries[0]?.contentRect.width ?? 0;
+  if (Math.round(width) === lastWidth) return;
+  lastWidth = Math.round(width);
+  updateResponsiveLayout();
+}).observe(document.documentElement);
 
 /* ---------------------------------------------------------------- */
 /* Wiring                                                            */
@@ -238,6 +301,7 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
     applyEvent(message.event);
     updateRecallButton();
   } else if (message.type === "history") applyHistory(message.events, message.live, message.systemPromptOverridden);
+  else if (message.type === "entryIds") assignEntryIds(message.ids, message.labels);
   else if (message.type === "sessions") renderSessions(message.items);
   else if (message.type === "commands") setSlashCommands(message.items);
   else if (message.type === "projectFiles") onProjectFiles(message.requestId, message.items, message.error);

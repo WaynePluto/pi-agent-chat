@@ -185,6 +185,14 @@ export type HostMessage =
   | { type: "resources"; sections: ResourceSection[] }
   /** Results for the webview @ project-file picker. */
   | { type: "projectFiles"; requestId: number; items: ProjectFileItem[]; error?: string }
+  /**
+   * Session-tree ids for the user bubbles currently on screen, in transcript
+   * order, so each bubble can act on its own entry (switch / fork / label).
+   * Shorter than the bubble list while messages are still queued, and empty
+   * whenever acting on the displayed transcript is not allowed (preview,
+   * subagent view).
+   */
+  | { type: "entryIds"; ids: string[]; labels: (string | undefined)[] }
   /** Prefill the composer, e.g. with the message a fork branched away from. */
   | { type: "setInput"; text: string }
   /** Queued messages were recalled: remove their bubbles, return texts to the composer. */
@@ -200,7 +208,8 @@ export type WebviewMessage =
   /** Clear all queued (steer/follow-up) messages; texts return to the composer. */
   | { type: "dequeue" }
   | { type: "newSession" }
-  | { type: "listSessions" }
+  /** Sessions page opened/closed; the host only scans session files while it is visible. */
+  | { type: "sessionsVisible"; visible: boolean }
   | { type: "listCommands" }
   | { type: "resumeSession"; file: string }
   /** Open another session read-only, without replacing the runtime session. */
@@ -215,6 +224,8 @@ export type WebviewMessage =
   | { type: "renameSession"; file: string }
   /** Open the session tree navigator (switch branch / fork / label). */
   | { type: "openSessionTree" }
+  /** Same three operations, applied to one message bubble in the transcript. */
+  | { type: "entryAction"; action: "switch" | "fork" | "label"; entryId: string }
   | { type: "pickModel" }
   /** Start the provider sign-in flow (also used by the auth setup page). */
   | { type: "login" }

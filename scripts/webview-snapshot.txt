@@ -1,17 +1,24 @@
 ===== startup: resources + commands + empty state =====
 <div id="root">
-  <header class="header">
+  <header id="header" class="header">
     <div id="header-title" class="header-title" title="New session">
       "New session"
-    <div class="header-actions">
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
       <button id="btn-new" title="Start a new session" disabled>
         "New"
+      <span class="overflow-slot">
       <button id="btn-sessions" title="Browse, resume or delete sessions">
         "Sessions"
+      <span class="overflow-slot">
       <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)" disabled>
         "Session tree"
+      <span class="overflow-slot">
       <button id="btn-settings" title="Providers, shell path and other Pi settings">
         "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
   <div id="sessions" class="sessions hidden">
   <div id="auth" class="auth-page hidden">
     <div class="auth-title">
@@ -98,20 +105,28 @@ Open in editor" type="button">
     <div id="file-refs" class="file-refs hidden">
     <div id="resize-handle" class="resize-handle">
     <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
-    <div class="composer-actions">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
       <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
         "test-model"
+      <span class="overflow-slot">
       <button id="btn-thinking" class="chip" title="Switch thinking level">
         "medium"
       <span class="spacer">
+      <span class="overflow-slot">
       <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
         "Steer"
+      <span class="overflow-slot">
       <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
         "Follow up"
+      <span class="overflow-slot">
       <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
         "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
       <button id="btn-send" class="icon-button" title="Send (Enter)">
         <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
     <div id="statusline" class="statusline">
       <div class="statusline-row">
         <span>
@@ -119,18 +134,25 @@ Open in editor" type="button">
 
 ===== empty state: overridden system prompt warning =====
 <div id="root">
-  <header class="header">
+  <header id="header" class="header">
     <div id="header-title" class="header-title" title="New session">
       "New session"
-    <div class="header-actions">
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
       <button id="btn-new" title="Start a new session" disabled>
         "New"
+      <span class="overflow-slot">
       <button id="btn-sessions" title="Browse, resume or delete sessions">
         "Sessions"
+      <span class="overflow-slot">
       <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)" disabled>
         "Session tree"
+      <span class="overflow-slot">
       <button id="btn-settings" title="Providers, shell path and other Pi settings">
         "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
   <div id="sessions" class="sessions hidden">
   <div id="auth" class="auth-page hidden">
     <div class="auth-title">
@@ -217,20 +239,28 @@ Open in editor" type="button">
     <div id="file-refs" class="file-refs hidden">
     <div id="resize-handle" class="resize-handle">
     <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
-    <div class="composer-actions">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
       <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
         "test-model"
+      <span class="overflow-slot">
       <button id="btn-thinking" class="chip" title="Switch thinking level">
         "medium"
       <span class="spacer">
+      <span class="overflow-slot">
       <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
         "Steer"
+      <span class="overflow-slot">
       <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
         "Follow up"
+      <span class="overflow-slot">
       <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
         "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
       <button id="btn-send" class="icon-button" title="Send (Enter)">
         <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
     <div id="statusline" class="statusline">
       <div class="statusline-row">
         <span>
@@ -238,18 +268,25 @@ Open in editor" type="button">
 
 ===== history replay: user + thinking + tool + assistant =====
 <div id="root">
-  <header class="header">
+  <header id="header" class="header">
     <div id="header-title" class="header-title" title="New session">
       "New session"
-    <div class="header-actions">
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
       <button id="btn-new" title="Start a new session">
         "New"
+      <span class="overflow-slot">
       <button id="btn-sessions" title="Browse, resume or delete sessions">
         "Sessions"
+      <span class="overflow-slot">
       <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)">
         "Session tree"
+      <span class="overflow-slot">
       <button id="btn-settings" title="Providers, shell path and other Pi settings">
         "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
   <div id="sessions" class="sessions hidden">
   <div id="auth" class="auth-page hidden">
     <div class="auth-title">
@@ -332,6 +369,16 @@ Open in editor" type="button">
           "Fix the bug in"
           <strong>
             "demo.ts"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
       <section class="work-block collapsed finished">
         <button class="work-header" title="Expand" aria-expanded="false" type="button">
           <span class="work-label">
@@ -379,20 +426,191 @@ Open in editor" type="button">
     <div id="file-refs" class="file-refs hidden">
     <div id="resize-handle" class="resize-handle">
     <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
-    <div class="composer-actions">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
       <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
         "test-model"
+      <span class="overflow-slot">
       <button id="btn-thinking" class="chip" title="Switch thinking level">
         "medium"
       <span class="spacer">
+      <span class="overflow-slot">
       <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
         "Steer"
+      <span class="overflow-slot">
       <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
         "Follow up"
+      <span class="overflow-slot">
       <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
         "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
       <button id="btn-send" class="icon-button" title="Send (Enter)">
         <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
+    <div id="statusline" class="statusline">
+      <div class="statusline-row">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
+===== per-message tree actions bound to session entries =====
+<div id="root">
+  <header id="header" class="header">
+    <div id="header-title" class="header-title" title="New session">
+      "New session"
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
+      <button id="btn-new" title="Start a new session">
+        "New"
+      <span class="overflow-slot">
+      <button id="btn-sessions" title="Browse, resume or delete sessions">
+        "Sessions"
+      <span class="overflow-slot">
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)">
+        "Session tree"
+      <span class="overflow-slot">
+      <button id="btn-settings" title="Providers, shell path and other Pi settings">
+        "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
+  <div id="sessions" class="sessions hidden">
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources">
+    <div class="resources-panel collapsed">
+      <button class="resources-toggle" title="Expand" aria-expanded="false" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 2 · Extensions 2"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo"
+              ","
+              "helper"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/.agents/skills/demo/SKILL.md
+Open in editor" type="button">
+              "demo"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              "broken.ts (load failed), ext.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <div>
+              "broken.ts: parse failed"
+            <button class="resource-file" title="/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+    <button id="delegation-peer" class="secondary">
+  <div id="messages-wrap" class="messages-wrap">
+    <main id="messages" class="messages">
+      <div class="bubble markdown user">
+        <p>
+          "first prompt"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant">
+        <p>
+          "first answer"
+      <div class="bubble markdown user">
+        <span class="bubble-badge label-badge">
+          "before refactor"
+        <p>
+          "second prompt"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <footer id="composer" class="composer">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <span class="overflow-slot">
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <span class="overflow-slot">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <span class="overflow-slot">
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <span class="overflow-slot">
+      <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
+        "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <button id="btn-send" class="icon-button" title="Send (Enter)">
+        <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
     <div id="statusline" class="statusline">
       <div class="statusline-row">
         <span>
@@ -400,18 +618,25 @@ Open in editor" type="button">
 
 ===== live streaming: thinking, tool call, text delta =====
 <div id="root">
-  <header class="header">
+  <header id="header" class="header">
     <div id="header-title" class="header-title" title="New session">
       "New session"
-    <div class="header-actions">
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
       <button id="btn-new" title="Start a new session" disabled>
         "New"
+      <span class="overflow-slot">
       <button id="btn-sessions" title="Browse, resume or delete sessions">
         "Sessions"
+      <span class="overflow-slot">
       <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)" disabled>
         "Session tree"
+      <span class="overflow-slot">
       <button id="btn-settings" title="Providers, shell path and other Pi settings">
         "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
   <div id="sessions" class="sessions hidden">
   <div id="auth" class="auth-page hidden">
     <div class="auth-title">
@@ -489,52 +714,38 @@ Open in editor" type="button">
     <span id="delegation-label">
     <button id="delegation-peer" class="secondary">
   <div id="messages-wrap" class="messages-wrap">
-    <main id="messages" class="messages">
+    <main id="messages" class="messages actions-locked">
       <div class="bubble markdown user">
         <p>
-          "Fix the bug in"
-          <strong>
-            "demo.ts"
-      <section class="work-block collapsed finished">
-        <button class="work-header" title="Expand" aria-expanded="false" type="button">
-          <span class="work-label">
-            "Work"
-          <span class="work-status">
-            "done · thinking 1 · tools 1"
-          <span class="work-pulse">
-          <span class="work-chevron">
-            <svg/>
-        <div class="work-body">
-          <div class="thinking-card collapsed">
-            <button class="card-header" title="Expand" aria-expanded="false" type="button">
-              <span class="card-label">
-                "thinking finished"
-              <span class="card-status">
-              <span class="card-pulse">
-              <span class="card-chevron">
-                <svg/>
-            <div class="card-body">
-          <div class="tool-card collapsed">
-            <button class="card-header" title="Expand" aria-expanded="false" type="button">
-              <span class="card-label">
-                "edit"
-              <span class="card-status">
-                "done"
-              <span class="card-pulse">
-              <span class="card-chevron">
-                <svg/>
-            <div class="card-body">
+          "first prompt"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown assistant">
         <p>
-          "Done."
-        <ul>
-          <li>
-            "changed"
-            <code>
-              "b"
-            "to 3"
-          <li>
-            "nothing else"
+          "first answer"
+      <div class="bubble markdown user">
+        <span class="bubble-badge label-badge">
+          "before refactor"
+        <p>
+          "second prompt"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
       <section class="work-block collapsed finished">
         <button class="work-header" title="Expand" aria-expanded="false" type="button">
           <span class="work-label">
@@ -601,20 +812,28 @@ Open in editor" type="button">
     <div id="file-refs" class="file-refs hidden">
     <div id="resize-handle" class="resize-handle">
     <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
-    <div class="composer-actions">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
       <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
         "test-model"
+      <span class="overflow-slot">
       <button id="btn-thinking" class="chip" title="Switch thinking level">
         "medium"
       <span class="spacer">
+      <span class="overflow-slot">
       <button id="btn-steer" class="secondary" title="Interrupt with new instructions">
         "Steer"
+      <span class="overflow-slot">
       <button id="btn-followup" class="secondary" title="Queue for after this run">
         "Follow up"
+      <span class="overflow-slot">
       <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
         "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
       <button id="btn-send" class="icon-button stop" title="Stop the current run">
         <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
     <div id="statusline" class="statusline">
       <div class="statusline-row">
         <span>
@@ -622,18 +841,25 @@ Open in editor" type="button">
 
 ===== run finished: status + error notices =====
 <div id="root">
-  <header class="header">
+  <header id="header" class="header">
     <div id="header-title" class="header-title" title="New session">
       "New session"
-    <div class="header-actions">
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
       <button id="btn-new" title="Start a new session">
         "New"
+      <span class="overflow-slot">
       <button id="btn-sessions" title="Browse, resume or delete sessions">
         "Sessions"
+      <span class="overflow-slot">
       <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)">
         "Session tree"
+      <span class="overflow-slot">
       <button id="btn-settings" title="Providers, shell path and other Pi settings">
         "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
   <div id="sessions" class="sessions hidden">
   <div id="auth" class="auth-page hidden">
     <div class="auth-title">
@@ -714,49 +940,35 @@ Open in editor" type="button">
     <main id="messages" class="messages">
       <div class="bubble markdown user">
         <p>
-          "Fix the bug in"
-          <strong>
-            "demo.ts"
-      <section class="work-block collapsed finished">
-        <button class="work-header" title="Expand" aria-expanded="false" type="button">
-          <span class="work-label">
-            "Work"
-          <span class="work-status">
-            "done · thinking 1 · tools 1"
-          <span class="work-pulse">
-          <span class="work-chevron">
-            <svg/>
-        <div class="work-body">
-          <div class="thinking-card collapsed">
-            <button class="card-header" title="Expand" aria-expanded="false" type="button">
-              <span class="card-label">
-                "thinking finished"
-              <span class="card-status">
-              <span class="card-pulse">
-              <span class="card-chevron">
-                <svg/>
-            <div class="card-body">
-          <div class="tool-card collapsed">
-            <button class="card-header" title="Expand" aria-expanded="false" type="button">
-              <span class="card-label">
-                "edit"
-              <span class="card-status">
-                "done"
-              <span class="card-pulse">
-              <span class="card-chevron">
-                <svg/>
-            <div class="card-body">
+          "first prompt"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown assistant">
         <p>
-          "Done."
-        <ul>
-          <li>
-            "changed"
-            <code>
-              "b"
-            "to 3"
-          <li>
-            "nothing else"
+          "first answer"
+      <div class="bubble markdown user">
+        <span class="bubble-badge label-badge">
+          "before refactor"
+        <p>
+          "second prompt"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
       <section class="work-block collapsed finished">
         <button class="work-header" title="Expand" aria-expanded="false" type="button">
           <span class="work-label">
@@ -839,20 +1051,28 @@ Open in editor" type="button">
     <div id="file-refs" class="file-refs hidden">
     <div id="resize-handle" class="resize-handle">
     <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
-    <div class="composer-actions">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
       <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
         "test-model"
+      <span class="overflow-slot">
       <button id="btn-thinking" class="chip" title="Switch thinking level">
         "medium"
       <span class="spacer">
+      <span class="overflow-slot">
       <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
         "Steer"
+      <span class="overflow-slot">
       <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
         "Follow up"
+      <span class="overflow-slot">
       <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
         "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
       <button id="btn-send" class="icon-button" title="Send (Enter)">
         <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
     <div id="statusline" class="statusline">
       <div class="statusline-row">
         <span>
@@ -860,18 +1080,25 @@ Open in editor" type="button">
 
 ===== expanded cards: work block, tool card, resources =====
 <div id="root">
-  <header class="header">
+  <header id="header" class="header">
     <div id="header-title" class="header-title" title="New session">
       "New session"
-    <div class="header-actions">
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
       <button id="btn-new" title="Start a new session">
         "New"
+      <span class="overflow-slot">
       <button id="btn-sessions" title="Browse, resume or delete sessions">
         "Sessions"
+      <span class="overflow-slot">
       <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)">
         "Session tree"
+      <span class="overflow-slot">
       <button id="btn-settings" title="Providers, shell path and other Pi settings">
         "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
   <div id="sessions" class="sessions hidden">
   <div id="auth" class="auth-page hidden">
     <div class="auth-title">
@@ -952,69 +1179,35 @@ Open in editor" type="button">
     <main id="messages" class="messages">
       <div class="bubble markdown user">
         <p>
-          "Fix the bug in"
-          <strong>
-            "demo.ts"
-      <section class="work-block finished">
-        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
-          <span class="work-label">
-            "Work"
-          <span class="work-status">
-            "done · thinking 1 · tools 1"
-          <span class="work-pulse">
-          <span class="work-chevron">
-            <svg/>
-        <div class="work-body">
-          <div class="thinking-card">
-            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
-              <span class="card-label">
-                "thinking finished"
-              <span class="card-status">
-              <span class="card-pulse">
-              <span class="card-chevron">
-                <svg/>
-            <div class="card-body">
-              <p>
-                "Reading the file first."
-          <div class="tool-card">
-            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
-              <span class="card-label">
-                "edit"
-              <span class="card-status">
-                "done"
-              <span class="card-pulse">
-              <span class="card-chevron">
-                <svg/>
-            <div class="card-body">
-              <div class="tool-args">
-                "{"path":"src/demo.ts"}"
-              <div>
-                <div class="diff-line hunk">
-                  "@@ -1,3 +1,3 @@"
-                <div class="diff-line">
-                  "const a = 1;"
-                <div class="diff-line removed">
-                  "-const b = 2;"
-                <div class="diff-line added">
-                  "+const b = 3;"
-                <div class="diff-line">
-                  "const c = 4;"
-              <div class="tool-actions">
-                <button class="secondary" type="button">
-                  "Open diff"
-                <button class="secondary" type="button">
-                  "Open file"
+          "first prompt"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown assistant">
         <p>
-          "Done."
-        <ul>
-          <li>
-            "changed"
-            <code>
-              "b"
-            "to 3"
-          <li>
-            "nothing else"
+          "first answer"
+      <div class="bubble markdown user">
+        <span class="bubble-badge label-badge">
+          "before refactor"
+        <p>
+          "second prompt"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
       <section class="work-block finished">
         <button class="work-header" title="Collapse" aria-expanded="true" type="button">
           <span class="work-label">
@@ -1111,20 +1304,28 @@ Open in editor" type="button">
     <div id="file-refs" class="file-refs hidden">
     <div id="resize-handle" class="resize-handle">
     <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
-    <div class="composer-actions">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
       <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
         "test-model"
+      <span class="overflow-slot">
       <button id="btn-thinking" class="chip" title="Switch thinking level">
         "medium"
       <span class="spacer">
+      <span class="overflow-slot">
       <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
         "Steer"
+      <span class="overflow-slot">
       <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
         "Follow up"
+      <span class="overflow-slot">
       <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
         "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
       <button id="btn-send" class="icon-button" title="Send (Enter)">
         <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
     <div id="statusline" class="statusline">
       <div class="statusline-row">
         <span>
@@ -1132,18 +1333,25 @@ Open in editor" type="button">
 
 ===== delegation: child session displayed =====
 <div id="root">
-  <header class="header">
+  <header id="header" class="header">
     <div id="header-title" class="header-title" title="New session">
       "New session"
-    <div class="header-actions">
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
       <button id="btn-new" title="Start a new session" disabled>
         "New"
+      <span class="overflow-slot">
       <button id="btn-sessions" title="Browse, resume or delete sessions">
         "Sessions"
+      <span class="overflow-slot">
       <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)" disabled>
         "Session tree"
+      <span class="overflow-slot">
       <button id="btn-settings" title="Providers, shell path and other Pi settings">
         "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
   <div id="sessions" class="sessions hidden">
   <div id="auth" class="auth-page hidden">
     <div class="auth-title">
@@ -1223,72 +1431,38 @@ Open in editor" type="button">
     <button id="delegation-peer" class="secondary">
       "View parent"
   <div id="messages-wrap" class="messages-wrap">
-    <main id="messages" class="messages">
+    <main id="messages" class="messages actions-locked">
       <div class="bubble markdown user">
         <p>
-          "Fix the bug in"
-          <strong>
-            "demo.ts"
-      <section class="work-block finished">
-        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
-          <span class="work-label">
-            "Work"
-          <span class="work-status">
-            "done · thinking 1 · tools 1"
-          <span class="work-pulse">
-          <span class="work-chevron">
-            <svg/>
-        <div class="work-body">
-          <div class="thinking-card">
-            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
-              <span class="card-label">
-                "thinking finished"
-              <span class="card-status">
-              <span class="card-pulse">
-              <span class="card-chevron">
-                <svg/>
-            <div class="card-body">
-              <p>
-                "Reading the file first."
-          <div class="tool-card">
-            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
-              <span class="card-label">
-                "edit"
-              <span class="card-status">
-                "done"
-              <span class="card-pulse">
-              <span class="card-chevron">
-                <svg/>
-            <div class="card-body">
-              <div class="tool-args">
-                "{"path":"src/demo.ts"}"
-              <div>
-                <div class="diff-line hunk">
-                  "@@ -1,3 +1,3 @@"
-                <div class="diff-line">
-                  "const a = 1;"
-                <div class="diff-line removed">
-                  "-const b = 2;"
-                <div class="diff-line added">
-                  "+const b = 3;"
-                <div class="diff-line">
-                  "const c = 4;"
-              <div class="tool-actions">
-                <button class="secondary" type="button">
-                  "Open diff"
-                <button class="secondary" type="button">
-                  "Open file"
+          "first prompt"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown assistant">
         <p>
-          "Done."
-        <ul>
-          <li>
-            "changed"
-            <code>
-              "b"
-            "to 3"
-          <li>
-            "nothing else"
+          "first answer"
+      <div class="bubble markdown user">
+        <span class="bubble-badge label-badge">
+          "before refactor"
+        <p>
+          "second prompt"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
       <section class="work-block finished">
         <button class="work-header" title="Collapse" aria-expanded="true" type="button">
           <span class="work-label">
@@ -1390,20 +1564,28 @@ Open in editor" type="button">
     <div id="file-refs" class="file-refs hidden">
     <div id="resize-handle" class="resize-handle">
     <textarea id="input" placeholder="This subagent is running autonomously. You can watch or stop it." disabled>
-    <div class="composer-actions">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
       <button id="btn-model" class="chip" title="Switch model: test-provider/test-model" disabled>
         "test-model"
+      <span class="overflow-slot">
       <button id="btn-thinking" class="chip" title="Switch thinking level" disabled>
         "medium"
       <span class="spacer">
+      <span class="overflow-slot">
       <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
         "Steer"
+      <span class="overflow-slot">
       <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
         "Follow up"
+      <span class="overflow-slot">
       <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
         "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
       <button id="btn-send" class="icon-button stop" title="Stop this subagent; the parent agent will resume">
         <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
     <div id="statusline" class="statusline">
       <div class="statusline-row">
         <span>
@@ -1411,59 +1593,68 @@ Open in editor" type="button">
 
 ===== sessions page =====
 <div id="root">
-  <header class="header">
+  <header id="header" class="header">
     <div id="header-title" class="header-title" title="New session">
       "New session"
-    <div class="header-actions">
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
       <button id="btn-new" title="Start a new session">
         "New"
+      <span class="overflow-slot">
       <button id="btn-sessions" title="Browse, resume or delete sessions" disabled>
         "Sessions"
+      <span class="overflow-slot">
       <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)" disabled>
         "Session tree"
+      <span class="overflow-slot">
       <button id="btn-settings" title="Providers, shell path and other Pi settings">
         "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
   <div id="sessions" class="sessions">
     <div class="sessions-header">
       <span>
         "Sessions"
-    <div class="session-row current" title="/workspace/a.jsonl">
-      <button class="session-main" title="Resume this session" type="button">
-        <span class="session-title">
-          <span class="session-title-text">
-            "current session"
-        <span class="session-meta">
-          "2026-01-02 03:04"
-      <button class="session-rename" title="Set a display name for this session" type="button">
-        "Rename"
-      <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
-        "Delete"
-    <div class="session-row" title="/workspace/b.jsonl">
-      <button class="session-main" title="Resume this session" type="button">
-        <span class="session-title">
-          <span class="session-title-text">
-            "older session"
-        <span class="session-meta">
-          "2026-01-01 00:00"
-      <button class="session-rename" title="Set a display name for this session" type="button">
-        "Rename"
-      <button class="session-delete" title="Delete this session file" type="button">
-        "Delete"
-    <div class="session-row delegation-child" title="/workspace/c.jsonl">
-      <button class="session-main" title="Resume this session" type="button">
-        <span class="session-title">
-          <span class="session-badge">
-            <span class="working-spinner">
-              "⠋"
-            "subagent"
-          <span class="session-title-text">
-            "delegated child"
-        <span class="session-meta">
-          "2026-01-03 00:00"
-      <button class="session-rename" title="Set a display name for this session" type="button">
-        "Rename"
-      <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
-        "Delete"
+    <input class="sessions-search" placeholder="Search sessions by title..." type="text">
+    <div class="sessions-list">
+      <div class="session-row current" title="/workspace/a.jsonl">
+        <button class="session-main" title="Resume this session" type="button">
+          <span class="session-title">
+            <span class="session-title-text">
+              "current session"
+          <span class="session-meta">
+            "2026-01-02 03:04"
+        <button class="session-rename" title="Set a display name for this session" type="button">
+          "Rename"
+        <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
+          "Delete"
+      <div class="session-row" title="/workspace/b.jsonl">
+        <button class="session-main" title="Resume this session" type="button">
+          <span class="session-title">
+            <span class="session-title-text">
+              "older session"
+          <span class="session-meta">
+            "2026-01-01 00:00"
+        <button class="session-rename" title="Set a display name for this session" type="button">
+          "Rename"
+        <button class="session-delete" title="Delete this session file" type="button">
+          "Delete"
+      <div class="session-row delegation-child" title="/workspace/c.jsonl">
+        <button class="session-main" title="Resume this session" type="button">
+          <span class="session-title">
+            <span class="session-badge">
+              <span class="working-spinner">
+                "⠋"
+              "subagent"
+            <span class="session-title-text">
+              "delegated child"
+          <span class="session-meta">
+            "2026-01-03 00:00"
+        <button class="session-rename" title="Set a display name for this session" type="button">
+          "Rename"
+        <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
+          "Delete"
   <div id="auth" class="auth-page hidden">
     <div class="auth-title">
       "No model provider configured"
@@ -1545,69 +1736,35 @@ Open in editor" type="button">
     <main id="messages" class="messages">
       <div class="bubble markdown user">
         <p>
-          "Fix the bug in"
-          <strong>
-            "demo.ts"
-      <section class="work-block finished">
-        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
-          <span class="work-label">
-            "Work"
-          <span class="work-status">
-            "done · thinking 1 · tools 1"
-          <span class="work-pulse">
-          <span class="work-chevron">
-            <svg/>
-        <div class="work-body">
-          <div class="thinking-card">
-            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
-              <span class="card-label">
-                "thinking finished"
-              <span class="card-status">
-              <span class="card-pulse">
-              <span class="card-chevron">
-                <svg/>
-            <div class="card-body">
-              <p>
-                "Reading the file first."
-          <div class="tool-card">
-            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
-              <span class="card-label">
-                "edit"
-              <span class="card-status">
-                "done"
-              <span class="card-pulse">
-              <span class="card-chevron">
-                <svg/>
-            <div class="card-body">
-              <div class="tool-args">
-                "{"path":"src/demo.ts"}"
-              <div>
-                <div class="diff-line hunk">
-                  "@@ -1,3 +1,3 @@"
-                <div class="diff-line">
-                  "const a = 1;"
-                <div class="diff-line removed">
-                  "-const b = 2;"
-                <div class="diff-line added">
-                  "+const b = 3;"
-                <div class="diff-line">
-                  "const c = 4;"
-              <div class="tool-actions">
-                <button class="secondary" type="button">
-                  "Open diff"
-                <button class="secondary" type="button">
-                  "Open file"
+          "first prompt"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown assistant">
         <p>
-          "Done."
-        <ul>
-          <li>
-            "changed"
-            <code>
-              "b"
-            "to 3"
-          <li>
-            "nothing else"
+          "first answer"
+      <div class="bubble markdown user">
+        <span class="bubble-badge label-badge">
+          "before refactor"
+        <p>
+          "second prompt"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
       <section class="work-block finished">
         <button class="work-header" title="Collapse" aria-expanded="true" type="button">
           <span class="work-label">
@@ -1704,20 +1861,28 @@ Open in editor" type="button">
     <div id="file-refs" class="file-refs hidden">
     <div id="resize-handle" class="resize-handle">
     <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
-    <div class="composer-actions">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
       <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
         "test-model"
+      <span class="overflow-slot">
       <button id="btn-thinking" class="chip" title="Switch thinking level">
         "medium"
       <span class="spacer">
+      <span class="overflow-slot">
       <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
         "Steer"
+      <span class="overflow-slot">
       <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
         "Follow up"
+      <span class="overflow-slot">
       <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
         "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
       <button id="btn-send" class="icon-button" title="Send (Enter)">
         <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
     <div id="statusline" class="statusline">
       <div class="statusline-row">
         <span>
@@ -1725,59 +1890,68 @@ Open in editor" type="button">
 
 ===== auth gate =====
 <div id="root">
-  <header class="header">
+  <header id="header" class="header">
     <div id="header-title" class="header-title" title="New session">
       "New session"
-    <div class="header-actions">
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
       <button id="btn-new" title="Start a new session">
         "New"
+      <span class="overflow-slot">
       <button id="btn-sessions" title="Browse, resume or delete sessions" disabled>
         "Sessions"
+      <span class="overflow-slot">
       <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)" disabled>
         "Session tree"
+      <span class="overflow-slot">
       <button id="btn-settings" title="Providers, shell path and other Pi settings">
         "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
   <div id="sessions" class="sessions hidden">
     <div class="sessions-header">
       <span>
         "Sessions"
-    <div class="session-row current" title="/workspace/a.jsonl">
-      <button class="session-main" title="Resume this session" type="button">
-        <span class="session-title">
-          <span class="session-title-text">
-            "current session"
-        <span class="session-meta">
-          "2026-01-02 03:04"
-      <button class="session-rename" title="Set a display name for this session" type="button">
-        "Rename"
-      <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
-        "Delete"
-    <div class="session-row" title="/workspace/b.jsonl">
-      <button class="session-main" title="Resume this session" type="button">
-        <span class="session-title">
-          <span class="session-title-text">
-            "older session"
-        <span class="session-meta">
-          "2026-01-01 00:00"
-      <button class="session-rename" title="Set a display name for this session" type="button">
-        "Rename"
-      <button class="session-delete" title="Delete this session file" type="button">
-        "Delete"
-    <div class="session-row delegation-child" title="/workspace/c.jsonl">
-      <button class="session-main" title="Resume this session" type="button">
-        <span class="session-title">
-          <span class="session-badge">
-            <span class="working-spinner">
-              "⠋"
-            "subagent"
-          <span class="session-title-text">
-            "delegated child"
-        <span class="session-meta">
-          "2026-01-03 00:00"
-      <button class="session-rename" title="Set a display name for this session" type="button">
-        "Rename"
-      <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
-        "Delete"
+    <input class="sessions-search" placeholder="Search sessions by title..." type="text">
+    <div class="sessions-list">
+      <div class="session-row current" title="/workspace/a.jsonl">
+        <button class="session-main" title="Resume this session" type="button">
+          <span class="session-title">
+            <span class="session-title-text">
+              "current session"
+          <span class="session-meta">
+            "2026-01-02 03:04"
+        <button class="session-rename" title="Set a display name for this session" type="button">
+          "Rename"
+        <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
+          "Delete"
+      <div class="session-row" title="/workspace/b.jsonl">
+        <button class="session-main" title="Resume this session" type="button">
+          <span class="session-title">
+            <span class="session-title-text">
+              "older session"
+          <span class="session-meta">
+            "2026-01-01 00:00"
+        <button class="session-rename" title="Set a display name for this session" type="button">
+          "Rename"
+        <button class="session-delete" title="Delete this session file" type="button">
+          "Delete"
+      <div class="session-row delegation-child" title="/workspace/c.jsonl">
+        <button class="session-main" title="Resume this session" type="button">
+          <span class="session-title">
+            <span class="session-badge">
+              <span class="working-spinner">
+                "⠋"
+              "subagent"
+            <span class="session-title-text">
+              "delegated child"
+          <span class="session-meta">
+            "2026-01-03 00:00"
+        <button class="session-rename" title="Set a display name for this session" type="button">
+          "Rename"
+        <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
+          "Delete"
   <div id="auth" class="auth-page">
     <div class="auth-title">
       "No model provider configured"
@@ -1859,69 +2033,35 @@ Open in editor" type="button">
     <main id="messages" class="messages">
       <div class="bubble markdown user">
         <p>
-          "Fix the bug in"
-          <strong>
-            "demo.ts"
-      <section class="work-block finished">
-        <button class="work-header" title="Collapse" aria-expanded="true" type="button">
-          <span class="work-label">
-            "Work"
-          <span class="work-status">
-            "done · thinking 1 · tools 1"
-          <span class="work-pulse">
-          <span class="work-chevron">
-            <svg/>
-        <div class="work-body">
-          <div class="thinking-card">
-            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
-              <span class="card-label">
-                "thinking finished"
-              <span class="card-status">
-              <span class="card-pulse">
-              <span class="card-chevron">
-                <svg/>
-            <div class="card-body">
-              <p>
-                "Reading the file first."
-          <div class="tool-card">
-            <button class="card-header" title="Collapse" aria-expanded="true" type="button">
-              <span class="card-label">
-                "edit"
-              <span class="card-status">
-                "done"
-              <span class="card-pulse">
-              <span class="card-chevron">
-                <svg/>
-            <div class="card-body">
-              <div class="tool-args">
-                "{"path":"src/demo.ts"}"
-              <div>
-                <div class="diff-line hunk">
-                  "@@ -1,3 +1,3 @@"
-                <div class="diff-line">
-                  "const a = 1;"
-                <div class="diff-line removed">
-                  "-const b = 2;"
-                <div class="diff-line added">
-                  "+const b = 3;"
-                <div class="diff-line">
-                  "const c = 4;"
-              <div class="tool-actions">
-                <button class="secondary" type="button">
-                  "Open diff"
-                <button class="secondary" type="button">
-                  "Open file"
+          "first prompt"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown assistant">
         <p>
-          "Done."
-        <ul>
-          <li>
-            "changed"
-            <code>
-              "b"
-            "to 3"
-          <li>
-            "nothing else"
+          "first answer"
+      <div class="bubble markdown user">
+        <span class="bubble-badge label-badge">
+          "before refactor"
+        <p>
+          "second prompt"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
       <section class="work-block finished">
         <button class="work-header" title="Collapse" aria-expanded="true" type="button">
           <span class="work-label">
@@ -2018,20 +2158,28 @@ Open in editor" type="button">
     <div id="file-refs" class="file-refs hidden">
     <div id="resize-handle" class="resize-handle">
     <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
-    <div class="composer-actions">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
       <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
         "test-model"
+      <span class="overflow-slot">
       <button id="btn-thinking" class="chip" title="Switch thinking level">
         "medium"
       <span class="spacer">
+      <span class="overflow-slot">
       <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
         "Steer"
+      <span class="overflow-slot">
       <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
         "Follow up"
+      <span class="overflow-slot">
       <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
         "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
       <button id="btn-send" class="icon-button" title="Send (Enter)">
         <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
     <div id="statusline" class="statusline">
       <div class="statusline-row">
         <span>
@@ -2039,4 +2187,4 @@ Open in editor" type="button">
 
 ===== posted to host =====
 {"type":"ready"}
-{"type":"listSessions"}
+{"type":"sessionsVisible","visible":true}
