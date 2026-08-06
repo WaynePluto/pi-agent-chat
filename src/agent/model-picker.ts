@@ -6,8 +6,8 @@ import type { PiRuntime } from "./runtime.js";
  * Model selection UI.
  *
  * Mirrors the CLI: the picker lists the frequently used ("scoped") models
- * first, and `/scoped-models` maintains that list. Both read and write the
- * shared `enabledModels` setting in `~/.pi/agent/settings.json`, so the
+ * first, and `/scoped-models` can batch-edit that list. Both read and write
+ * the shared `enabledModels` setting in `~/.pi/agent/settings.json`, so the
  * sidebar and the terminal agree on what is frequently used.
  */
 
@@ -25,6 +25,9 @@ function modelRef(model: { provider: string; id: string }): string {
   return `${model.provider}/${model.id}`;
 }
 
+/** QuickInputButton extension carrying which per-row action was clicked. */
+type ModelActionButton = vscode.QuickInputButton & { action?: "toggle-favorite" };
+
 /** Per-row button that pins a model as the startup default. Built lazily: the
  * headless smoke test loads this module without a real `vscode` runtime. */
 let setDefaultButton: vscode.QuickInputButton | undefined;
@@ -33,9 +36,24 @@ function getSetDefaultButton(): vscode.QuickInputButton {
   return setDefaultButton;
 }
 
-type ModelItem = vscode.QuickPickItem & { model?: AvailableModel; manage?: true };
+/** Per-row button that adds or removes a model from the frequently used group. */
+const favoriteButtons: Record<"add" | "remove", ModelActionButton | undefined> = {
+  add: undefined,
+  remove: undefined,
+};
+function getFavoriteButton(favorite: boolean): ModelActionButton {
+  const key = favorite ? "remove" : "add";
+  favoriteButtons[key] ??= {
+    iconPath: new vscode.ThemeIcon(favorite ? "star-full" : "star-empty"),
+    tooltip: favorite ? t("removeFavoriteModel") : t("addFavoriteModel"),
+    action: "toggle-favorite",
+  };
+  return favoriteButtons[key];
+}
 
-/** Build the picker rows: manage entry, frequently used group, then all providers. */
+type ModelItem = vscode.QuickPickItem & { model?: AvailableModel };
+
+/** Build the picker rows: favorite group first, then all providers. */
 function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelItem[] {
   const current = runtime.session.model as { id?: string; provider?: string } | undefined;
   const settings = runtime.settingsManager;
@@ -52,25 +70,18 @@ function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelIte
   const row = (model: AvailableModel): ModelItem => {
     const isCurrent = model.id === current?.id && model.provider === current?.provider;
     const isDefault = modelRef(model) === defaultRef;
+    const isFavorite = scopedSet.has(modelRef(model));
     return {
       label: `${isCurrent ? "$(check) " : ""}${model.id}`,
       // Separators disappear while filtering, so each row carries its provider.
       description: isDefault ? `${model.provider} · ${t("defaultModelMarker")}` : model.provider,
       detail: describeModel(model),
-      // Any model can be pinned, not just the active one.
-      buttons: isDefault ? [] : [getSetDefaultButton()],
+      // Show the favorite star even while the model is the default; hiding it
+      // would also remove the only direct way to unfavorite that model.
+      buttons: [getFavoriteButton(isFavorite), ...(isDefault ? [] : [getSetDefaultButton()])],
       model,
     };
   };
-
-  // Keep management immediately visible even when the model catalogue is long.
-  items.push({
-    label: `$(settings-gear) ${t("manageFavoriteModels")}`,
-    detail: t("manageFavoriteModelsDetail"),
-    alwaysShow: true,
-    manage: true,
-  });
-  items.push({ label: "", kind: vscode.QuickPickItemKind.Separator });
 
   if (scopedSet.size > 0) {
     items.push({ label: t("favoriteModels"), kind: vscode.QuickPickItemKind.Separator });
@@ -98,10 +109,10 @@ function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelIte
 /**
  * Show the model picker and apply the choice.
  *
- * Returns `true` when the active model changed. Choosing "manage" reopens the
- * picker afterwards so the two dialogs feel like one flow. The per-row pin
- * button writes the startup default without closing the picker, mirroring the
- * CLI selector's Ctrl+S.
+ * Returns `true` when the active model changed. Per-row actions stay inside
+ * the picker: the star toggles the frequently used group, and the pin writes
+ * the startup default without closing the picker, mirroring the CLI selector's
+ * Ctrl+S.
  */
 export async function pickModel(runtime: PiRuntime, ui: ModelPickerUi): Promise<boolean> {
   const models = await loadModels(runtime, ui);
@@ -117,9 +128,15 @@ export async function pickModel(runtime: PiRuntime, ui: ModelPickerUi): Promise<
     quickPick.onDidTriggerItemButton(async (event) => {
       const model = event.item.model;
       if (!model) return;
-      await runtime.setDefaultModel(model.provider, model.id);
-      ui.status(tf("defaultModelSet", modelRef(model)));
-      // Re-render so the "default" marker moves to the new row.
+      const action = (event.button as ModelActionButton).action;
+      if (action === "toggle-favorite") {
+        const update = await toggleFavoriteModel(runtime, model, models);
+        ui.status(update === "cleared" ? t("favoriteModelsCleared") : tf("favoriteModelSet", modelRef(model), update === "added"));
+      } else {
+        await runtime.setDefaultModel(model.provider, model.id);
+        ui.status(tf("defaultModelSet", modelRef(model)));
+      }
+      // Re-render so the star/default markers move to the new state.
       quickPick.items = buildModelItems(runtime, models);
     });
     quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0]));
@@ -129,13 +146,34 @@ export async function pickModel(runtime: PiRuntime, ui: ModelPickerUi): Promise<
   quickPick.dispose();
 
   if (!picked) return false;
-  if (picked.manage) {
-    await manageScopedModels(runtime, ui);
-    return pickModel(runtime, ui);
-  }
   if (!picked.model) return false;
   await runtime.setModel(picked.model.provider, picked.model.id);
   return true;
+}
+
+/** Result of one direct frequently-used-model change. */
+type FavoriteUpdate = "added" | "removed" | "cleared";
+
+/**
+ * Toggle one model in the shared frequently used list.
+ *
+ * Like `/scoped-models`, this stores an explicit `provider/modelId` list. If a
+ * user previously configured a wildcard, its currently resolved models become
+ * explicit entries on the first star interaction. Selecting every model or no
+ * model clears `enabledModels`, which is the CLI's no-filter representation.
+ */
+async function toggleFavoriteModel(
+  runtime: PiRuntime,
+  model: AvailableModel,
+  allModels: readonly AvailableModel[],
+): Promise<FavoriteUpdate> {
+  const reference = modelRef(model);
+  const favorites = [...new Set(runtime.scopedModels.map((scoped) => modelRef(scoped.model)))];
+  const isFavorite = favorites.includes(reference);
+  const next = isFavorite ? favorites.filter((item) => item !== reference) : [...favorites, reference];
+  const clears = next.length === 0 || next.length === allModels.length;
+  await runtime.setEnabledModels(clears ? undefined : next);
+  return clears ? "cleared" : isFavorite ? "removed" : "added";
 }
 
 /**

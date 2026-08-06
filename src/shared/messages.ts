@@ -70,11 +70,8 @@ export const sharedMessages = {
   },
   current: { en: "current", zh: "当前" },
   favoriteModels: { en: "Frequently used", zh: "常用模型" },
-  manageFavoriteModels: { en: "Manage frequently used models…", zh: "管理常用模型…" },
-  manageFavoriteModelsDetail: {
-    en: "Shared with the pi CLI via enabledModels in ~/.pi/agent/settings.json",
-    zh: "保存到 ~/.pi/agent/settings.json 的 enabledModels，与终端 pi 共用",
-  },
+  addFavoriteModel: { en: "Add to frequently used models", zh: "设为常用模型" },
+  removeFavoriteModel: { en: "Remove from frequently used models", zh: "移出常用模型" },
   favoriteModelsTitle: { en: "Pi Agent Chat: frequently used models", zh: "Pi Agent Chat：常用模型" },
   favoriteModelsPlaceholder: {
     en: "Select the models to show first; selecting all or none removes the filter",
@@ -334,6 +331,12 @@ export const sharedTemplates = {
   favoriteModelsSaved: {
     en: (count: number) => `${count} frequently used model(s) saved to settings`,
     zh: (count: number) => `已保存 ${count} 个常用模型到设置`,
+  },
+  favoriteModelSet: {
+    en: (reference: string, favorite: boolean) =>
+      favorite ? `${reference} added to frequently used models` : `${reference} removed from frequently used models`,
+    zh: (reference: string, favorite: boolean) =>
+      favorite ? `已将 ${reference} 设为常用模型` : `已将 ${reference} 移出常用模型`,
   },
   defaultModelSet: {
     en: (reference: string) => `default model set to ${reference}`,

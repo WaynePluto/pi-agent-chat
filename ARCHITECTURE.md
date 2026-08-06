@@ -15,7 +15,7 @@
 | skills | `src/agent/skills.ts` | 技能路径索引与工具调用归属判定（`SKILL.md` 读取 = 自动加载，技能目录内文件 = 技能资源），弥补 SDK 无「技能已加载」事件 | node:path, pi-coding-agent, protocol |
 | session-tree | `src/agent/session-tree.ts` | `/tree` `/fork` `/clone`：用原生 QuickPick 驱动 session 条目树导航与分支操作 | vscode, pi-coding-agent, runtime |
 | settings-menu | `src/agent/settings-menu.ts` | header “设置”菜单与 `/shell-path`：供应商/常用模型/shell 路径入口 + 11 项 CLI `/settings` 选项（auto-compact、默认思考等级、steering/follow-up、信任、skill 命令、重试、transport、超时、图片、警告）+ 打开设置文件；全部写 `~/.pi/agent/settings.json`，与 CLI 互通 | vscode, pi-coding-agent, runtime, host i18n |
-| model-picker | `src/agent/model-picker.ts` | 模型选择器与 `/scoped-models` 管理 UI：常用（scoped）模型置顶展示，多选结果以 `provider/modelId` 写入共享设置 `enabledModels`（语义对齐 CLI） | vscode, runtime, host i18n |
+| model-picker | `src/agent/model-picker.ts` | 模型选择器与 `/scoped-models` 管理 UI：常用（scoped）模型置顶展示，行内 ⭐ 单独切换常用、📌 设置默认，批量多选结果以 `provider/modelId` 写入共享设置 `enabledModels`（语义对齐 CLI） | vscode, runtime, host i18n |
 | auth | `src/agent/auth.ts` | 登录/登出流程：把 SDK `AuthInteraction` / `AuthPrompt` 映射到 VS Code 原生对话框 | vscode, pi-ai, runtime |
 | subagent | `src/agent/subagent.ts` | `SubagentCoordinator`：以自定义工具形式运行单个 SDK 子 session，父 session 在工具调用中等待；向观察者广播子会话事件 | typebox, pi-coding-agent |
 | project-files | `src/agent/project-files.ts` | `ProjectFileIndex`：`@` 文件引用的索引/搜索/校验，含缓存、二进制与敏感文件过滤、引用数上限 | node:child_process, node:fs, protocol |
