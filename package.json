@@ -1,8 +1,8 @@
 {
   "name": "pi-code-agent-chat",
   "displayName": "Pi Agent Chat",
-  "description": "VS Code sidebar chat for the Pi Coding Agent, powered by the official SDK (0.84.0) bundled inside the extension — no Pi CLI required. Unofficial community project.",
-  "version": "0.0.6-20260807",
+  "description": "VS Code sidebar chat for the Pi Coding Agent, powered by the official SDK (0.84.1) bundled inside the extension — no Pi CLI required. Unofficial community project.",
+  "version": "0.0.6",
   "publisher": "waynepluto",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -88,17 +88,17 @@
     "package-and-install:vsix": "npm run package:vsix && npm run install:vsix"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.84.0",
-    "@earendil-works/pi-coding-agent": "0.84.0",
+    "@earendil-works/pi-ai": "0.84.1",
+    "@earendil-works/pi-coding-agent": "0.84.1",
     "diff": "9.0.0",
     "marked": "18.0.9",
     "undici": "8.10.0"
   },
   "devDependencies": {
-    "@types/node": "22.20.1",
+    "@types/node": "26.2.0",
     "@types/vscode": "1.90.0",
     "@vscode/vsce": "3.9.2",
-    "esbuild": "0.28.1",
+    "esbuild": "0.28.2",
     "husky": "9.1.7",
     "jsdom": "30.0.1",
     "typescript": "6.0.3"
