@@ -987,6 +987,11 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown assistant">
+        <p>
+          "Here is the"
+          <strong>
+            "result"
+          "."
       <div class="working-row">
         <span class="working-spinner">
           "⠋"

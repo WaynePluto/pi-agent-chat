@@ -336,6 +336,20 @@ async function run() {
     unobserve() {}
     disconnect() {}
   };
+  // jsdom's `pretendToBeVisual` requestAnimationFrame fires on a timer whose
+  // latency relative to this harness's 5 ms flush varies by Node patch version
+  // (22.22 vs 22.23 differ enough to flip whether a streaming re-render lands
+  // before the snapshot). Run animation-frame callbacks as microtasks so the
+  // rendered DOM is identical on every Node version; the batching that
+  // `scheduleRender` performs within a synchronous burst is preserved because
+  // microtasks drain after the current script, before the flush timeout.
+  let rafId = 0;
+  window.requestAnimationFrame = (callback) => {
+    const id = ++rafId;
+    queueMicrotask(() => callback(Date.now()));
+    return id;
+  };
+  window.cancelAnimationFrame = () => {};
   const posted = [];
   window.acquireVsCodeApi = () => ({ postMessage: (message) => posted.push(message) });
 
