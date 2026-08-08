@@ -528,33 +528,55 @@ button.bubble-action svg {
   border-right: 2px solid var(--vscode-charts-orange, var(--vscode-editorWarning-foreground, orange));
 }
 
-/* Keep pending-message badges on the first row without using float. A float
-   does not widen a shrink-to-fit flex item but still narrows its line boxes,
-   which made short queued/steering messages wrap after one or two characters. */
+/* Explicitly invoked skills (`/skill:<name>`). The SDK inlines SKILL.md into
+   the message before the agent ever sees it, so there is no `read` tool call to
+   attribute: this badge is the only signal that the skill really was loaded. */
+.bubble.user.skill {
+  border-right: 2px solid var(--vscode-charts-purple, var(--accent));
+}
+
+/* Keep message content and its right-side badge column on the first row without
+   using float. Later Markdown blocks wrap onto full-width rows below them. */
 .bubble.user.queued,
-.bubble.user.steered {
+.bubble.user.steered,
+.bubble.user.skill {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
+  /* Put status badges nearer the top edge without offsetting them with a
+     negative margin. The first content block restores the normal text inset. */
+  padding-top: 4px;
 }
 
-/* Later Markdown blocks take a full row below the leading text and badge.
-   The exclusions are wrapped in :where() so they add no specificity: this rule
-   must stay weaker than the ".bubble-badge + *" rule below, otherwise the first
-   block claims a full row and the badge drops onto a line of its own. */
-.bubble.user.queued > :not(:where(.bubble-badge, .bubble-actions)),
-.bubble.user.steered > :not(:where(.bubble-badge, .bubble-actions)) {
+/* Later Markdown blocks take a full row below the leading text and badges. */
+.bubble.user.queued > :not(:where(.bubble-badges, .bubble-actions)),
+.bubble.user.steered > :not(:where(.bubble-badges, .bubble-actions)),
+.bubble.user.skill > :not(:where(.bubble-badges, .bubble-actions)) {
   order: 3;
   flex: 0 0 100%;
   min-width: 0;
 }
 
-/* The first Markdown block shares the first row with the status badge. */
-.bubble.user.queued > .bubble-badge + *,
-.bubble.user.steered > .bubble-badge + * {
+/* The first Markdown block shares the first row with the badge column. */
+.bubble.user.queued > .bubble-badges + :not(.bubble-badges),
+.bubble.user.steered > .bubble-badges + :not(.bubble-badges),
+.bubble.user.skill > .bubble-badges + :not(.bubble-badges) {
   order: 1;
-  flex: 1 1 auto;
+  /* A zero basis reserves room for the badges before wrapping; with `auto`, a
+     long first paragraph claims the whole row and pushes them below it. */
+  flex: 1 1 0;
   min-width: 0;
+  margin-top: 4px;
+}
+
+.bubble-badges {
+  order: 2;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  margin: 0 0 4px 8px;
 }
 
 .bubble-badge {
@@ -572,6 +594,10 @@ button.bubble-action svg {
   opacity: 0.9;
 }
 
+.bubble-badges > .bubble-badge {
+  margin: 0;
+}
+
 .bubble.user.queued .bubble-badge {
   color: var(--vscode-editor-background, #000);
   background: var(--vscode-charts-yellow, #d7ba7d);
@@ -580,6 +606,11 @@ button.bubble-action svg {
 .bubble.user.steered .bubble-badge {
   color: var(--vscode-editor-background, #000);
   background: var(--vscode-charts-orange, #ce9178);
+}
+
+.bubble.user.skill .bubble-badge.skill-invocation {
+  color: var(--vscode-editor-background, #000);
+  background: var(--vscode-charts-purple, #c586c0);
 }
 
 .bubble.assistant {

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import * as vscode from "vscode";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { PiRuntime } from "./runtime.js";
+import { configureHttpDispatcher } from "./http.js";
 import { t, tf } from "./i18n.js";
 
 /**
@@ -45,6 +46,8 @@ interface SettingDescriptor {
   set(runtime: PiRuntime, value: string): void;
   /** Slash command autocomplete must be re-posted after this changes. */
   affectsCommands?: boolean;
+  /** Side effect to run once the new value has been persisted. */
+  apply?(runtime: PiRuntime): void;
 }
 
 const ON_OFF: SettingChoice[] = [
@@ -59,7 +62,7 @@ const QUEUE_MODES: SettingChoice[] = [
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
-/** Mirrors the CLI settings selector's HTTP idle timeout choices. */
+/** SDK-MIRROR: `HTTP_IDLE_TIMEOUT_CHOICES` in `core/http-dispatcher.ts`. */
 const HTTP_IDLE_TIMEOUTS: SettingChoice[] = [
   { value: "30000", label: "30 sec" },
   { value: "60000", label: "1 min" },
@@ -159,6 +162,9 @@ function settingDescriptors(): SettingDescriptor[] {
       choices: HTTP_IDLE_TIMEOUTS,
       get: (r) => String(r.settingsManager.getHttpIdleTimeoutMs()),
       set: (r, v) => r.settingsManager.setHttpIdleTimeoutMs(Number(v)),
+      // The dispatcher captures the timeout at construction, so rebuild it
+      // the way the CLI's settings selector does.
+      apply: (r) => configureHttpDispatcher(r.settingsManager.getHttpIdleTimeoutMs()),
     },
     {
       id: "autoResizeImages",
@@ -239,6 +245,7 @@ async function editSetting(runtime: PiRuntime, ui: SettingsMenuUi, descriptor: S
   if (!picked || picked.value === current) return;
   descriptor.set(runtime, picked.value);
   await runtime.settingsManager.flush();
+  descriptor.apply?.(runtime);
   ui.status(tf("settingChanged", descriptor.label, choiceLabel(descriptor, picked.value)));
   if (descriptor.affectsCommands) ui.commandsChanged?.();
 }

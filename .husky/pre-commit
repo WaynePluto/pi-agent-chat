@@ -1,0 +1,9 @@
+# Strip xfusion mirror tarball URLs from pnpm-lock.yaml so the lockfile
+# stays portable (CI uses the default registry to resolve packages).
+if git diff --cached --name-only | grep -q '^pnpm-lock.yaml$'; then
+  if grep -q 'tarball: https://mirrors\.xfusion\.com/' pnpm-lock.yaml; then
+    sed -i 's/, tarball: https:\/\/mirrors\.xfusion\.com\/[^}]*\.tgz//g' pnpm-lock.yaml
+    git add pnpm-lock.yaml
+    echo "[pre-commit] stripped xfusion tarball URLs from pnpm-lock.yaml"
+  fi
+fi

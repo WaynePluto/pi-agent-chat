@@ -14,6 +14,7 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import { SubagentCoordinator } from "./subagent.js";
+import { configureHttpDispatcher } from "./http.js";
 import { t } from "./i18n.js";
 
 export interface PiRuntimeOptions {
@@ -33,22 +34,27 @@ export class PiRuntime implements vscode.Disposable {
   private constructor(
     readonly runtime: AgentSessionRuntime,
     readonly subagents: SubagentCoordinator,
+    /** Aborted on dispose; cancels every auth/model call this runtime started. */
+    private readonly lifetime: AbortController,
     private readonly log: (message: string) => void,
   ) {}
 
   static async create(options: PiRuntimeOptions): Promise<PiRuntime> {
     const { cwd, log } = options;
     const subagents = new SubagentCoordinator(log);
+    const lifetime = new AbortController();
 
     const createRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd: effectiveCwd, sessionManager, sessionStartEvent }) => {
-      const services = await createAgentSessionServices({ cwd: effectiveCwd });
+      // modelRuntimeSignal cancels the create-time credential restore and
+      // availability probe when the view is closed mid-startup.
+      const services = await createAgentSessionServices({ cwd: effectiveCwd, modelRuntimeSignal: lifetime.signal });
       return {
         ...(await createAgentSessionFromServices({
           services,
           sessionManager,
           sessionStartEvent,
           customTools: [subagents.tool],
-          scopedModels: await resolveScopedModels(services, log),
+          scopedModels: await resolveScopedModels(services, log, lifetime.signal),
         })),
         services,
         diagnostics: services.diagnostics,
@@ -70,7 +76,12 @@ export class PiRuntime implements vscode.Disposable {
       log(`[warning] ${runtime.modelFallbackMessage}`);
     }
 
-    const wrapper = new PiRuntime(runtime, subagents, log);
+    // The activation-time dispatcher was built from the bootstrap settings
+    // read; re-apply from the authoritative manager, as the CLI does after it
+    // creates its runtime.
+    configureHttpDispatcher(runtime.services.settingsManager.getHttpIdleTimeoutMs());
+
+    const wrapper = new PiRuntime(runtime, subagents, lifetime, log);
     subagents.attachHost({
       getSession: () => wrapper.session,
       getCwd: () => wrapper.cwd,
@@ -88,9 +99,32 @@ export class PiRuntime implements vscode.Disposable {
     return this.runtime.cwd;
   }
 
+  /**
+   * Cancellation token for everything this runtime owns. The SDK's auth and
+   * model calls all take an `AbortSignal`; wiring this one through means a
+   * closed sidebar does not leave provider probes running in the background.
+   */
+  get signal(): AbortSignal {
+    return this.lifetime.signal;
+  }
+
+  /** Combine a caller's cancellation with this runtime's lifetime. */
+  withLifetime(signal?: AbortSignal): AbortSignal {
+    return signal ? AbortSignal.any([this.lifetime.signal, signal]) : this.lifetime.signal;
+  }
+
   /** Models that currently have working authentication configured. */
-  async getAvailableModels() {
-    return this.runtime.services.modelRuntime.getAvailable();
+  async getAvailableModels(signal?: AbortSignal) {
+    return this.runtime.services.modelRuntime.getAvailable(undefined, { signal: this.withLifetime(signal) });
+  }
+
+  /** Whether the provider's configured auth is backed by a paid subscription. */
+  isSubscriptionProvider(providerId: string): boolean {
+    try {
+      return this.runtime.services.modelRuntime.isUsingSubscription(providerId);
+    } catch {
+      return false;
+    }
   }
 
   /** Direct access to provider/auth management (login, logout, status). */
@@ -122,7 +156,7 @@ export class PiRuntime implements vscode.Disposable {
     const settings = this.runtime.services.settingsManager;
     settings.setEnabledModels(references?.length ? references : undefined);
     await settings.flush();
-    const scoped = await resolveScopedModels(this.runtime.services, this.log);
+    const scoped = await resolveScopedModels(this.runtime.services, this.log, this.lifetime.signal);
     this.runtime.session.setScopedModels([...scoped]);
     this.log(`enabled models: ${references?.length ? references.join(", ") : "(all)"}`);
   }
@@ -211,6 +245,7 @@ export class PiRuntime implements vscode.Disposable {
   }
 
   dispose(): void {
+    this.lifetime.abort();
     void this.subagents.dispose().finally(() => this.runtime.dispose());
   }
 }
@@ -219,10 +254,14 @@ export class PiRuntime implements vscode.Disposable {
  * Resolve the shared `enabledModels` patterns against the authenticated model
  * catalogue, using the same matching rules as the CLI's `--models` flag.
  */
-async function resolveScopedModels(services: AgentSessionServices, log: (message: string) => void): Promise<ScopedModel[]> {
+async function resolveScopedModels(
+  services: AgentSessionServices,
+  log: (message: string) => void,
+  signal?: AbortSignal,
+): Promise<ScopedModel[]> {
   const patterns = services.settingsManager.getEnabledModels();
   if (!patterns?.length) return [];
-  const { scopedModels, diagnostics } = await resolveModelScopeWithDiagnostics(patterns, services.modelRuntime);
+  const { scopedModels, diagnostics } = await resolveModelScopeWithDiagnostics(patterns, services.modelRuntime, { signal });
   for (const diagnostic of diagnostics) {
     log(`[${diagnostic.type}] ${diagnostic.message}`);
   }

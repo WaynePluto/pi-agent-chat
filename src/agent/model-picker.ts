@@ -63,6 +63,16 @@ function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelIte
       : undefined;
   const scopedRefs = runtime.scopedModels.map((scoped) => modelRef(scoped.model));
   const scopedSet = new Set(scopedRefs);
+  // Subscription status is per provider; resolve each one once per render.
+  const subscriptionByProvider = new Map<string, boolean>();
+  const isSubscription = (provider: string): boolean => {
+    let known = subscriptionByProvider.get(provider);
+    if (known === undefined) {
+      known = runtime.isSubscriptionProvider(provider);
+      subscriptionByProvider.set(provider, known);
+    }
+    return known;
+  };
 
   // Grouping is also the only way to add vertical breathing room: QuickPick row
   // height is fixed, separators are the one spacing primitive.
@@ -71,10 +81,18 @@ function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelIte
     const isCurrent = model.id === current?.id && model.provider === current?.provider;
     const isDefault = modelRef(model) === defaultRef;
     const isFavorite = scopedSet.has(modelRef(model));
+    // Separators disappear while filtering, so each row carries its provider,
+    // plus the markers that tell the user how this model is paid for.
+    const description = [
+      model.provider,
+      isSubscription(model.provider) ? t("subscriptionLabel") : undefined,
+      isDefault ? t("defaultModelMarker") : undefined,
+    ]
+      .filter(Boolean)
+      .join(" \u00b7 ");
     return {
       label: `${isCurrent ? "$(check) " : ""}${model.id}`,
-      // Separators disappear while filtering, so each row carries its provider.
-      description: isDefault ? `${model.provider} · ${t("defaultModelMarker")}` : model.provider,
+      description,
       detail: describeModel(model),
       // Show the favorite star even while the model is the default; hiding it
       // would also remove the only direct way to unfavorite that model.

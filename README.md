@@ -4,7 +4,7 @@ English | [简体中文](./readme.zh-CN.md)
 
 The [Pi Coding Agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent), running natively in your VS Code sidebar — **no Pi CLI installation required**.
 
-This extension is implemented with the **official** `@earendil-works/pi-coding-agent` SDK (**v0.83.0**) bundled directly inside — no RPC bridge and no separate Pi CLI installation required. The agent loop, tools and LLM calls all run in-process, while everything stays compatible with your existing Pi setup.
+This extension is implemented with the **official** `@earendil-works/pi-coding-agent` SDK (**v0.84.0**) bundled directly inside — no RPC bridge and no separate Pi CLI installation required. The agent loop, tools and LLM calls all run in-process, while everything stays compatible with your existing Pi setup.
 
 - The extension is UI-only; all agent capabilities come from the official SDK `@earendil-works/pi-coding-agent`, bundled inside the VSIX — **no Pi CLI installation required**.
 - Reuses everything under `~/.pi/agent/` (auth, models, settings, extensions, skills, prompts, AGENTS.md) and the default sessions directory, fully interoperable with the terminal Pi: sessions can be listed and resumed from either side.

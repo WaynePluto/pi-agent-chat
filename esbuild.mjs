@@ -175,9 +175,12 @@ const extensionConfig = {
   sourcemap: !production,
   minify: production,
   external,
-  // See vscode-pi-design.md §2.1: force every `import "undici"` (including the
-  // SDK's shrinkwrapped 8.5.0 copy) to resolve to this repo's undici@8.8.0,
-  // which contains the proxy absolute-form forwarding fix.
+  // `src/agent/http.ts` (this repo's explicit undici dependency) installs a
+  // global proxy dispatcher and must share one undici instance with the SDK's
+  // fetch calls. Alias every `import "undici"` — including the SDK's nested
+  // copy — to the top-level dependency so exactly one undici is embedded
+  // (asserted by scripts/check_bundle.py, which also enforces >= 8.7.0 for
+  // the proxy absolute-form forwarding fix).
   alias: {
     undici: resolve(root, "node_modules", "undici"),
   },

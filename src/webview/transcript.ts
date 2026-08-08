@@ -147,7 +147,7 @@ function scrollToEnd(): void {
 export function applyEvent(event: ChatEvent): void {
   switch (event.kind) {
     case "user_message":
-      appendUserBubble(event.text, event.mode);
+      appendUserBubble(event.text, event.mode, event.skill);
       break;
     case "assistant_start":
       assistantBubble = undefined;
@@ -323,13 +323,32 @@ function appendMarkdownBubble(role: string, text: string): HTMLElement {
  * User message; queued (follow-up) and steering messages get a badge and a
  * distinct accent so they read differently from immediate prompts.
  */
-function appendUserBubble(text: string, mode?: "steer" | "followUp"): void {
+function appendUserBubble(text: string, mode?: "steer" | "followUp", skill?: string): void {
   const wrapper = appendMarkdownBubble("user", text);
   wrapper.appendChild(entryActionBar());
+  if (skill) {
+    // `/skill:<name>` is expanded by the SDK before the agent runs, so no tool
+    // card will ever report it; mark the bubble instead, and light up the skill
+    // in the resources panel exactly as a model-initiated load would.
+    wrapper.classList.add("skill");
+    const badge = el("span", "bubble-badge skill-invocation", t.skillInvokedBadge);
+    badge.title = t.skillInvokedTitle;
+    bubbleBadgeColumn(wrapper).appendChild(badge);
+    markSkillActive(skill);
+  }
   if (!mode) return;
   wrapper.classList.add(mode === "steer" ? "steered" : "queued");
-  wrapper.prepend(el("span", "bubble-badge", mode === "steer" ? t.steerBadge : t.queuedBadge));
+  // Run state is the primary badge, so keep it above an invoked-skill badge.
+  bubbleBadgeColumn(wrapper).prepend(el("span", "bubble-badge", mode === "steer" ? t.steerBadge : t.queuedBadge));
   pendingUserBubbles.push({ element: wrapper, text, mode });
+}
+
+function bubbleBadgeColumn(bubble: HTMLElement): HTMLElement {
+  const existing = bubble.querySelector<HTMLElement>(":scope > .bubble-badges");
+  if (existing) return existing;
+  const column = el("div", "bubble-badges");
+  bubble.prepend(column);
+  return column;
 }
 
 /**
@@ -388,7 +407,12 @@ export function assignEntryIds(ids: string[], labels: (string | undefined)[]): v
       return;
     }
     if (existing) existing.textContent = label;
-    else bubble.prepend(el("span", "bubble-badge label-badge", label));
+    else {
+      const badge = el("span", "bubble-badge label-badge", label);
+      const column = bubble.querySelector<HTMLElement>(":scope > .bubble-badges");
+      if (column) column.prepend(badge);
+      else bubble.prepend(badge);
+    }
   });
 }
 
@@ -422,7 +446,9 @@ function reconcilePendingBubbles(steering: string[], followUp: string[]): void {
 
 function normalizeUserBubble(element: HTMLElement): void {
   element.classList.remove("queued", "steered");
-  element.querySelector(".bubble-badge:not(.label-badge)")?.remove();
+  const column = element.querySelector<HTMLElement>(":scope > .bubble-badges");
+  column?.querySelector(":scope > .bubble-badge:not(.label-badge):not(.skill-invocation)")?.remove();
+  if (column && column.childElementCount === 0) column.remove();
 }
 
 /**

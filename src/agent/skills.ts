@@ -29,6 +29,9 @@ export type SkillIndex = readonly SkillEntry[];
 
 export const EMPTY_SKILL_INDEX: SkillIndex = [];
 
+/** SDK-MIRROR: the `/skill:` command prefix in `AgentSession._expandSkillCommand`. */
+const SKILL_COMMAND_PREFIX = "/skill:";
+
 /** Snapshot the loaded skills; rebuild after a session swap or `/reload`. */
 export function buildSkillIndex(session: AgentSession): SkillIndex {
   try {
@@ -81,9 +84,38 @@ export function matchSkill(index: SkillIndex, toolName: string, args: unknown, c
  * the original command, mirroring what the live stream emitted.
  */
 export function collapseSkillInvocation(text: string): string {
+  return readSkillInvocation(text).text;
+}
+
+/**
+ * Collapse a `<skill>` block and report which skill produced it.
+ *
+ * `/skill:<name>` is expanded by the SDK before the prompt is submitted (it
+ * reads `SKILL.md` itself), so unlike a model-discovered skill there is no
+ * `read` tool call to attribute. The name rides on the user message instead,
+ * so the transcript can still show that the skill really was loaded.
+ */
+export function readSkillInvocation(text: string): { text: string; skill?: string } {
   const block = parseSkillBlock(text);
-  if (!block) return text;
-  return block.userMessage ? `/skill:${block.name} ${block.userMessage}` : `/skill:${block.name}`;
+  if (!block) return { text };
+  return {
+    text: block.userMessage ? `/skill:${block.name} ${block.userMessage}` : `/skill:${block.name}`,
+    skill: block.name,
+  };
+}
+
+/**
+ * The skill a `/skill:<name> [args]` command refers to, if it is really loaded.
+ *
+ * Used on the live path, where the emitted text is still the command the user
+ * typed: the SDK only expands it once `prompt()` runs. Unknown names are passed
+ * through by the SDK as plain text, so they must not be labelled as a skill.
+ */
+export function invokedSkill(index: SkillIndex, text: string): string | undefined {
+  if (!text.startsWith(SKILL_COMMAND_PREFIX)) return undefined;
+  const spaceIndex = text.indexOf(" ");
+  const name = spaceIndex === -1 ? text.slice(SKILL_COMMAND_PREFIX.length) : text.slice(SKILL_COMMAND_PREFIX.length, spaceIndex);
+  return index.some((entry) => entry.name === name) ? name : undefined;
 }
 
 function skillPathArgument(args: unknown, cwd: string): string | undefined {

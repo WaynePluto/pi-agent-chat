@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
-import type { AuthEvent, AuthInteraction, AuthPrompt, AuthType } from "@earendil-works/pi-ai";
+import type { AuthEvent, AuthInteraction, AuthPrompt, AuthType, ModelsRefreshResult } from "@earendil-works/pi-ai";
+import { CredentialSynchronizationError } from "@earendil-works/pi-coding-agent";
 import { describe } from "./errors.js";
 import { t, tf } from "./i18n.js";
 import type { PiRuntime } from "./runtime.js";
@@ -20,6 +21,8 @@ interface LoginOption {
   loginLabel?: string;
   /** Human label when auth is already configured ("OAuth", "ANTHROPIC_API_KEY"...). */
   configured?: string;
+  /** Whether the configured auth is covered by a paid subscription plan. */
+  subscription?: boolean;
 }
 
 /**
@@ -34,12 +37,15 @@ interface LoginOption {
 export async function loginFlow(runtime: PiRuntime, log: (message: string) => void): Promise<boolean> {
   const modelRuntime = runtime.modelRuntime;
   // Make sure availability/status labels are fresh before listing.
-  await modelRuntime.getAvailable();
+  await modelRuntime.getAvailable(undefined, { signal: runtime.signal });
 
   const options: LoginOption[] = [];
   for (const provider of modelRuntime.getProviders()) {
     const status = modelRuntime.getProviderAuthStatus(provider.id);
     const configured = status.configured ? (status.label ?? status.source ?? "configured") : undefined;
+    // Only meaningful once the provider is authenticated: it describes how the
+    // *stored* credential is billed, not what a future login would grant.
+    const subscription = Boolean(configured) && runtime.isSubscriptionProvider(provider.id);
     if (provider.auth.oauth) {
       options.push({
         id: provider.id,
@@ -48,6 +54,7 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
         hasLogin: true,
         loginLabel: provider.auth.oauth.loginLabel,
         configured,
+        subscription,
       });
     }
     if (provider.auth.apiKey) {
@@ -57,6 +64,7 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
         authType: "api_key",
         hasLogin: Boolean(provider.auth.apiKey.login),
         configured,
+        subscription,
       });
     }
   }
@@ -70,7 +78,9 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
     options.map((option) => ({
       label: option.name,
       description: option.authType === "oauth" ? (option.loginLabel ?? t("oauthDescription")) : t("apiKeyDescription"),
-      detail: option.configured ? tf("configuredDetail", option.configured) : undefined,
+      detail: option.configured
+        ? tf("configuredDetail", option.subscription ? `${option.configured} · ${t("subscriptionLabel")}` : option.configured)
+        : undefined,
       option,
     })),
     { title: t("signInTitle"), matchOnDescription: true, ignoreFocusOut: true },
@@ -85,12 +95,19 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
 
   try {
     await modelRuntime.login(option.id, option.authType, createAuthInteraction());
-    await modelRuntime.refresh();
+    reportRefreshErrors(await modelRuntime.refresh(), runtime, log);
     log(`logged in: ${option.id} (${option.authType})`);
     vscode.window.showInformationMessage(tf("signedIn", option.name));
     return true;
   } catch (error) {
     if (error instanceof LoginCancelledError) return false;
+    // The credential was stored; only the local snapshot refresh failed. Treat
+    // it as a partial success so the UI still re-reads the model list.
+    if (error instanceof CredentialSynchronizationError) {
+      log(`login stored but snapshot sync failed: ${describe(error)}`);
+      vscode.window.showWarningMessage(tf("credentialSyncFailed", option.name, describe(error)));
+      return true;
+    }
     const message = describe(error);
     log(`login failed: ${message}`);
     vscode.window.showErrorMessage(tf("loginFailed", message));
@@ -104,25 +121,50 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
  */
 export async function logoutFlow(runtime: PiRuntime, log: (message: string) => void): Promise<boolean> {
   const modelRuntime = runtime.modelRuntime;
-  const credentials = await modelRuntime.listCredentials();
+  const credentials = await modelRuntime.listCredentials({ signal: runtime.signal });
   if (credentials.length === 0) {
     vscode.window.showInformationMessage(t("noStoredCredentials"));
     return false;
   }
   const picked = await vscode.window.showQuickPick(
-    credentials.map(({ providerId, type }) => ({
-      label: modelRuntime.getProvider(providerId)?.name ?? providerId,
-      description: type === "oauth" ? t("oauthLabel") : t("apiKeyDescription"),
-      providerId,
-    })),
+    credentials.map(({ providerId, type }) => {
+      const kind = type === "oauth" ? t("oauthLabel") : t("apiKeyDescription");
+      return {
+        label: modelRuntime.getProvider(providerId)?.name ?? providerId,
+        description: runtime.isSubscriptionProvider(providerId) ? `${kind} · ${t("subscriptionLabel")}` : kind,
+        providerId,
+      };
+    }),
     { title: t("removeCredentialTitle"), ignoreFocusOut: true },
   );
   if (!picked) return false;
-  await modelRuntime.logout(picked.providerId);
-  await modelRuntime.refresh();
+  try {
+    await modelRuntime.logout(picked.providerId, { signal: runtime.signal });
+    reportRefreshErrors(await modelRuntime.refresh(), runtime, log);
+  } catch (error) {
+    // Same partial success as login: the credential itself is already gone.
+    if (!(error instanceof CredentialSynchronizationError)) throw error;
+    log(`logout applied but snapshot sync failed: ${describe(error)}`);
+    vscode.window.showWarningMessage(tf("credentialSyncFailed", picked.label, describe(error)));
+    return true;
+  }
   log(`logged out: ${picked.providerId}`);
   vscode.window.showInformationMessage(tf("removedCredential", picked.label));
   return true;
+}
+
+/**
+ * Surface per-provider catalogue refresh failures.
+ *
+ * `refresh()` resolves even when individual providers fail, so without this a
+ * login or logout would silently leave the model list stale.
+ */
+function reportRefreshErrors(result: ModelsRefreshResult, runtime: PiRuntime, log: (message: string) => void): void {
+  if (result.aborted || result.errors.size === 0) return;
+  const names = [...result.errors.keys()].map((id) => runtime.modelRuntime.getProvider(id)?.name ?? id);
+  const reason = describe([...result.errors.values()][0]);
+  log(`model refresh failed for ${names.join(", ")}: ${reason}`);
+  vscode.window.showWarningMessage(tf("modelRefreshFailed", names.join(", "), reason));
 }
 
 /**

@@ -17,7 +17,7 @@ import { openEditDiff } from "./diff-view.js";
 import { ProjectFileIndex } from "./project-files.js";
 import { manageScopedModels, pickModel } from "./model-picker.js";
 import type { PiRuntime } from "./runtime.js";
-import { EMPTY_SKILL_INDEX, buildSkillIndex, collapseSkillInvocation, matchSkill, type SkillIndex } from "./skills.js";
+import { EMPTY_SKILL_INDEX, buildSkillIndex, collapseSkillInvocation, invokedSkill, matchSkill, readSkillInvocation, type SkillIndex } from "./skills.js";
 import type { SubagentObserver, SubagentOutcome, SubagentRun } from "./subagent.js";
 
 export interface BridgeHost {
@@ -45,6 +45,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private sessionsRefreshTimer?: ReturnType<typeof setTimeout>;
   /** Only the newest async state snapshot may reach the webview. */
   private statePostVersion = 0;
+  /** Cancels the availability probe of a superseded (or disposed) state post. */
+  private availabilityProbe?: AbortController;
   /** Replay buffers keep parent and child transcripts intact while viewing either. */
   private readonly histories = new Map<string, ChatEvent[]>();
   /** Arguments of in-flight tool calls, used to resolve the edited file path. */
@@ -162,15 +164,19 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   async postState(): Promise<void> {
     // getAvailableModels() is asynchronous. Without a version check, a state
     // snapshot started while the child is displayed can arrive after the child
-    // finishes and overwrite the authoritative parent state.
+    // finishes and overwrite the authoritative parent state. The probe is also
+    // cancelled outright so a superseded call stops touching providers.
     const postVersion = ++this.statePostVersion;
+    this.availabilityProbe?.abort();
+    const probe = new AbortController();
+    this.availabilityProbe = probe;
     const session = this.displayedSession ?? this.runtime.session;
     const model = session.model as { id?: string; provider?: string } | undefined;
     let needsAuth = false;
     try {
-      needsAuth = (await this.runtime.getAvailableModels()).length === 0;
+      needsAuth = (await this.runtime.getAvailableModels(probe.signal)).length === 0;
     } catch {
-      // Availability check failing must not block the chat UI.
+      // Availability check failing (or being cancelled) must not block the chat UI.
     }
     if (postVersion !== this.statePostVersion || this.disposed) return;
     const preview = this.preview;
@@ -336,7 +342,15 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         break;
       }
       case "queue_update":
-        this.emit(session, { kind: "queue_update", steering: [...event.steering], followUp: [...event.followUp] });
+        // The SDK queues `/skill:*` prompts after expanding them to a full
+        // `<skill>` block. Keep queue reconciliation on the short command form
+        // emitted to the webview, otherwise the pending bubble looks consumed
+        // immediately and the Recall button disappears.
+        this.emit(session, {
+          kind: "queue_update",
+          steering: event.steering.map(collapseSkillInvocation),
+          followUp: event.followUp.map(collapseSkillInvocation),
+        });
         break;
       case "compaction_start":
         this.emit(session, { kind: "status", text: `compacting context (${event.reason})...` });
@@ -441,12 +455,14 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         break;
       case "dequeue": {
         const session = this.runtime.session;
-        const texts = [...session.getSteeringMessages(), ...session.getFollowUpMessages()];
-        if (texts.length === 0) break;
+        const queued = [...session.getSteeringMessages(), ...session.getFollowUpMessages()];
+        if (queued.length === 0) break;
         // Tell the webview first so pending bubbles are removed before the
         // queue_update from clearQueue() arrives (which would otherwise
-        // treat them as consumed and pin them into the transcript).
-        this.host.post({ type: "dequeued", texts });
+        // treat them as consumed and pin them into the transcript). Skill
+        // prompts must also return in the command form the user originally
+        // entered, not as the SDK's expanded `<skill>` block.
+        this.host.post({ type: "dequeued", texts: queued.map(collapseSkillInvocation) });
         session.clearQueue();
         break;
       }
@@ -666,7 +682,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
     const streaming = this.runtime.session.isStreaming;
     const mode = streaming ? (streamingBehavior ?? "followUp") : undefined;
-    this.emit(this.runtime.session, { kind: "user_message", text: trimmed, mode });
+    // The SDK expands `/skill:<name>` inside prompt(); the text emitted here is
+    // still the command form, so the skill is resolved from the command itself.
+    this.emit(this.runtime.session, { kind: "user_message", text: trimmed, mode, skill: invokedSkill(this.skillIndex, trimmed) });
     try {
       await this.runtime.session.prompt(trimmed, {
         streamingBehavior: mode,
@@ -888,6 +906,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   dispose(): void {
     this.disposed = true;
     this.statePostVersion++;
+    this.availabilityProbe?.abort();
+    this.availabilityProbe = undefined;
     if (this.sessionsRefreshTimer) {
       clearTimeout(this.sessionsRefreshTimer);
       this.sessionsRefreshTimer = undefined;
@@ -1031,8 +1051,8 @@ export function buildHistoryEvents(messages: readonly unknown[], cwd: string, sk
     };
 
     if (message.role === "user") {
-      const text = collapseSkillInvocation(contentText(message.content));
-      if (text.trim()) events.push({ kind: "user_message", text });
+      const { text, skill } = readSkillInvocation(contentText(message.content));
+      if (text.trim()) events.push({ kind: "user_message", text, skill });
       continue;
     }
 

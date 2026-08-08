@@ -212,6 +212,8 @@ export const sharedMessages = {
   oauthDescription: { en: "OAuth / subscription", zh: "OAuth / 订阅" },
   apiKeyDescription: { en: "API key", zh: "API key" },
   oauthLabel: { en: "OAuth", zh: "OAuth" },
+  /** Marks a provider whose access is backed by a paid subscription plan. */
+  subscriptionLabel: { en: "subscription", zh: "订阅制" },
   noStoredCredentials: {
     en: "Pi Agent Chat: no stored credentials to remove. Logout only removes credentials saved by login.",
     zh: "Pi Agent Chat：没有可移除的已保存凭据。登出只会移除通过登录保存的凭据。",
@@ -299,6 +301,22 @@ export const sharedTemplates = {
   removedCredential: {
     en: (provider: string) => `Pi Agent Chat: removed credential for ${provider}.`,
     zh: (provider: string) => `Pi Agent Chat：已移除 ${provider} 的凭据。`,
+  },
+  /**
+   * `CredentialSynchronizationError`: the credential change itself succeeded,
+   * only the local model/auth snapshot could not be refreshed afterwards.
+   */
+  credentialSyncFailed: {
+    en: (provider: string, reason: string) =>
+      `Pi Agent Chat: credentials for ${provider} were saved, but refreshing the local model list failed — ${reason}. The model list may be stale until you reload.`,
+    zh: (provider: string, reason: string) =>
+      `Pi Agent Chat：${provider} 的凭据已保存，但本地模型列表刷新失败 — ${reason}。重新加载前模型列表可能不是最新的。`,
+  },
+  /** `ModelsRefreshResult.errors`: some providers failed their catalogue refresh. */
+  modelRefreshFailed: {
+    en: (providers: string, reason: string) =>
+      `Pi Agent Chat: could not refresh models for ${providers} — ${reason}`,
+    zh: (providers: string, reason: string) => `Pi Agent Chat：无法刷新 ${providers} 的模型列表 — ${reason}`,
   },
   deviceCodeTitle: {
     en: (code: string) => `Pi Agent Chat: device sign-in code ${code}`,

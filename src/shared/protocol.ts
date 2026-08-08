@@ -136,7 +136,8 @@ export interface SlashCommand {
 
 /** Simplified, serializable projection of `AgentSessionEvent`. */
 export type ChatEvent =
-  | { kind: "user_message"; text: string; mode?: "steer" | "followUp" }
+  /** `skill` is set when the SDK expanded a `/skill:<name>` invocation inline. */
+  | { kind: "user_message"; text: string; mode?: "steer" | "followUp"; skill?: string }
   | { kind: "assistant_start" }
   | { kind: "text_delta"; delta: string }
   | { kind: "thinking_delta"; delta: string }

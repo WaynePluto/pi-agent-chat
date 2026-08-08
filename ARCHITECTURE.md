@@ -9,7 +9,7 @@
 | 模块 | 路径 | 职责 | 主要依赖 |
 |------|------|------|----------|
 | extension | `src/extension.ts` | 插件入口：`activate()` 注册 webview view `piAgentChat.view`、4 个命令、diff content provider；`ChatViewProvider` 懒创建 `PiRuntime` + `ChatBridge`；静态注册 OAuth flows | vscode, pi-ai/bun-oauth, bridge, diagnostics, diff-view, http, runtime, protocol |
-| runtime | `src/agent/runtime.ts` | `PiRuntime`：SDK `AgentSessionRuntime` 薄封装；session 新建/继续、替换后重新 bindExtensions、注入 subagent 自定义工具、按 `enabledModels` 解析会话 scoped models | vscode, pi-coding-agent, subagent |
+| runtime | `src/agent/runtime.ts` | `PiRuntime`：SDK `AgentSessionRuntime` 薄封装；session 新建/继续、替换后重新 bindExtensions、注入 subagent 自定义工具、按 `enabledModels` 解析会话 scoped models；持有 dispose 级 `AbortSignal` 并贯穿所有 auth/model 调用 | vscode, pi-coding-agent, subagent |
 | bridge | `src/agent/bridge.ts` | `ChatBridge`：SDK `AgentSessionEvent` → `HostMessage`，webview 消息 → runtime 操作；历史回放（`buildHistoryEvents`）、资源清单、技能归属标注、subagent 观察者 | vscode, pi-coding-agent, protocol, auth, commands, session-tree, diff-view, project-files, runtime, skills, subagent |
 | commands | `src/agent/commands.ts` | 斜杠命令目录（命名对齐 CLI）与内置命令分发；prompt 模板/扩展命令仅做补全展示，实际由 `AgentSession.prompt()` 处理 | vscode, pi-coding-agent, protocol, runtime, session-tree |
 | skills | `src/agent/skills.ts` | 技能路径索引与工具调用归属判定（`SKILL.md` 读取 = 自动加载，技能目录内文件 = 技能资源），弥补 SDK 无「技能已加载」事件 | node:path, pi-coding-agent, protocol |
@@ -20,7 +20,7 @@
 | subagent | `src/agent/subagent.ts` | `SubagentCoordinator`：以自定义工具形式运行单个 SDK 子 session，父 session 在工具调用中等待；向观察者广播子会话事件 | typebox, pi-coding-agent |
 | project-files | `src/agent/project-files.ts` | `ProjectFileIndex`：`@` 文件引用的索引/搜索/校验，含缓存、二进制与敏感文件过滤、引用数上限 | node:child_process, node:fs, protocol |
 | diff-view | `src/agent/diff-view.ts` | `pi-agent-chat-original` URI scheme：反向应用 patch 还原编辑前内容并打开 `vscode.diff` | diff, vscode |
-| http | `src/agent/http.ts` | 安装代理感知的 undici global dispatcher（VS Code `http.proxy` → 环境变量） | node:events, vscode, undici |
+| http | `src/agent/http.ts` | 代理解析（env > pi `settings.json` 的 `httpProxy` > VS Code `http.proxy`）与全局 undici dispatcher 安装/重建；行为对齐 SDK 未导出的 `core/http-dispatcher.ts` | node:events, vscode, undici, pi-coding-agent |
 | diagnostics | `src/agent/diagnostics.ts` | 冒烟/风险自检：SDK 加载、undici 版本、jiti、clipboard、历史回放、斜杠命令、session 树、subagent 工具、文件索引、可选的真实 LLM 调用 | pi-coding-agent, bridge, commands, session-tree, subagent, project-files |
 | errors | `src/agent/errors.ts` | `describe()` / `describeWithStack()`：宿主侧统一的错误文本提取 | — |
 | protocol | `src/shared/protocol.ts` | host ↔ webview 消息与状态类型（`ChatEvent`/`ChatState`/`HostMessage`/`WebviewMessage`）与共享常量 `MAX_FILE_REFERENCES`；**零依赖** | — |
@@ -126,6 +126,8 @@ graph TD
   commands --> protocol
   sessiontree --> runtime
   auth --> runtime
+  settingsmenu --> http
+  runtime --> http
   runtime --> subagent
   runtime --> sdk
   subagent --> sdk

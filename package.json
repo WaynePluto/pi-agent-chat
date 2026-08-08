@@ -1,8 +1,8 @@
 {
   "name": "pi-code-agent-chat",
   "displayName": "Pi Agent Chat",
-  "description": "VS Code sidebar chat for the Pi Coding Agent, powered by the official SDK (0.83.0) bundled inside the extension — no Pi CLI required. Unofficial community project.",
-  "version": "0.0.5",
+  "description": "VS Code sidebar chat for the Pi Coding Agent, powered by the official SDK (0.84.0) bundled inside the extension — no Pi CLI required. Unofficial community project.",
+  "version": "0.0.6-20260807",
   "publisher": "waynepluto",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -75,34 +75,37 @@
     ]
   },
   "scripts": {
+    "prepare": "husky",
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "package": "node esbuild.mjs --production",
     "typecheck": "tsc --noEmit",
-    "verify": "node esbuild.mjs && python scripts/check_bundle.py && node scripts/smoke_load.mjs && node scripts/smoke_webview.mjs",
+    "check:dependencies": "python scripts/check_dependency_versions.py",
+    "verify": "pnpm check:dependencies && node esbuild.mjs && python scripts/check_bundle.py && node scripts/smoke_load.mjs && node scripts/smoke_webview.mjs",
     "vscode:prepublish": "npm run package",
     "package:vsix": "vsce package --no-dependencies --githubBranch master --readme-path README.md --out pi-code-agent-chat.vsix",
     "install:vsix": "code --install-extension pi-code-agent-chat.vsix --force",
     "package-and-install:vsix": "npm run package:vsix && npm run install:vsix"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.83.0",
-    "@earendil-works/pi-coding-agent": "0.83.0",
-    "diff": "8.0.4",
-    "marked": "16.4.2",
-    "undici": "8.8.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "undici": "8.8.0"
-    }
+    "@earendil-works/pi-ai": "0.84.0",
+    "@earendil-works/pi-coding-agent": "0.84.0",
+    "diff": "9.0.0",
+    "marked": "18.0.9",
+    "undici": "8.10.0"
   },
   "devDependencies": {
     "@types/node": "22.20.1",
     "@types/vscode": "1.90.0",
     "@vscode/vsce": "3.9.2",
-    "esbuild": "0.25.12",
-    "jsdom": "^30.0.1",
-    "typescript": "5.9.3"
+    "esbuild": "0.28.1",
+    "husky": "9.1.7",
+    "jsdom": "30.0.1",
+    "typescript": "6.0.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

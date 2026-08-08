@@ -247,6 +247,32 @@ const SCRIPT = [
     messages: [{ type: "state", state: { ...baseState, needsAuth: true } }],
     beforeSnapshot: (window) => window.document.getElementById("btn-sessions").click(),
   },
+  // Kept last: the resources message it needs would otherwise replace the
+  // richer panel the earlier steps assert on.
+  {
+    label: "explicit /skill: invocation is badged on the user bubble",
+    messages: [
+      {
+        type: "resources",
+        sections: [
+          {
+            name: "Skills",
+            items: [
+              { label: "update-dependencies", path: "/workspace/.agents/skills/update-dependencies/SKILL.md", scope: "project" },
+            ],
+          },
+        ],
+      },
+      {
+        type: "history",
+        events: [
+          { kind: "user_message", text: "/skill:update-dependencies", skill: "update-dependencies" },
+          { kind: "assistant_message", text: "Checking versions." },
+        ],
+      },
+      { type: "state", state: baseState },
+    ],
+  },
 ];
 
 /* ------------------------------------------------------------------ */

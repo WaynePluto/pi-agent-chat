@@ -2372,6 +2372,165 @@ Open in editor" type="button">
         <span>
           "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
 
+===== explicit /skill: invocation is badged on the user bubble =====
+<div id="root">
+  <header id="header" class="header">
+    <div id="header-title" class="header-title" title="New session">
+      "New session"
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
+      <button id="btn-new" title="Start a new session">
+        "New"
+      <span class="overflow-slot">
+      <button id="btn-sessions" title="Browse, resume or delete sessions">
+        "Sessions"
+      <span class="overflow-slot">
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)">
+        "Session tree"
+      <span class="overflow-slot">
+      <button id="btn-settings" title="Providers, shell path and other Pi settings">
+        "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
+  <div id="sessions" class="sessions hidden">
+    <div class="sessions-header">
+      <span>
+        "Sessions"
+    <input class="sessions-search" placeholder="Search sessions by title..." type="text">
+    <div class="sessions-list">
+      <div class="session-row current" title="/workspace/a.jsonl">
+        <button class="session-main" title="Resume this session" type="button">
+          <span class="session-title">
+            <span class="session-title-text">
+              "current session"
+          <span class="session-meta">
+            "2026-01-02 03:04"
+        <button class="session-rename" title="Set a display name for this session" type="button">
+          "Rename"
+        <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
+          "Delete"
+      <div class="session-row" title="/workspace/b.jsonl">
+        <button class="session-main" title="Resume this session" type="button">
+          <span class="session-title">
+            <span class="session-title-text">
+              "older session"
+          <span class="session-meta">
+            "2026-01-01 00:00"
+        <button class="session-rename" title="Set a display name for this session" type="button">
+          "Rename"
+        <button class="session-delete" title="Delete this session file" type="button">
+          "Delete"
+      <div class="session-row delegation-child" title="/workspace/c.jsonl">
+        <button class="session-main" title="Resume this session" type="button">
+          <span class="session-title">
+            <span class="session-badge">
+              <span class="working-spinner">
+                "⠋"
+              "subagent"
+            <span class="session-title-text">
+              "delegated child"
+          <span class="session-meta">
+            "2026-01-03 00:00"
+        <button class="session-rename" title="Set a display name for this session" type="button">
+          "Rename"
+        <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
+          "Delete"
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources">
+    <div class="resources-panel">
+      <button class="resources-toggle" title="Collapse" aria-expanded="true" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Skills 1"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              <span class="skill-active">
+                "update-dependencies"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file active" title="/workspace/.agents/skills/update-dependencies/SKILL.md
+Skill update-dependencies was loaded in this session · click to open" type="button">
+              "update-dependencies"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+      "Subagent running: research task"
+    <button id="delegation-peer" class="secondary">
+      "View parent"
+  <div id="messages-wrap" class="messages-wrap">
+    <main id="messages" class="messages">
+      <div class="bubble markdown user skill">
+        <div class="bubble-badges">
+          <span class="bubble-badge skill-invocation" title="You invoked this skill; its instructions were loaded with the message">
+            "skill"
+        <p>
+          "/skill:update-dependencies"
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant">
+        <p>
+          "Checking versions."
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <footer id="composer" class="composer">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <span class="overflow-slot">
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <span class="overflow-slot">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <span class="overflow-slot">
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <span class="overflow-slot">
+      <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
+        "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <button id="btn-send" class="icon-button" title="Send (Enter)">
+        <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
+    <div id="statusline" class="statusline">
+      <div class="statusline-row">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
 ===== posted to host =====
 {"type":"ready"}
 {"type":"sessionsVisible","visible":true}

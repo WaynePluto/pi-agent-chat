@@ -4,7 +4,7 @@
 
 [Pi Coding Agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) 原生运行在你的 VS Code 侧边栏中 —— **无需安装 Pi CLI**。
 
-本插件通过内置的**官方** `@earendil-works/pi-coding-agent` SDK（**v0.83.0**）实现，而非 RPC 方式；agent 循环、工具与 LLM 调用都在扩展进程内完成，无需单独安装 Pi CLI，同时与你的 Pi 现有配置完全兼容。
+本插件通过内置的**官方** `@earendil-works/pi-coding-agent` SDK（**v0.84.0**）实现，而非 RPC 方式；agent 循环、工具与 LLM 调用都在扩展进程内完成，无需单独安装 Pi CLI，同时与你的 Pi 现有配置完全兼容。
 
 - 插件只做 UI 层，agent 能力 100% 来自官方 SDK `@earendil-works/pi-coding-agent`，SDK 已打包进 VSIX —— **无需安装 Pi CLI**。
 - 复用 `~/.pi/agent/` 的全部配置（auth、models、settings、extensions、skills、prompts、AGENTS.md）与默认 sessions 目录，可与终端 Pi 互相列出/恢复会话。

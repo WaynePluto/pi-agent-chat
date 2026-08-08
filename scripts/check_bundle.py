@@ -3,8 +3,10 @@
 
 Checks (see vscode-pi-design.md 2.1):
   1. dist/extension.js and dist/webview.js exist.
-  2. Exactly one undici copy is embedded in the extension bundle.
-  3. The embedded undici is >= 8.7.0 (proxy absolute-form forwarding fix).
+  2. Exactly one undici copy is embedded in the extension bundle, and it is
+     the top-level dependency (this repo's explicit undici), not the SDK's
+     nested copy.
+  3. The top-level undici is >= 8.7.0 (proxy absolute-form forwarding fix).
 """
 
 from __future__ import annotations

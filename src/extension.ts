@@ -25,7 +25,7 @@ export function activate(context: vscode.ExtensionContext): void {
   registerBunOAuthFlows();
   const output = vscode.window.createOutputChannel("Pi Agent Chat");
   context.subscriptions.push(output);
-  configureHttpProxy((message) => output.appendLine(message));
+  configureHttpProxy(resolveWorkspaceCwd(), (message) => output.appendLine(message));
 
   const diffProvider = new OriginalContentProvider();
   const provider = new ChatViewProvider(context, output, diffProvider);
