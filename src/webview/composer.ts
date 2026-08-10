@@ -143,7 +143,7 @@ function onKeyDown(event: KeyboardEvent): void {
     }
     if (!event.shiftKey) {
       event.preventDefault();
-      send(state.isStreaming ? "followUp" : undefined);
+      send(state.isStreaming || state.isCompacting ? "followUp" : undefined);
     }
   }
 }

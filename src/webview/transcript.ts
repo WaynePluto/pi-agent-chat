@@ -6,6 +6,7 @@ import {
   MAX_NOTICE_HEADER_CHARS,
   MAX_TOOL_ARGS_CHARS,
   MAX_TOOL_OUTPUT_CHARS,
+  formatTokens,
   truncate,
 } from "./format.js";
 import { post } from "./host.js";
@@ -221,6 +222,13 @@ export function applyEvent(event: ChatEvent): void {
       break;
     case "queue_update":
       reconcilePendingBubbles(event.steering, event.followUp);
+      break;
+    case "compaction_boundary":
+      flushStreaming();
+      finishThinkingCard();
+      finishWorkBlock();
+      assistantBubble = undefined;
+      appendCompactionBoundary(event.summary, event.tokensBefore, event.estimatedTokensAfter);
       break;
     case "status":
       appendNoticeCard("status", event.text, event.scope);
@@ -499,6 +507,33 @@ export function appendNoticeCard(kind: "status" | "error", text: string, scope?:
   });
 }
 
+/**
+ * Persistent checkpoint between transcript phases. The full conversation stays
+ * visible, while the expandable body shows the summary Pi now carries forward
+ * together with some recent messages.
+ */
+function appendCompactionBoundary(summary: string, tokensBefore: number, estimatedTokensAfter?: number): void {
+  const status = estimatedTokensAfter === undefined
+    ? t.compactionTokensBefore(formatTokens(tokensBefore))
+    : t.compactionTokens(formatTokens(tokensBefore), formatTokens(estimatedTokensAfter));
+  createCollapsible({
+    classes: CARD_CLASSES,
+    rootClass: "compaction-boundary",
+    tag: "section",
+    label: t.compactionBoundary,
+    status,
+    parent: sink,
+    render: (body) => {
+      body.append(el("p", "compaction-note", t.compactionContextNote));
+      if (summary.trim()) {
+        const rendered = el("div", "compaction-summary");
+        rendered.append(renderMarkdown(summary));
+        body.append(el("div", "compaction-summary-label", t.compactionSummary), rendered);
+      }
+    },
+  });
+}
+
 /* ---------------------------------------------------------------- */
 /* Work block + collapsible cards (thinking, tools)                  */
 /* ---------------------------------------------------------------- */
@@ -711,18 +746,20 @@ function summarizeArgs(args: unknown): string {
 
 /** CLI-style working row, specialized while a child session is active. */
 export function updateWorkingIndicator(): void {
-  if (state.isStreaming) {
+  if (state.isStreaming || state.isCompacting) {
     if (!workingEl) {
       workingEl = el("div", "working-row");
       workingLabelEl = el("span");
       workingEl.append(spinner(), workingLabelEl);
     }
     if (workingLabelEl) {
-      workingLabelEl.textContent = state.delegation?.role === "parent"
-        ? ` ${t.waitingForSubagent}`
-        : state.delegation?.role === "child"
-          ? ` ${t.subagentWorking}`
-          : ` ${t.streaming}`;
+      workingLabelEl.textContent = state.isCompacting
+        ? ` ${t.compacting}`
+        : state.delegation?.role === "parent"
+          ? ` ${t.waitingForSubagent}`
+          : state.delegation?.role === "child"
+            ? ` ${t.subagentWorking}`
+            : ` ${t.streaming}`;
     }
     messagesEl.appendChild(workingEl); // re-append to keep it last
     scrollToEnd();

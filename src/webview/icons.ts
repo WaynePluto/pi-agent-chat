@@ -15,3 +15,8 @@ export const REWIND_ICON = `<svg viewBox="0 0 16 16" width="15" height="15" fill
 export const BRANCH_ICON = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M4.5 2a1.6 1.6 0 0 0-.65 3.06v5.88a1.6 1.6 0 1 0 1.3 0V9.6h2.4a3.1 3.1 0 0 0 3.1-3.1V5.06A1.6 1.6 0 1 0 9.85 5.1V6.5c0 .99-.81 1.8-1.8 1.8H5.15V5.06A1.6 1.6 0 0 0 4.5 2z"/></svg>`;
 /** Tag: bookmark this message for later navigation. */
 export const TAG_ICON = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2 2h5.9l6.1 6.1-5.9 5.9L2 7.9V2zm1.3 1.3v4.05l4.8 4.8 4.05-4.05-4.8-4.8H3.3zm1.9 1.15a.9.9 0 1 1 0 1.8.9.9 0 0 1 0-1.8z"/></svg>`;
+
+/* Composer quick menus (model / thinking level). */
+
+/** Checkmark: the row that is currently active. */
+export const CHECK_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M6.2 12.3L2.4 8.5l1.06-1.06 2.74 2.74 6.34-6.34L13.6 4.9z"/></svg>`;

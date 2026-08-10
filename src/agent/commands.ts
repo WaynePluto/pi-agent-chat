@@ -152,9 +152,9 @@ export async function runBuiltinCommand(
       break;
     case "compact": {
       actions.status(t("compacting"));
-      const result = await session.compact(argument || undefined);
-      const after = result.estimatedTokensAfter ?? 0;
-      actions.status(tf("compactionDone", result.tokensBefore, after));
+      await session.compact(argument || undefined);
+      // compaction_end becomes a persistent boundary with the summary and
+      // token reduction; do not duplicate it with a transient command notice.
       break;
     }
     case "name": {

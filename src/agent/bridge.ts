@@ -2,9 +2,8 @@ import { isAbsolute, basename, relative as relativePath, resolve as resolvePath 
 import { homedir } from "node:os";
 import * as vscode from "vscode";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { buildSessionContext, migrateSessionEntries, parseSessionEntries, sessionEntryToContextMessages, SessionManager } from "@earendil-works/pi-coding-agent";
+import { sessionEntryToContextMessages, SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import { readFile } from "node:fs/promises";
 import type { ChatEvent, ChatState, ChatStats, HostMessage, ResourceItem, ResourceScope, ResourceSection, SessionListItem, WebviewMessage } from "../shared/protocol.js";
 import { loginFlow, logoutFlow } from "./auth.js";
 import { collectSlashCommands, formatHelp, runBuiltinCommand } from "./commands.js";
@@ -15,7 +14,7 @@ import { openSettingsMenu } from "./settings-menu.js";
 import type { OriginalContentProvider } from "./diff-view.js";
 import { openEditDiff } from "./diff-view.js";
 import { ProjectFileIndex } from "./project-files.js";
-import { manageScopedModels, pickModel } from "./model-picker.js";
+import { buildModelCatalog, manageScopedModels, pickModel } from "./model-picker.js";
 import type { PiRuntime } from "./runtime.js";
 import { EMPTY_SKILL_INDEX, buildSkillIndex, collapseSkillInvocation, invokedSkill, matchSkill, readSkillInvocation, type SkillIndex } from "./skills.js";
 import type { SubagentObserver, SubagentOutcome, SubagentRun } from "./subagent.js";
@@ -23,6 +22,11 @@ import type { SubagentObserver, SubagentOutcome, SubagentRun } from "./subagent.
 export interface BridgeHost {
   post(message: HostMessage): void;
   log(message: string): void;
+}
+
+interface CompactionQueuedPrompt {
+  text: string;
+  mode: "steer" | "followUp";
 }
 
 /**
@@ -49,6 +53,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private availabilityProbe?: AbortController;
   /** Replay buffers keep parent and child transcripts intact while viewing either. */
   private readonly histories = new Map<string, ChatEvent[]>();
+  /** Application-level queue used while the SDK is compacting. */
+  private readonly compactionQueues = new Map<string, CompactionQueuedPrompt[]>();
   /** Arguments of in-flight tool calls, used to resolve the edited file path. */
   private readonly pendingToolArgs = new Map<string, unknown>();
   /** Absolute skill paths, used to label tool calls that load or run a skill. */
@@ -72,8 +78,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.displayedSession = session;
     this.preview = undefined;
     this.histories.clear();
+    this.compactionQueues.clear();
     this.skillIndex = buildSkillIndex(session);
-    const events = this.buildHistory(session.messages);
+    const events = this.buildHistory(session);
     this.histories.set(session.sessionId, events);
     this.unsubscribe = session.subscribe((event) => this.onSessionEvent(session, event));
     const built = Date.now();
@@ -118,6 +125,19 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     }
   }
 
+  /**
+   * Authenticated models for the composer's model picker. Requested on demand
+   * by the webview, and pushed again whenever credentials or the frequently
+   * used / default markers change.
+   */
+  async postModels(): Promise<void> {
+    try {
+      this.host.post({ type: "models", catalog: await buildModelCatalog(this.runtime) });
+    } catch (error) {
+      this.host.log(`failed to collect models: ${describe(error)}`);
+    }
+  }
+
   /** Replay the persisted transcript so a resumed session is not shown empty. */
   postHistory(): void {
     const session = this.displayedSession ?? this.runtime.session;
@@ -129,7 +149,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       this.postEntryIds();
       return;
     }
-    const events = this.histories.get(session.sessionId) ?? this.buildHistory(session.messages);
+    const events = this.histories.get(session.sessionId) ?? this.buildHistory(session);
     this.histories.set(session.sessionId, events);
     // A replay of a still-streaming session must not close its open work
     // block in the webview; live events keep appending to the same card.
@@ -153,7 +173,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       return;
     }
     try {
-      const ids = userEntryIds(session.sessionManager.buildContextEntries());
+      const ids = userEntryIds(session.sessionManager.getBranch());
       const labels = ids.map((id) => session.sessionManager.getLabel(id));
       this.host.post({ type: "entryIds", ids, labels });
     } catch (error) {
@@ -189,12 +209,13 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       modelId: model?.id,
       providerId: model?.provider,
       thinkingLevel: session.thinkingLevel,
-      // Keep the composer selector aligned with the same capability check
-      // used by pickThinkingLevel(): one fixed level is not selectable.
-      canSelectThinkingLevel: session.getAvailableThinkingLevels().length > 1,
+      // The composer picker offers exactly these; a model with one fixed level
+      // hides the selector instead of opening a dead end.
+      thinkingLevels: session.getAvailableThinkingLevels(),
       // In preview the live run keeps going, but the transcript on screen is
       // static history: no stop button, no working indicator.
       isStreaming: preview ? false : session.isStreaming,
+      isCompacting: preview ? false : session.isCompacting,
       needsAuth,
       messageCount: session.messages.length,
       delegation: preview ? undefined : this.delegationState(session),
@@ -238,19 +259,130 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     }
   }
 
-  /** History replay with the current skill index applied to tool cards. */
-  private buildHistory(messages: readonly unknown[]): ChatEvent[] {
-    return buildHistoryEvents(messages, this.runtime.cwd, this.skillIndex);
+  /** Full active-branch replay with the current skill index applied to tool cards. */
+  private buildHistory(session: AgentSession): ChatEvent[] {
+    return buildHistoryEntryEvents(session.sessionManager.getBranch(), this.runtime.cwd, this.skillIndex);
   }
 
   private emit(session: AgentSession, event: ChatEvent): void {
     if (this.disposed) return;
-    const history = this.histories.get(session.sessionId) ?? this.buildHistory(session.messages);
+    const history = this.histories.get(session.sessionId) ?? this.buildHistory(session);
     history.push(event);
     this.histories.set(session.sessionId, history);
     if (!this.preview && (this.displayedSession ?? this.runtime.session) === session) {
       this.host.post({ type: "event", event });
     }
+  }
+
+  /** Merge the host-owned compaction queue with the SDK's normal queues. */
+  private emitCombinedQueueUpdate(
+    session: AgentSession,
+    steering: readonly string[] = session.getSteeringMessages(),
+    followUp: readonly string[] = session.getFollowUpMessages(),
+  ): void {
+    const local = this.compactionQueues.get(session.sessionId) ?? [];
+    this.emit(session, {
+      kind: "queue_update",
+      steering: [
+        ...steering.map(collapseSkillInvocation),
+        ...local.filter((item) => item.mode === "steer").map((item) => item.text),
+      ],
+      followUp: [
+        ...followUp.map(collapseSkillInvocation),
+        ...local.filter((item) => item.mode === "followUp").map((item) => item.text),
+      ],
+    });
+  }
+
+  private queueDuringCompaction(session: AgentSession, text: string, mode: "steer" | "followUp"): void {
+    const queue = this.compactionQueues.get(session.sessionId) ?? [];
+    queue.push({ text, mode });
+    this.compactionQueues.set(session.sessionId, queue);
+    this.emit(session, { kind: "user_message", text, mode, skill: invokedSkill(this.skillIndex, text) });
+    this.emitCombinedQueueUpdate(session);
+  }
+
+  /**
+   * Move compaction-time submissions into the SDK queue. Manual compaction is
+   * idle afterwards, so its first queued message starts a run; automatic
+   * compaction stays inside the existing run and accepts every item directly.
+   */
+  private async flushCompactionQueue(session: AgentSession, willRetry: boolean): Promise<void> {
+    const sessionId = session.sessionId;
+    const queued = [...(this.compactionQueues.get(sessionId) ?? [])];
+    if (queued.length === 0) return;
+
+    const restore = (items: CompactionQueuedPrompt[], error: unknown) => {
+      this.compactionQueues.set(sessionId, items);
+      session.clearQueue();
+      this.reportError(session, "failed to send message queued during compaction", error);
+      void this.postState();
+    };
+
+    // Auto-compaction is part of an active run (including overflow retry).
+    if (willRetry || session.isStreaming) {
+      try {
+        for (const item of queued) {
+          if (item.mode === "followUp") await session.followUp(item.text);
+          else await session.steer(item.text);
+        }
+        this.compactionQueues.delete(sessionId);
+        this.emitCombinedQueueUpdate(session);
+      } catch (error) {
+        restore(queued, error);
+      }
+      return;
+    }
+
+    // Manual compaction has no active agent loop. Start the first item as a
+    // normal prompt, then transfer the rest once preflight has succeeded.
+    const [first, ...rest] = queued;
+    if (!first) return;
+    let resolvePreflight!: (success: boolean) => void;
+    const preflight = new Promise<boolean>((resolve) => {
+      resolvePreflight = resolve;
+    });
+    let started = false;
+    let failed = false;
+    const promptPromise = session
+      .prompt(first.text, { preflightResult: resolvePreflight })
+      .catch((error) => {
+        failed = true;
+        restore(started ? rest : queued, error);
+      });
+
+    const preflightSucceeded = await preflight;
+    started = preflightSucceeded;
+    if (!preflightSucceeded) {
+      await promptPromise;
+      return;
+    }
+
+    if (rest.length > 0) this.compactionQueues.set(sessionId, rest);
+    else this.compactionQueues.delete(sessionId);
+    this.emitCombinedQueueUpdate(session);
+    try {
+      for (const item of rest) {
+        if (failed) return;
+        if (item.mode === "followUp") await session.followUp(item.text);
+        else await session.steer(item.text);
+      }
+      if (!failed) {
+        this.compactionQueues.delete(sessionId);
+        this.emitCombinedQueueUpdate(session);
+      }
+    } catch (error) {
+      failed = true;
+      restore(rest, error);
+    }
+    void promptPromise.finally(() => this.postState());
+  }
+
+  private isExtensionCommand(session: AgentSession, text: string): boolean {
+    if (!text.startsWith("/")) return false;
+    const separator = text.indexOf(" ");
+    const name = separator === -1 ? text.slice(1) : text.slice(1, separator);
+    return session.extensionRunner.getRegisteredCommands().some((command) => command.invocationName === name);
   }
 
   private onSessionEvent(session: AgentSession, event: AgentSessionEvent): void {
@@ -344,19 +476,34 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       case "queue_update":
         // The SDK queues `/skill:*` prompts after expanding them to a full
         // `<skill>` block. Keep queue reconciliation on the short command form
-        // emitted to the webview, otherwise the pending bubble looks consumed
-        // immediately and the Recall button disappears.
-        this.emit(session, {
-          kind: "queue_update",
-          steering: event.steering.map(collapseSkillInvocation),
-          followUp: event.followUp.map(collapseSkillInvocation),
-        });
+        // and include submissions held by the host during compaction.
+        this.emitCombinedQueueUpdate(session, event.steering, event.followUp);
         break;
       case "compaction_start":
-        this.emit(session, { kind: "status", text: `compacting context (${event.reason})...` });
+        // `/compact` already emits a localized command-scoped start notice.
+        // Unlike automatic compaction, the manual API does not emit
+        // agent_settled, so grouping its lifecycle notice in a work block would
+        // leave that block permanently running. Completion is shown by the
+        // persistent compaction boundary emitted from compaction_end.
+        if (event.reason !== "manual") {
+          this.emit(session, { kind: "status", text: `compacting context (${event.reason})...` });
+        }
+        void this.postState();
         break;
       case "compaction_end":
-        this.emit(session, { kind: "status", text: event.errorMessage ? `compaction failed: ${event.errorMessage}` : "compaction done" });
+        if (event.reason !== "manual") {
+          this.emit(session, { kind: "status", text: event.errorMessage ? `compaction failed: ${event.errorMessage}` : "compaction done" });
+        }
+        if (event.result) {
+          this.emit(session, {
+            kind: "compaction_boundary",
+            summary: event.result.summary,
+            tokensBefore: event.result.tokensBefore,
+            estimatedTokensAfter: event.result.estimatedTokensAfter,
+          });
+        }
+        void this.postState();
+        void this.flushCompactionQueue(session, event.willRetry);
         break;
       case "auto_retry_start":
         this.emit(session, { kind: "status", text: `retry ${event.attempt}/${event.maxAttempts}: ${event.errorMessage}` });
@@ -455,14 +602,15 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         break;
       case "dequeue": {
         const session = this.runtime.session;
-        const queued = [...session.getSteeringMessages(), ...session.getFollowUpMessages()];
+        const sdkQueued = [...session.getSteeringMessages(), ...session.getFollowUpMessages()].map(collapseSkillInvocation);
+        const compactingQueued = this.compactionQueues.get(session.sessionId) ?? [];
+        const queued = [...sdkQueued, ...compactingQueued.map((item) => item.text)];
         if (queued.length === 0) break;
         // Tell the webview first so pending bubbles are removed before the
         // queue_update from clearQueue() arrives (which would otherwise
-        // treat them as consumed and pin them into the transcript). Skill
-        // prompts must also return in the command form the user originally
-        // entered, not as the SDK's expanded `<skill>` block.
-        this.host.post({ type: "dequeued", texts: queued.map(collapseSkillInvocation) });
+        // treat them as consumed and pin them into the transcript).
+        this.host.post({ type: "dequeued", texts: queued });
+        this.compactionQueues.delete(session.sessionId);
         session.clearQueue();
         break;
       }
@@ -511,6 +659,12 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       case "entryAction":
         await this.runEntryAction(message.action, message.entryId);
         break;
+      case "listModels":
+        await this.postModels();
+        break;
+      case "setModel":
+        await this.setModel(message.provider, message.modelId);
+        break;
       case "pickModel":
         await this.pickModel();
         break;
@@ -520,18 +674,22 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       case "logout":
         await this.logout();
         break;
-      case "pickThinkingLevel":
-        await this.pickThinkingLevel();
+      case "setThinkingLevel":
+        this.setThinkingLevel(message.level);
+        await this.postState();
         break;
       case "openSettings": {
-        const status = (text: string) => this.emit(this.runtime.session, { kind: "status", text, scope: "command" });
+        const status = (text: string) => this.emitCommandStatus(text);
         await openSettingsMenu(this.runtime, {
           login: async () => {
             await this.login();
           },
           status,
           help: () => status(formatHelp()),
-          manageScopedModels: () => manageScopedModels(this.runtime, this.modelPickerUi()),
+          manageScopedModels: async () => {
+            await manageScopedModels(this.runtime, this.modelPickerUi());
+            await this.postModels();
+          },
           commandsChanged: () => this.postCommands(),
         });
         await this.postState();
@@ -549,6 +707,11 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private async abortDisplayedSession(): Promise<void> {
     const run = this.activeDelegation;
     if (this.preview) return; // preview shows a static transcript; nothing to stop
+    const displayed = this.displayedSession ?? this.runtime.session;
+    if (displayed.isCompacting) {
+      displayed.abortCompaction();
+      return;
+    }
     if (!run) {
       await this.runtime.session.abort();
       return;
@@ -568,7 +731,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    * not be replaced (switch/new/fork would abort the run mid-flight).
    */
   private guardStreaming(): boolean {
-    if (!this.runtime.session.isStreaming) return false;
+    if (!this.runtime.session.isStreaming && !this.runtime.session.isCompacting) return false;
     vscode.window.showWarningMessage(t("singleSessionGuard"));
     return true;
   }
@@ -603,10 +766,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    */
   private async previewSession(file: string): Promise<void> {
     try {
-      const entries = parseSessionEntries(await readFile(file, "utf8"));
-      migrateSessionEntries(entries);
-      const context = buildSessionContext(entries.filter((entry): entry is SessionEntry => entry.type !== "session"));
-      const events = this.buildHistory(context.messages);
+      const manager = SessionManager.open(file);
+      const events = buildHistoryEntryEvents(manager.getBranch(), this.runtime.cwd, this.skillIndex);
       const firstUser = events.find((event) => event.kind === "user_message") as { text?: string } | undefined;
       this.preview = { file, title: (firstUser?.text ?? "").split("\n")[0] ?? "", events };
       this.postHistory();
@@ -680,13 +841,20 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       return;
     }
 
-    const streaming = this.runtime.session.isStreaming;
+    const session = this.runtime.session;
+    const extensionCommand = this.isExtensionCommand(session, trimmed);
+    if (session.isCompacting && !extensionCommand) {
+      this.queueDuringCompaction(session, trimmed, streamingBehavior ?? "followUp");
+      return;
+    }
+
+    const streaming = session.isStreaming && !extensionCommand;
     const mode = streaming ? (streamingBehavior ?? "followUp") : undefined;
     // The SDK expands `/skill:<name>` inside prompt(); the text emitted here is
     // still the command form, so the skill is resolved from the command itself.
-    this.emit(this.runtime.session, { kind: "user_message", text: trimmed, mode, skill: invokedSkill(this.skillIndex, trimmed) });
+    this.emit(session, { kind: "user_message", text: trimmed, mode, skill: invokedSkill(this.skillIndex, trimmed) });
     try {
-      await this.runtime.session.prompt(trimmed, {
+      await session.prompt(trimmed, {
         streamingBehavior: mode,
       });
     } catch (error) {
@@ -699,13 +867,19 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   /** Sign in to a provider; on success re-check availability and refresh the UI. */
   async login(): Promise<boolean> {
     const changed = await loginFlow(this.runtime, (message) => this.host.log(message));
-    if (changed) await this.postState();
+    if (changed) {
+      await this.postModels();
+      await this.postState();
+    }
     return changed;
   }
 
   async logout(): Promise<boolean> {
     const changed = await logoutFlow(this.runtime, (message) => this.host.log(message));
-    if (changed) await this.postState();
+    if (changed) {
+      await this.postModels();
+      await this.postState();
+    }
     return changed;
   }
 
@@ -733,13 +907,21 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
           await this.runtime.setModel(providerId!, rest.join("/"));
           return;
         }
-        await this.pickModel();
+        // The picker lives in the composer now; `/model` just opens it there.
+        this.host.post({ type: "openPicker", picker: "model" });
       },
       manageScopedModels: async () => {
         await manageScopedModels(this.runtime, this.modelPickerUi());
+        await this.postModels();
         await this.postState();
       },
-      pickThinkingLevel: async () => this.pickThinkingLevel(),
+      pickThinkingLevel: async () => {
+        if (this.runtime.session.getAvailableThinkingLevels().length <= 1) {
+          vscode.window.showInformationMessage(t("noThinkingLevels"));
+          return;
+        }
+        this.host.post({ type: "openPicker", picker: "thinking" });
+      },
       login: async () => {
         await this.login();
       },
@@ -763,41 +945,53 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       login: async () => {
         await this.login();
       },
-      status: (text: string) => this.emit(this.runtime.session, { kind: "status", text, scope: "command" }),
+      status: (text: string) => this.emitCommandStatus(text),
     };
   }
 
-  private async pickModel(): Promise<void> {
-    if (await pickModel(this.runtime, this.modelPickerUi())) await this.postState();
+  /** One-line command notice in the transcript (picker actions, settings). */
+  private emitCommandStatus(text: string): void {
+    this.emit(this.runtime.session, { kind: "status", text, scope: "command" });
   }
 
-  private async pickThinkingLevel(): Promise<void> {
-    const session = this.runtime.session;
-    const levels = session.getAvailableThinkingLevels();
-    if (levels.length <= 1) {
-      vscode.window.showInformationMessage(t("noThinkingLevels"));
+  /**
+   * The full native picker, opened from "other models" in the composer menu.
+   * It can also change the frequently used list and the default model, so the
+   * quick menu's contents are rebuilt afterwards.
+   */
+  private async pickModel(): Promise<void> {
+    const changed = await pickModel(this.runtime, this.modelPickerUi());
+    await this.postModels();
+    if (changed) await this.postState();
+  }
+
+  private async setModel(provider: string, modelId: string): Promise<void> {
+    try {
+      await this.runtime.setModel(provider, modelId);
+    } catch (error) {
+      this.reportError(this.runtime.session, "model switch failed", error, "command");
       return;
     }
-    const picked = await vscode.window.showQuickPick(
-      levels.map((level) => {
-        const isCurrent = level === session.thinkingLevel;
-        return {
-          label: `${isCurrent ? "$(check) " : ""}${level}`,
-          description: isCurrent ? t("current") : undefined,
-          level,
-        };
-      }),
-      { title: t("selectThinkingTitle") },
-    );
-    if (!picked) return;
-    session.setThinkingLevel(picked.level);
     await this.postState();
+  }
+
+  /** Apply a level chosen in the webview, ignoring anything the model rejects. */
+  private setThinkingLevel(requested: string): void {
+    const session = this.runtime.session;
+    const level = session.getAvailableThinkingLevels().find((candidate) => candidate === requested);
+    if (!level) {
+      this.host.log(`ignored unsupported thinking level: ${requested}`);
+      return;
+    }
+    session.setThinkingLevel(level);
   }
 
   private async listSessions(): Promise<SessionListItem[]> {
     const sessions = await SessionManager.list(this.runtime.cwd);
     const displayedFile = this.preview?.file ?? (this.displayedSession ?? this.runtime.session).sessionFile;
-    const runningFile = this.runtime.session.isStreaming ? this.runtime.session.sessionFile : undefined;
+    const runningFile = this.runtime.session.isStreaming || this.runtime.session.isCompacting
+      ? this.runtime.session.sessionFile
+      : undefined;
     const run = this.activeDelegation;
     const items: SessionListItem[] = sessions.map((info) => ({
       file: info.path,
@@ -825,7 +1019,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         title: this.sessionDisplayName(live) ?? t("emptySessionTitle"),
         timestamp: new Date().toISOString(),
         current: live.sessionFile === displayedFile,
-        running: live.isStreaming,
+        running: live.isStreaming || live.isCompacting,
         delegationRole: undefined,
       });
     }
@@ -1037,75 +1231,108 @@ function resultText(result: unknown): string {
 export function buildHistoryEvents(messages: readonly unknown[], cwd: string, skills: SkillIndex = EMPTY_SKILL_INDEX): ChatEvent[] {
   const events: ChatEvent[] = [];
   const toolArgs = new Map<string, unknown>();
+  for (const message of messages) appendHistoryMessage(events, toolArgs, message, cwd, skills);
+  return events;
+}
 
-  for (const raw of messages) {
-    const message = raw as {
-      role?: string;
-      content?: unknown;
-      toolCallId?: string;
-      toolName?: string;
-      isError?: boolean;
-      stopReason?: string;
-      errorMessage?: string;
-      details?: { patch?: string; path?: string };
-    };
-
-    if (message.role === "user") {
-      const { text, skill } = readSkillInvocation(contentText(message.content));
-      if (text.trim()) events.push({ kind: "user_message", text, skill });
-      continue;
-    }
-
-    if (message.role === "assistant") {
-      const parts = Array.isArray(message.content) ? (message.content as Array<Record<string, unknown>>) : [];
-      const thinking = parts
-        .filter((part) => part.type === "thinking" && typeof part.thinking === "string")
-        .map((part) => part.thinking as string)
-        .join("\n\n");
-      if (thinking.trim()) events.push({ kind: "thinking_message", text: thinking });
-      const text = parts
-        .filter((part) => part.type === "text" && typeof part.text === "string")
-        .map((part) => part.text as string)
-        .join("");
-      if (text.trim()) events.push({ kind: "assistant_message", text });
-      for (const part of parts) {
-        if (part.type === "toolCall" && typeof part.id === "string") toolArgs.set(part.id, part.arguments);
-      }
-      if (message.stopReason === "error" && message.errorMessage) {
-        events.push({ kind: "error", text: message.errorMessage });
-      }
-      continue;
-    }
-
-    if (message.role === "toolResult" && typeof message.toolCallId === "string") {
-      const args = toolArgs.get(message.toolCallId);
+/**
+ * Replay the complete active branch rather than the compaction-aware model
+ * context. Compaction entries become visible boundaries; their retainedTail is
+ * deliberately not expanded because those messages already exist earlier in a
+ * regular Pi session and would otherwise be duplicated.
+ */
+export function buildHistoryEntryEvents(entries: readonly SessionEntry[], cwd: string, skills: SkillIndex = EMPTY_SKILL_INDEX): ChatEvent[] {
+  const events: ChatEvent[] = [];
+  const toolArgs = new Map<string, unknown>();
+  for (const entry of entries) {
+    if (entry.type === "compaction") {
       events.push({
-        kind: "tool_end",
-        id: message.toolCallId,
-        name: message.toolName ?? "tool",
-        isError: Boolean(message.isError),
-        text: contentText(message.content),
-        args,
-        patch: typeof message.details?.patch === "string" ? message.details.patch : undefined,
-        path: toolFilePath(args, cwd),
-        skill: matchSkill(skills, message.toolName ?? "", args, cwd),
+        kind: "compaction_boundary",
+        summary: entry.summary,
+        tokensBefore: entry.tokensBefore,
       });
+      continue;
+    }
+    for (const message of sessionEntryToContextMessages(entry)) {
+      appendHistoryMessage(events, toolArgs, message, cwd, skills);
     }
   }
-
   return events;
+}
+
+function appendHistoryMessage(
+  events: ChatEvent[],
+  toolArgs: Map<string, unknown>,
+  raw: unknown,
+  cwd: string,
+  skills: SkillIndex,
+): void {
+  const message = raw as {
+    role?: string;
+    content?: unknown;
+    toolCallId?: string;
+    toolName?: string;
+    isError?: boolean;
+    stopReason?: string;
+    errorMessage?: string;
+    details?: { patch?: string; path?: string };
+  };
+
+  if (message.role === "user") {
+    const { text, skill } = readSkillInvocation(contentText(message.content));
+    if (text.trim()) events.push({ kind: "user_message", text, skill });
+    return;
+  }
+
+  if (message.role === "assistant") {
+    const parts = Array.isArray(message.content) ? (message.content as Array<Record<string, unknown>>) : [];
+    const thinking = parts
+      .filter((part) => part.type === "thinking" && typeof part.thinking === "string")
+      .map((part) => part.thinking as string)
+      .join("\n\n");
+    if (thinking.trim()) events.push({ kind: "thinking_message", text: thinking });
+    const text = parts
+      .filter((part) => part.type === "text" && typeof part.text === "string")
+      .map((part) => part.text as string)
+      .join("");
+    if (text.trim()) events.push({ kind: "assistant_message", text });
+    for (const part of parts) {
+      if (part.type === "toolCall" && typeof part.id === "string") toolArgs.set(part.id, part.arguments);
+    }
+    if (message.stopReason === "error" && message.errorMessage) {
+      events.push({ kind: "error", text: message.errorMessage });
+    }
+    return;
+  }
+
+  if (message.role === "toolResult" && typeof message.toolCallId === "string") {
+    const args = toolArgs.get(message.toolCallId);
+    events.push({
+      kind: "tool_end",
+      id: message.toolCallId,
+      name: message.toolName ?? "tool",
+      isError: Boolean(message.isError),
+      text: contentText(message.content),
+      args,
+      patch: typeof message.details?.patch === "string" ? message.details.patch : undefined,
+      path: toolFilePath(args, cwd),
+      skill: matchSkill(skills, message.toolName ?? "", args, cwd),
+    });
+  }
 }
 
 /**
  * Session-entry ids of the user bubbles a transcript shows, in the same order.
  *
- * Mirrors the `role === "user"` branch of `buildHistoryEvents` (same projection,
- * same "skip empty text" rule) so the k-th id belongs to the k-th user bubble.
- * Exported for diagnostics.
+ * Mirrors the `role === "user"` branch of `buildHistoryEntryEvents` (same
+ * projection and "skip empty text" rule) so the k-th id belongs to the k-th
+ * user bubble. Compaction entries are boundaries, not sources of retainedTail
+ * bubbles, and must therefore be skipped here too. Exported for diagnostics.
  */
 export function userEntryIds(entries: readonly SessionEntry[]): string[] {
   const ids: string[] = [];
   for (const entry of entries) {
+    if (entry.type === "compaction") continue;
     for (const message of sessionEntryToContextMessages(entry)) {
       if ((message as { role?: string }).role !== "user") continue;
       const text = collapseSkillInvocation(contentText((message as { content?: unknown }).content));

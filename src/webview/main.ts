@@ -5,6 +5,7 @@ import { getDict } from "./i18n.js";
 import { SEND_ICON, STOP_ICON } from "./icons.js";
 import { hasResources, renderResources } from "./resources-view.js";
 import { initSessions, isSessionsOpen, renderSessions } from "./sessions-view.js";
+import { closePicker, openPicker, refreshPicker, setModelCatalog, togglePicker } from "./picker.js";
 import { createOverflowGroup } from "./overflow.js";
 import {
   authEl,
@@ -56,6 +57,7 @@ const t = getDict();
 
 /** The sessions page replaces the chat: hide messages, composer and Tree. */
 function openSessions(): void {
+  closePicker();
   sessionsEl.classList.remove("hidden");
   messagesWrapEl.classList.add("hidden");
   composerEl.classList.add("hidden");
@@ -82,7 +84,7 @@ function closeSessions(): void {
  */
 function updateHeaderButtons(): void {
   const emptySession = (state.messageCount ?? 0) === 0;
-  const busy = state.isStreaming || Boolean(state.delegation) || Boolean(state.preview);
+  const busy = state.isStreaming || state.isCompacting || Boolean(state.delegation) || Boolean(state.preview);
   // "New" is pointless on an already-empty chat page, but on the sessions
   // page it doubles as "back to a fresh session", so keep it clickable there.
   newBtn.disabled = (emptySession && !isSessionsOpen()) || busy;
@@ -161,37 +163,55 @@ function applyState(next: ChatState): void {
   renderHeaderTitle();
   const childReadOnly = Boolean(state.inputDisabled) && !state.preview;
   const parentWaiting = state.delegation?.role === "parent";
-  sendBtn.innerHTML = state.isStreaming ? STOP_ICON : SEND_ICON;
-  sendBtn.title = state.isStreaming
-    ? childReadOnly
-      ? t.stopSubagentTitle
-      : parentWaiting
-        ? t.stopTaskLineTitle
-        : t.stopIconTitle
+  const active = state.isStreaming || state.isCompacting;
+  sendBtn.innerHTML = active ? STOP_ICON : SEND_ICON;
+  sendBtn.title = active
+    ? state.isCompacting
+      ? t.stopCompactionTitle
+      : childReadOnly
+        ? t.stopSubagentTitle
+        : parentWaiting
+          ? t.stopTaskLineTitle
+          : t.stopIconTitle
     : t.sendIconTitle;
-  sendBtn.classList.toggle("stop", state.isStreaming);
+  sendBtn.classList.toggle("stop", active);
   inputEl.disabled = Boolean(state.inputDisabled);
-  inputEl.placeholder = state.preview ? t.previewInputDisabled : childReadOnly ? t.subagentInputDisabled : t.inputPlaceholder;
+  inputEl.placeholder = state.preview
+    ? t.previewInputDisabled
+    : childReadOnly
+      ? t.subagentInputDisabled
+      : state.isCompacting
+        ? t.compactionInputPlaceholder
+        : t.inputPlaceholder;
   sendBtn.disabled = !state.ready || Boolean(state.preview);
-  steerBtn.classList.toggle("hidden", !state.isStreaming || childReadOnly);
-  followUpBtn.classList.toggle("hidden", !state.isStreaming || childReadOnly);
+  steerBtn.classList.toggle("hidden", !state.isStreaming || state.isCompacting || childReadOnly);
+  followUpBtn.classList.toggle("hidden", !active || childReadOnly);
   updateRecallButton();
   steerBtn.title = parentWaiting ? t.parentSteerTitle : t.steerTitle;
-  followUpBtn.title = parentWaiting ? t.parentFollowUpTitle : t.followUpTitle;
+  followUpBtn.title = state.isCompacting
+    ? t.queueAfterCompactionTitle
+    : parentWaiting
+      ? t.parentFollowUpTitle
+      : t.followUpTitle;
   // Model / thinking values speak for themselves; no label prefix needed.
   modelBtn.textContent = state.modelId ?? "-";
   modelBtn.title = state.providerId ? `${t.modelTitle}: ${state.providerId}/${state.modelId}` : t.modelTitle;
   thinkingBtn.textContent = state.thinkingLevel ?? "-";
   // Models without selectable thinking levels report only one fixed value
   // (usually "off"); hiding the control avoids a dead-end picker.
-  thinkingBtn.classList.toggle("hidden", !state.canSelectThinkingLevel);
+  const canSelectThinkingLevel = (state.thinkingLevels?.length ?? 0) > 1;
+  thinkingBtn.classList.toggle("hidden", !canSelectThinkingLevel);
   modelBtn.disabled = childReadOnly || Boolean(state.preview);
-  thinkingBtn.disabled = !state.canSelectThinkingLevel || childReadOnly || Boolean(state.preview);
+  thinkingBtn.disabled = !canSelectThinkingLevel || childReadOnly || Boolean(state.preview);
+  // A disabled chip must not keep its popup open, and an open one has to show
+  // the new current model / level.
+  if (modelBtn.disabled && thinkingBtn.disabled) closePicker();
+  else refreshPicker();
   // A brand-new empty session cannot be re-created or navigated, and
   // single-task-line mode forbids switching mid-run: shown disabled.
   updateHeaderButtons();
   // Per-message tree actions need a settled, live transcript to act on.
-  setEntryActionsLocked(state.isStreaming || Boolean(state.delegation) || Boolean(state.preview));
+  setEntryActionsLocked(active || Boolean(state.delegation) || Boolean(state.preview));
   renderDelegationBar();
   applyAuthGate();
   renderStatusLine();
@@ -254,9 +274,9 @@ new ResizeObserver((entries) => {
 initComposer({ beforeSend: closeSessions });
 initSessions({ close: closeSessions, onResume: clearFileRefs });
 
-/** While streaming the send button becomes a stop button. */
+/** While running or compacting the send button becomes a stop button. */
 sendBtn.addEventListener("click", () => {
-  if (state.isStreaming) post({ type: "abort" });
+  if (state.isStreaming || state.isCompacting) post({ type: "abort" });
   else if (!state.inputDisabled) send();
 });
 steerBtn.addEventListener("click", () => send("steer"));
@@ -273,8 +293,8 @@ function prependToInput(texts: string[]): void {
   const combined = [...texts, inputEl.value].filter((part) => part.trim()).join("\n\n");
   setInput(combined);
 }
-modelBtn.addEventListener("click", () => post({ type: "pickModel" }));
-thinkingBtn.addEventListener("click", () => post({ type: "pickThinkingLevel" }));
+modelBtn.addEventListener("click", () => togglePicker("model"));
+thinkingBtn.addEventListener("click", () => togglePicker("thinking"));
 newBtn.addEventListener("click", () => {
   closeSessions();
   clearFileRefs();
@@ -306,6 +326,8 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   } else if (message.type === "history") applyHistory(message.events, message.live, message.systemPromptOverridden);
   else if (message.type === "entryIds") assignEntryIds(message.ids, message.labels);
   else if (message.type === "sessions") renderSessions(message.items);
+  else if (message.type === "models") setModelCatalog(message.catalog);
+  else if (message.type === "openPicker") openPicker(message.picker);
   else if (message.type === "commands") setSlashCommands(message.items);
   else if (message.type === "projectFiles") onProjectFiles(message.requestId, message.items, message.error);
   else if (message.type === "resources") {

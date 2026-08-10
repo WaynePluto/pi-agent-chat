@@ -55,6 +55,7 @@ root.innerHTML = `
       <button id="btn-composer-more" class="overflow-toggle hidden" title="${t.moreActions}" aria-label="${t.moreActions}" aria-expanded="false">${MORE_ICON}</button>
       <button id="btn-send" class="icon-button" title="${t.sendIconTitle}">${SEND_ICON}</button>
       <div id="composer-menu" class="overflow-menu hidden"></div>
+      <div id="picker" class="picker hidden" role="dialog" tabindex="-1"></div>
     </div>
     <div id="statusline" class="statusline"></div>
   </footer>
@@ -98,4 +99,5 @@ export const headerMenuEl = byId("header-menu");
 export const composerActionsEl = byId("composer-actions");
 export const composerMoreBtn = byId<HTMLButtonElement>("btn-composer-more");
 export const composerMenuEl = byId("composer-menu");
+export const pickerEl = byId("picker");
 export const settingsBtn = byId<HTMLButtonElement>("btn-settings");

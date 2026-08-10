@@ -424,6 +424,79 @@ button:focus-visible {
   padding: 6px 10px;
 }
 
+/* Persistent marker appended after manual or automatic context compaction.
+   It is a transcript checkpoint, not another agent work block. */
+.compaction-boundary {
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-top: 1px solid var(--vscode-editorWarning-foreground);
+  border-bottom: 1px solid var(--vscode-editorWarning-foreground);
+  background: var(--vscode-textBlockQuote-background, var(--vscode-editorWidget-background));
+}
+
+.compaction-boundary .card-header {
+  color: var(--vscode-editorWarning-foreground);
+}
+
+.compaction-boundary .card-status {
+  color: var(--vscode-descriptionForeground);
+}
+
+.compaction-boundary .card-body {
+  border-top: 1px solid var(--border);
+  max-height: 420px;
+}
+
+.compaction-note {
+  margin: 0 0 8px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.compaction-summary-label {
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.compaction-summary {
+  white-space: normal;
+}
+
+.compaction-summary > :first-child {
+  margin-top: 0;
+}
+
+.compaction-summary > :last-child {
+  margin-bottom: 0;
+}
+
+.compaction-summary p,
+.compaction-summary ul,
+.compaction-summary ol,
+.compaction-summary blockquote,
+.compaction-summary pre {
+  margin: 0.4em 0;
+}
+
+.compaction-summary h1,
+.compaction-summary h2,
+.compaction-summary h3,
+.compaction-summary h4 {
+  margin: 0.8em 0 0.3em;
+  font-size: 1.05em;
+}
+
+.compaction-summary code,
+.compaction-summary pre {
+  font-family: var(--vscode-editor-font-family);
+}
+
+.compaction-summary pre {
+  overflow-x: auto;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--code-bg);
+}
+
 .bubble {
   white-space: pre-wrap;
   word-break: break-word;
@@ -1163,6 +1236,115 @@ textarea:disabled {
   justify-content: flex-start;
   text-align: left;
   border-radius: 3px;
+}
+
+/* ---------------------------------------------------------------- */
+/* Composer quick menus: model and thinking level. Deliberately small */
+/* and anchored to their chip, like the editor's own chat controls.   */
+/* ---------------------------------------------------------------- */
+
+.picker {
+  position: absolute;
+  /* `left` is set from the chip's position; the popup keeps its own width. */
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 21;
+  display: flex;
+  flex-direction: column;
+  min-width: 168px;
+  max-width: min(320px, 100%);
+  max-height: min(46vh, 320px);
+  padding: 4px;
+  border: 1px solid var(--widget-border);
+  border-radius: 4px;
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+  box-shadow: 0 2px 8px var(--shadow);
+  overflow: hidden;
+}
+
+.picker:focus-visible {
+  outline: none;
+}
+
+.picker-title {
+  flex: 0 0 auto;
+  padding: 3px 8px 5px;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+}
+
+.picker-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.picker-row:hover {
+  background: var(--vscode-list-hoverBackground, var(--hover-bg));
+}
+
+.picker-row.selected {
+  background: var(--vscode-list-activeSelectionBackground, var(--hover-bg-strong));
+  color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+
+/* Fixed gutter so every row's name starts at the same x, checked or not. */
+.picker-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 14px;
+}
+
+.picker-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Provider (model menu) or "default" marker (thinking menu). */
+.picker-note {
+  flex: 0 0 auto;
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+}
+
+/* Hands over to the native picker: search, capabilities, star and pin. */
+.picker-more {
+  flex: 0 0 auto;
+  margin-top: 4px;
+  padding: 4px 8px 4px 28px;
+  text-align: left;
+  color: var(--vscode-foreground);
+  background: transparent;
+  border-top: 1px solid var(--widget-border);
+  border-radius: 0;
+}
+
+.picker-more:hover:not(:disabled) {
+  color: var(--vscode-foreground);
+  background: var(--vscode-list-hoverBackground, var(--hover-bg));
+}
+
+.picker-empty {
+  padding: 6px 8px;
+  color: var(--vscode-descriptionForeground);
+  white-space: normal;
 }
 
 /* CLI-style status line under the composer */

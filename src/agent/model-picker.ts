@@ -1,14 +1,23 @@
 import * as vscode from "vscode";
+import type { ModelCatalog } from "../shared/protocol.js";
 import { t, tf } from "./i18n.js";
 import type { PiRuntime } from "./runtime.js";
 
 /**
- * Model selection UI.
+ * Model selection, split over two surfaces.
  *
- * Mirrors the CLI: the picker lists the frequently used ("scoped") models
- * first, and `/scoped-models` can batch-edit that list. Both read and write
- * the shared `enabledModels` setting in `~/.pi/agent/settings.json`, so the
- * sidebar and the terminal agree on what is frequently used.
+ * - The composer chip opens a small webview menu (`webview/picker.ts`) that
+ *   switches between the frequently used models. It is a quick switcher: a
+ *   native QuickPick opens at the top of the window, far from the chip that
+ *   was clicked, which is exactly what that menu avoids.
+ * - "Other models" in that menu opens the full native picker below: every
+ *   authenticated model with its capabilities, plus the ⭐ (frequently used)
+ *   and 📌 (startup default) row actions.
+ *
+ * Both mirror the CLI: the frequently used ("scoped") models come first, and
+ * `/scoped-models` batch-edits that list. Everything is stored in the shared
+ * `enabledModels` setting in `~/.pi/agent/settings.json`, so the sidebar and
+ * the terminal agree on what is frequently used.
  */
 
 export interface ModelPickerUi {
@@ -23,6 +32,16 @@ type AvailableModel = Awaited<ReturnType<PiRuntime["getAvailableModels"]>>[numbe
 /** Canonical `provider/modelId` reference, the format persisted by the CLI. */
 function modelRef(model: { provider: string; id: string }): string {
   return `${model.provider}/${model.id}`;
+}
+
+/**
+ * Models for the composer's quick menu: exactly the frequently used
+ * ("scoped") ones, in their configured order — which is also the CLI's Ctrl+P
+ * cycling order. When nothing is scoped the menu stays empty on purpose: the
+ * full catalogue belongs in the native picker, not in a small popup.
+ */
+export async function buildModelCatalog(runtime: PiRuntime): Promise<ModelCatalog> {
+  return { items: runtime.scopedModels.map(({ model }) => ({ provider: model.provider, id: model.id })) };
 }
 
 /** QuickInputButton extension carrying which per-row action was clicked. */
@@ -125,7 +144,7 @@ function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelIte
 }
 
 /**
- * Show the model picker and apply the choice.
+ * Show the full model picker and apply the choice.
  *
  * Returns `true` when the active model changed. Per-row actions stay inside
  * the picker: the star toggles the frequently used group, and the pin writes
@@ -148,7 +167,7 @@ export async function pickModel(runtime: PiRuntime, ui: ModelPickerUi): Promise<
       if (!model) return;
       const action = (event.button as ModelActionButton).action;
       if (action === "toggle-favorite") {
-        const update = await toggleFavoriteModel(runtime, model, models);
+        const update = await toggleFavoriteModel(runtime, model, models.length);
         ui.status(update === "cleared" ? t("favoriteModelsCleared") : tf("favoriteModelSet", modelRef(model), update === "added"));
       } else {
         await runtime.setDefaultModel(model.provider, model.id);
@@ -183,13 +202,13 @@ type FavoriteUpdate = "added" | "removed" | "cleared";
 async function toggleFavoriteModel(
   runtime: PiRuntime,
   model: AvailableModel,
-  allModels: readonly AvailableModel[],
+  totalModels: number,
 ): Promise<FavoriteUpdate> {
   const reference = modelRef(model);
   const favorites = [...new Set(runtime.scopedModels.map((scoped) => modelRef(scoped.model)))];
   const isFavorite = favorites.includes(reference);
   const next = isFavorite ? favorites.filter((item) => item !== reference) : [...favorites, reference];
-  const clears = next.length === 0 || next.length === allModels.length;
+  const clears = next.length === 0 || next.length === totalModels;
   await runtime.setEnabledModels(clears ? undefined : next);
   return clears ? "cleared" : isFavorite ? "removed" : "added";
 }

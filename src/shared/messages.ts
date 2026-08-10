@@ -2,9 +2,11 @@
  * Localized strings shown by the **extension host**: native dialogs, QuickPick
  * titles and the status notices it pushes into the transcript.
  *
- * Kept next to the webview dictionary so both sides stay worded consistently.
- * Like `protocol.ts`, this file must stay dependency-free — the webview bundle
- * imports it too and cannot pull in Node-only code.
+ * Kept next to the webview dictionary so both sides stay worded consistently;
+ * the entries the composer's model picker also renders are pulled straight
+ * from here by `webview/i18n.ts`. Like `protocol.ts`, this file must stay
+ * dependency-free — the webview bundle imports it too and cannot pull in
+ * Node-only code.
  *
  * Deliberately NOT localized:
  * - `/` command names and descriptions (`agent/commands.ts`), which mirror the
@@ -63,7 +65,6 @@ export const sharedMessages = {
   },
   signInAction: { en: "Sign in", zh: "登录" },
   selectModelTitle: { en: "Pi Agent Chat: select model", zh: "Pi Agent Chat：选择模型" },
-  selectThinkingTitle: { en: "Pi Agent Chat: select thinking level", zh: "Pi Agent Chat：选择思考等级" },
   noThinkingLevels: {
     en: "Pi Agent Chat: the current model has no selectable thinking levels.",
     zh: "Pi Agent Chat：当前模型没有可选的思考等级。",
@@ -82,6 +83,8 @@ export const sharedMessages = {
     zh: "已清空常用模型：选择器将列出全部模型",
   },
   setDefaultModel: { en: "Set current model as default", zh: "将当前模型设为默认" },
+  /** Composer menu row that hands over to the full native model picker. */
+  otherModels: { en: "Other models...", zh: "其他模型…" },
   defaultModelMarker: { en: "default", zh: "默认" },
   openExportedHtml: { en: "Open in browser", zh: "在浏览器中打开" },
   modalityText: { en: "text", zh: "文本" },
@@ -337,10 +340,6 @@ export const sharedTemplates = {
       `${input} · ${context} context · ${maxOutput} max output`,
     zh: (input: string, context: string, maxOutput: string) =>
       `${input} · ${context} 上下文 · ${maxOutput} 最大输出`,
-  },
-  compactionDone: {
-    en: (before: number, after: number) => `compaction done: ${before} -> ~${after} tokens`,
-    zh: (before: number, after: number) => `上下文压缩完成：${before} -> 约 ${after} tokens`,
   },
   sessionRenamed: {
     en: (name: string) => `session renamed to "${name}"`,

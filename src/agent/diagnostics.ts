@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAgentSession, getAgentDir, getPackageDir, SessionManager } from "@earendil-works/pi-coding-agent";
-import { buildHistoryEvents } from "./bridge.js";
+import { buildHistoryEntryEvents } from "./bridge.js";
 import { collectSlashCommands } from "./commands.js";
 import { describe } from "./errors.js";
 import { buildTreeChoices } from "./session-tree.js";
@@ -132,7 +132,9 @@ export async function runHistoryReplayTest(cwd: string): Promise<DiagnosticResul
       cwd,
       sessionManager: SessionManager.open(sessions[0]!.path),
     });
-    const events = buildHistoryEvents(session.messages, cwd);
+    const contextMessageCount = session.messages.length;
+    const branchEntries = session.sessionManager.getBranch();
+    const events = buildHistoryEntryEvents(branchEntries, cwd);
     session.dispose();
     const counts = events.reduce<Record<string, number>>((acc, event) => {
       acc[event.kind] = (acc[event.kind] ?? 0) + 1;
@@ -142,7 +144,7 @@ export async function runHistoryReplayTest(cwd: string): Promise<DiagnosticResul
       {
         name: "history replay",
         ok: events.length > 0,
-        detail: `${sessions.length} session(s); newest -> ${session.messages.length} messages, ${events.length} events (${
+        detail: `${sessions.length} session(s); newest -> ${branchEntries.length} branch entries, ${contextMessageCount} context messages, ${events.length} events (${
           Object.entries(counts)
             .map(([kind, count]) => `${kind}:${count}`)
             .join(", ") || "none"

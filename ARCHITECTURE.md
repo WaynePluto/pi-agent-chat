@@ -15,7 +15,7 @@
 | skills | `src/agent/skills.ts` | 技能路径索引与工具调用归属判定（`SKILL.md` 读取 = 自动加载，技能目录内文件 = 技能资源），弥补 SDK 无「技能已加载」事件 | node:path, pi-coding-agent, protocol |
 | session-tree | `src/agent/session-tree.ts` | `/tree` `/fork` `/clone`：用原生 QuickPick 驱动 session 条目树导航与分支操作 | vscode, pi-coding-agent, runtime |
 | settings-menu | `src/agent/settings-menu.ts` | header “设置”菜单与 `/shell-path`：供应商/常用模型/shell 路径入口 + 11 项 CLI `/settings` 选项（auto-compact、默认思考等级、steering/follow-up、信任、skill 命令、重试、transport、超时、图片、警告）+ 打开设置文件；全部写 `~/.pi/agent/settings.json`，与 CLI 互通 | vscode, pi-coding-agent, runtime, host i18n |
-| model-picker | `src/agent/model-picker.ts` | 模型选择器与 `/scoped-models` 管理 UI：常用（scoped）模型置顶展示，行内 ⭐ 单独切换常用、📌 设置默认，批量多选结果以 `provider/modelId` 写入共享设置 `enabledModels`（语义对齐 CLI） | vscode, runtime, host i18n |
+| model-picker | `src/agent/model-picker.ts` | 两层模型选择：`buildModelCatalog()` 为 composer 快捷菜单提供常用模型，`pickModel()` 是完整原生 QuickPick（搜索 / 能力详情 / ⭐常用 / 📌默认），`/scoped-models` 批量管理；常用模型以 `provider/modelId` 写入共享设置 `enabledModels`（语义对齐 CLI） | vscode, runtime, protocol, host i18n |
 | auth | `src/agent/auth.ts` | 登录/登出流程：把 SDK `AuthInteraction` / `AuthPrompt` 映射到 VS Code 原生对话框 | vscode, pi-ai, runtime |
 | subagent | `src/agent/subagent.ts` | `SubagentCoordinator`：以自定义工具形式运行单个 SDK 子 session，父 session 在工具调用中等待；向观察者广播子会话事件 | typebox, pi-coding-agent |
 | project-files | `src/agent/project-files.ts` | `ProjectFileIndex`：`@` 文件引用的索引/搜索/校验，含缓存、二进制与敏感文件过滤、引用数上限 | node:child_process, node:fs, protocol |
@@ -35,6 +35,7 @@
 | webview/sessions-view | `src/webview/sessions-view.ts` | 会话列表页渲染与行内操作（恢复/删除/查看父子会话） | dom, format, host, shell, spinner, store, transcript |
 | webview/resources-view | `src/webview/resources-view.ts` | 资源面板（Context / Skills / Prompts / Extensions），并高亮本会话已加载的技能 | collapsible, dom, host, shell |
 | webview/statusline | `src/webview/statusline.ts` | CLI 风格底部状态行（tokens / 缓存 / 成本 / 上下文占用） | dom, format, shell, store |
+| webview/picker | `src/webview/picker.ts` | composer 的模型 / 思考等级快捷菜单：小弹层对齐 chip 弹出，模型行只有名称 + 供应商（仅常用模型，为空时显示「无」），末尾「其他模型…」交给原生完整 picker | dom, host, i18n, icons, shell, store |
 | webview/collapsible | `src/webview/collapsible.ts` | 唯一的「折叠头 + 懒渲染 body」组件；四套 class 命名作为配置 | dom, icons, i18n |
 | webview/overflow | `src/webview/overflow.ts` | 工具栏收纳组：面板过窄时把次要按钮搬进「⋯」弹层（换行探针判定，非硬编码断点） | dom |
 | webview/dom · spinner · icons · format | `src/webview/{dom,spinner,icons,format}.ts` | DOM 构造helper、共享 spinner 动画、SVG 图标常量、截断/格式化与显示上限 | — |
@@ -71,6 +72,7 @@ graph TD
     sessionsview[webview/sessions-view]
     resourcesview[webview/resources-view]
     statusline[webview/statusline]
+    picker[webview/picker]
     collapsible[webview/collapsible]
     overflow[webview/overflow]
     shell[webview/shell]
@@ -146,6 +148,12 @@ graph TD
   main --> sessionsview
   main --> resourcesview
   main --> statusline
+  main --> picker
+  picker --> shell
+  picker --> store
+  picker --> hostapi
+  picker --> i18n
+  picker --> domutil
   main --> overflow
   overflow --> domutil
   main --> shell

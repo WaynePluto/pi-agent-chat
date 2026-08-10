@@ -35,8 +35,9 @@ const baseState = {
   modelId: "test-model",
   providerId: "test-provider",
   thinkingLevel: "medium",
-  canSelectThinkingLevel: true,
+  thinkingLevels: ["off", "low", "medium", "high"],
   isStreaming: false,
+  isCompacting: false,
   needsAuth: false,
   messageCount: 2,
   stats: {
@@ -78,6 +79,14 @@ const RESOURCE_SECTIONS = [
     ],
   },
 ];
+
+const MODEL_CATALOG = {
+  items: [
+    { provider: "test-provider", id: "test-model" },
+    { provider: "test-provider", id: "other-model" },
+    { provider: "second-provider", id: "cheap-model" },
+  ],
+};
 
 /** Each step: a label plus the HostMessages delivered before the snapshot. */
 const SCRIPT = [
@@ -126,7 +135,30 @@ const SCRIPT = [
   },
   {
     label: "model without selectable thinking level hides composer control",
-    messages: [{ type: "state", state: { ...baseState, thinkingLevel: "off", canSelectThinkingLevel: false } }],
+    messages: [{ type: "state", state: { ...baseState, thinkingLevel: "off", thinkingLevels: ["off"] } }],
+  },
+  {
+    label: "composer model menu: frequently used models plus the native picker hand-off",
+    messages: [{ type: "state", state: baseState }, { type: "models", catalog: MODEL_CATALOG }],
+    beforeSnapshot: (window) => window.document.getElementById("btn-model").click(),
+  },
+  {
+    label: "composer model menu without frequently used models",
+    // Re-opening must not duplicate the "other models" row.
+    beforeMessages: (window) => window.document.getElementById("btn-model").click(),
+    messages: [{ type: "models", catalog: { items: [] } }],
+    beforeSnapshot: (window) => window.document.getElementById("btn-model").click(),
+  },
+  {
+    label: "composer thinking menu",
+    // Opening the second menu must replace the first one, not stack on it.
+    beforeMessages: (window) => window.document.getElementById("btn-thinking").click(),
+    messages: [],
+  },
+  {
+    label: "quick menu closed again",
+    beforeMessages: (window) => window.document.getElementById("btn-thinking").click(),
+    messages: [],
   },
   {
     label: "per-message tree actions bound to session entries",
@@ -182,11 +214,28 @@ const SCRIPT = [
     ],
   },
   {
+    label: "manual compaction: input stays editable and submissions queue",
+    messages: [
+      { type: "state", state: { ...baseState, isCompacting: true } },
+      { type: "event", event: { kind: "user_message", text: "continue after compaction", mode: "followUp" } },
+      { type: "event", event: { kind: "queue_update", steering: [], followUp: ["continue after compaction"] } },
+    ],
+  },
+  {
     label: "run finished: status + error notices",
     messages: [
       { type: "event", event: { kind: "assistant_end" } },
       { type: "event", event: { kind: "status", text: "compaction done" } },
       { type: "event", event: { kind: "error", text: "provider rejected the request" } },
+      {
+        type: "event",
+        event: {
+          kind: "compaction_boundary",
+          summary: "## Goal\nPreserve the current implementation context.\n\n## Next Steps\n1. Continue from the retained messages.",
+          tokensBefore: 53200,
+          estimatedTokensAfter: 18000,
+        },
+      },
       { type: "event", event: { kind: "agent_settled" } },
       { type: "state", state: baseState },
     ],

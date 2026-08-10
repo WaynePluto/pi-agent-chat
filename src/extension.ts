@@ -161,7 +161,10 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
   private reportError(error: unknown): void {
     const message = describeWithStack(error);
     this.log(`error: ${message}`);
-    this.post({ type: "state", state: { ready: false, canSelectThinkingLevel: false, isStreaming: false, error: message.split("\n")[0] } });
+    this.post({
+      type: "state",
+      state: { ready: false, isStreaming: false, isCompacting: false, error: message.split("\n")[0] },
+    });
     vscode.window.showErrorMessage(`Pi Agent Chat: ${message.split("\n")[0]}`);
   }
 

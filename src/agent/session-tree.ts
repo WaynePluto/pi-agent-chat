@@ -23,6 +23,10 @@ export interface TreeChoice extends vscode.QuickPickItem {
   entryId: string;
 }
 
+/** Native QuickPick cannot scroll horizontally, so indentation must stay bounded. */
+const MAX_TREE_INDENT_DEPTH = 6;
+const MAX_TREE_LABEL_CHARS = 10;
+
 /** Switch the active branch in place, like the CLI's `/tree`. */
 export async function navigateSessionTree(runtime: PiRuntime, ui: SessionTreeUi): Promise<void> {
   const choices = buildTreeChoices(runtime.session.sessionManager);
@@ -99,6 +103,7 @@ export async function pickForkPoint(runtime: PiRuntime, ui: SessionTreeUi): Prom
   const picked = await vscode.window.showQuickPick(choices, {
     title: t("treeForkTitle"),
     matchOnDescription: true,
+    matchOnDetail: true,
   });
   if (!picked) return;
   await forkFromEntry(runtime, picked.entryId, ui);
@@ -144,20 +149,32 @@ export function buildTreeChoices(
   const currentLeafId = sessionManager.getLeafEntry()?.id;
   const choices: TreeChoice[] = [];
 
-  const walk = (nodes: readonly SessionTreeNode[], depth: number): void => {
+  const walk = (nodes: readonly SessionTreeNode[], branchDepth: number): void => {
     for (const node of nodes) {
-      const entry = node.entry as { id: string; type: string; timestamp?: string; message?: unknown };
-      const summary = describeEntry(entry);
-      const listed = Boolean(summary) && (!options.userMessagesOnly || isUserMessage(entry));
-      if (summary && listed) {
+      const entry = node.entry as { id: string; type: string; timestamp?: string; message?: unknown; summary?: string };
+      const display = describeEntry(entry);
+      const listed = Boolean(display) && (!options.userMessagesOnly || isUserMessage(entry));
+      if (display && listed) {
+        const timestamp = entry.timestamp?.slice(0, 19).replace("T", " ");
+        const description = [
+          timestamp,
+          node.label ? `[${node.label}]` : undefined,
+          entry.id === currentLeafId ? t("current") : undefined,
+        ]
+          .filter((value): value is string => Boolean(value))
+          .join(" · ");
         choices.push({
           entryId: entry.id,
-          label: `${"  ".repeat(depth)}${node.label ? `[${node.label}] ` : ""}${summary}`,
-          description: entry.id === currentLeafId ? t("current") : undefined,
-          detail: entry.timestamp?.slice(0, 19).replace("T", " "),
+          label: `${treeIndent(branchDepth)}${display.label}`,
+          description: description || undefined,
+          // Keep the complete message text on its own line, independent of
+          // visual indentation and title metadata, for reading and searching.
+          detail: display.detail || undefined,
         });
       }
-      walk(node.children, depth + (summary ? 1 : 0));
+      // A linear chain is not visually deeper. Only entering alternatives at
+      // a real fork consumes one indentation level.
+      walk(node.children, branchDepth + (node.children.length > 1 ? 1 : 0));
     }
   };
 
@@ -170,8 +187,13 @@ function isUserMessage(entry: { type: string; message?: unknown }): boolean {
 }
 
 /** One-line preview of an entry; returns undefined for entries not worth listing. */
-function describeEntry(entry: { type: string; message?: unknown }): string | undefined {
-  if (entry.type === "compaction") return "· compaction summary";
+function describeEntry(entry: { type: string; message?: unknown; summary?: string }): { label: string; detail: string } | undefined {
+  if (entry.type === "compaction") {
+    return {
+      label: `· ${truncateTitle("compaction summary", MAX_TREE_LABEL_CHARS)}`,
+      detail: (entry.summary ?? "").replace(/\s+/g, " ").trim(),
+    };
+  }
   if (entry.type !== "message") return undefined;
 
   const message = entry.message as { role?: string; content?: unknown } | undefined;
@@ -179,9 +201,22 @@ function describeEntry(entry: { type: string; message?: unknown }): string | und
   if (message.role === "toolResult") return undefined;
 
   const text = message.role === "user" ? collapseSkillInvocation(messageText(message.content)) : messageText(message.content);
-  if (!text.trim()) return undefined;
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return undefined;
   const prefix = message.role === "user" ? "> " : "· ";
-  return `${prefix}${truncate(text.replace(/\s+/g, " ").trim(), 90)}`;
+  return {
+    label: `${prefix}${truncateTitle(normalized, MAX_TREE_LABEL_CHARS)}`,
+    detail: normalized,
+  };
+}
+
+function truncateTitle(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, Math.max(0, max - 1))}…` : text;
+}
+
+function treeIndent(depth: number): string {
+  const visibleDepth = Math.min(depth, MAX_TREE_INDENT_DEPTH);
+  return `${"  ".repeat(visibleDepth)}${depth > MAX_TREE_INDENT_DEPTH ? "… " : ""}`;
 }
 
 function messageText(content: unknown): string {
@@ -191,8 +226,4 @@ function messageText(content: unknown): string {
     .filter((part) => (part as { type?: string })?.type === "text")
     .map((part) => (part as { text?: string }).text ?? "")
     .join(" ");
-}
-
-function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max)}...` : text;
 }

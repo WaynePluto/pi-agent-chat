@@ -10,7 +10,7 @@
  * so both sides stay worded consistently.
  */
 
-import { isChinese } from "../shared/messages.js";
+import { isChinese, sharedMessages } from "../shared/messages.js";
 
 const en = {
   newSessionLabel: "New session",
@@ -46,14 +46,23 @@ const en = {
   entryLabelTitle: "Bookmark this message for later navigation",
   modelTitle: "Switch model",
   thinkingTitle: "Switch thinking level",
+  /* Composer quick menus. Wording shared with the host dialogs where both exist. */
+  modelPickerTitle: sharedMessages.favoriteModels.en,
+  modelPickerOther: sharedMessages.otherModels.en,
+  modelPickerLoading: "Loading models...",
+  modelPickerNone: "None",
+  thinkingPickerTitle: "Thinking level",
   inputPlaceholder: "Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)",
+  compactionInputPlaceholder: "Compacting context... Enter queues your message",
   sendIconTitle: "Send (Enter)",
   stopIconTitle: "Stop the current run",
+  stopCompactionTitle: "Stop context compaction",
   stopSubagentTitle: "Stop this subagent; the parent agent will resume",
   stopTaskLineTitle: "Stop the entire task line, including the subagent",
   subagentInputDisabled: "This subagent is running autonomously. You can watch or stop it.",
   parentSteerTitle: "Send to the parent after the subagent returns",
   parentFollowUpTitle: "Queue for after the parent finishes this task line",
+  queueAfterCompactionTitle: "Queue for after context compaction",
   parentWaitingFor: (title: string) => `Waiting for subagent: ${title}`,
   subagentRunning: (title: string) => `Subagent running: ${title}`,
   viewSubagent: "View subagent",
@@ -82,6 +91,12 @@ const en = {
     `thinking ${thinking} · tools ${tools}${action ? ` · ${action}` : ""}`,
   workDone: (thinking: number, tools: number, failed: number) =>
     `done · thinking ${thinking} · tools ${tools}${failed ? ` · failed ${failed}` : ""}`,
+  compactionBoundary: "Context compacted",
+  compactionTokens: (before: string, after: string) => `${before} → ~${after} tokens`,
+  compactionTokensBefore: (before: string) => `${before} tokens before compaction`,
+  compactionContextNote:
+    "Pi replaced part of the older model context with this summary and kept some recent messages verbatim. The full transcript remains visible.",
+  compactionSummary: "Summary carried into the model context",
   workThinking: "thinking...",
   workCalling: (name: string) => `calling ${name}...`,
   workLastTool: (name: string) => `last ${name}`,
@@ -94,6 +109,7 @@ const en = {
   skillActiveTitle: (name: string) => `Skill ${name} was loaded in this session · click to open`,
   starting: "starting...",
   streaming: "Working...",
+  compacting: "Compacting context...",
   queued: (n: number) => `${n} queued message(s)`,
   emptySession: (systemPromptOverridden: boolean) =>
     [
@@ -165,14 +181,22 @@ const zh: Dict = {
   entryLabelTitle: "给这条消息加书签，便于以后导航",
   modelTitle: "切换模型",
   thinkingTitle: "切换思考等级",
+  modelPickerTitle: sharedMessages.favoriteModels.zh,
+  modelPickerOther: sharedMessages.otherModels.zh,
+  modelPickerLoading: "正在加载模型...",
+  modelPickerNone: "无",
+  thinkingPickerTitle: "思考等级",
   inputPlaceholder: "问问 Pi...（Enter 发送，Shift/Ctrl+Enter 换行，/ 命令，@ 引用文件）",
+  compactionInputPlaceholder: "正在压缩上下文……按 Enter 将消息加入队列",
   sendIconTitle: "发送（Enter）",
   stopIconTitle: "停止当前运行",
+  stopCompactionTitle: "停止上下文压缩",
   stopSubagentTitle: "停止这个子代理；主代理随后恢复",
   stopTaskLineTitle: "停止整条任务线（包括子代理）",
   subagentInputDisabled: "子代理正在自主运行；你可以查看过程或停止它。",
   parentSteerTitle: "子代理返回后发送给主代理",
   parentFollowUpTitle: "主代理完成当前任务线后排队执行",
+  queueAfterCompactionTitle: "等上下文压缩完成后执行",
   parentWaitingFor: (title: string) => `正在等待子代理：${title}`,
   subagentRunning: (title: string) => `子代理运行中：${title}`,
   viewSubagent: "查看子代理",
@@ -201,6 +225,11 @@ const zh: Dict = {
     `思考 ${thinking} 段 · 工具 ${tools} 次${action ? ` · ${action}` : ""}`,
   workDone: (thinking: number, tools: number, failed: number) =>
     `完成 · 思考 ${thinking} 段 · 工具 ${tools} 次${failed ? ` · 失败 ${failed}` : ""}`,
+  compactionBoundary: "上下文压缩边界",
+  compactionTokens: (before: string, after: string) => `${before} → 约 ${after} tokens`,
+  compactionTokensBefore: (before: string) => `压缩前 ${before} tokens`,
+  compactionContextNote: "Pi 已用此摘要替代部分较早的模型上下文，并原样保留部分近期消息；完整会话记录仍可查看。",
+  compactionSummary: "带入后续模型上下文的摘要",
   workThinking: "思考中...",
   workCalling: (name: string) => `正在调用 ${name}...`,
   workLastTool: (name: string) => `最近 ${name}`,
@@ -213,6 +242,7 @@ const zh: Dict = {
   skillActiveTitle: (name: string) => `技能 ${name} 已在本会话中加载 · 点击打开`,
   starting: "启动中...",
   streaming: "工作中...",
+  compacting: "正在压缩上下文……",
   queued: (n: number) => `${n} 条消息排队中`,
   emptySession: (systemPromptOverridden: boolean) =>
     [

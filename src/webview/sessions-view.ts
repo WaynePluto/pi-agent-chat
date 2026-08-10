@@ -158,10 +158,10 @@ function onRowClick(item: SessionListItem): void {
       hooks.close();
       return;
     }
-    // While a run is in progress, other sessions open read-only instead of
-    // replacing the active session. In preview `isStreaming` is reported
-    // false (the visible transcript is static), so check `preview` too.
-    if (state.isStreaming || state.delegation || state.preview) {
+    // While a run or compaction is in progress, other sessions open read-only
+    // instead of replacing the active session. Preview reports both activity
+    // flags as false (the visible transcript is static), so check it too.
+    if (state.isStreaming || state.isCompacting || state.delegation || state.preview) {
       showLoading();
       post({ type: "previewSession", file: item.file });
       hooks.close();

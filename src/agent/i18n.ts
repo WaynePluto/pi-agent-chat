@@ -9,7 +9,7 @@ import { isChinese, sharedMessages, sharedTemplates } from "../shared/messages.j
 
 type Templates = typeof sharedTemplates;
 
-/** Fixed string, e.g. `t("selectModelTitle")`. */
+/** Fixed string, e.g. `t("resumeSessionTitle")`. */
 export function t(key: keyof typeof sharedMessages): string {
   const entry = sharedMessages[key];
   return isChinese(vscode.env.language) ? entry.zh : entry.en;

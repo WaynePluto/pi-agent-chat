@@ -51,9 +51,15 @@ export interface ChatState {
   modelId?: string;
   providerId?: string;
   thinkingLevel?: string;
-  /** Whether the current model exposes more than one selectable thinking level. */
-  canSelectThinkingLevel: boolean;
+  /**
+   * Thinking levels the current model accepts, in the SDK's order. A single
+   * entry (or none) means the level is fixed and the composer hides its
+   * selector.
+   */
+  thinkingLevels?: string[];
   isStreaming: boolean;
+  /** Manual or automatic context compaction is in progress; submissions queue until it ends. */
+  isCompacting: boolean;
   /** True when no provider has working auth: show the setup page instead of chat. */
   needsAuth?: boolean;
   /** Number of messages in the session (0 = brand-new empty session). */
@@ -66,6 +72,24 @@ export interface ChatState {
   inputDisabled?: boolean;
   stats?: ChatStats;
   error?: string;
+}
+
+/**
+ * One row of the composer's quick model menu. Just enough to identify the
+ * model: the full listing with capabilities, ⭐ and 📌 lives in the native
+ * picker behind "other models".
+ */
+export interface ModelOption {
+  provider: string;
+  id: string;
+}
+
+/**
+ * Models offered for quick switching: the frequently used ("scoped") ones in
+ * their configured order, or every authenticated model when no scope is set.
+ */
+export interface ModelCatalog {
+  items: ModelOption[];
 }
 
 export interface ProjectFileItem {
@@ -167,6 +191,8 @@ export type ChatEvent =
   /** All automatic retries, compaction and queued continuations have settled. */
   | { kind: "agent_settled" }
   | { kind: "queue_update"; steering: string[]; followUp: string[] }
+  /** Persistent marker appended when Pi replaces older model context with a summary. */
+  | { kind: "compaction_boundary"; summary: string; tokensBefore: number; estimatedTokensAfter?: number }
   | { kind: "status"; text: string; scope?: "command" }
   | { kind: "error"; text: string; scope?: "command" };
 
@@ -183,6 +209,10 @@ export type HostMessage =
       systemPromptOverridden?: boolean;
     }
   | { type: "sessions"; items: SessionListItem[] }
+  /** Answer to `listModels`, also pushed after credentials or markers change. */
+  | { type: "models"; catalog: ModelCatalog }
+  /** Open a composer picker from the host side (`/model`, `/thinking`). */
+  | { type: "openPicker"; picker: "model" | "thinking" }
   | { type: "commands"; items: SlashCommand[] }
   /** Startup resource listing, pinned above the transcript. */
   | { type: "resources"; sections: ResourceSection[] }
@@ -229,12 +259,17 @@ export type WebviewMessage =
   | { type: "openSessionTree" }
   /** Same three operations, applied to one message bubble in the transcript. */
   | { type: "entryAction"; action: "switch" | "fork" | "label"; entryId: string }
+  /** Ask for the models offered by the composer's quick model menu. */
+  | { type: "listModels" }
+  /** Switch the model of the current session only. */
+  | { type: "setModel"; provider: string; modelId: string }
+  /** Open the native full model picker (search, capabilities, ⭐ / 📌). */
   | { type: "pickModel" }
   /** Start the provider sign-in flow (also used by the auth setup page). */
   | { type: "login" }
   /** Remove a credential stored by login. */
   | { type: "logout" }
-  | { type: "pickThinkingLevel" }
+  | { type: "setThinkingLevel"; level: string }
   /** Open the settings menu (providers, shell path, ...). */
   | { type: "openSettings" }
   | { type: "openDiff"; path: string; patch: string }
