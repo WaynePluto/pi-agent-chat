@@ -36,6 +36,7 @@ const vscodeStub = {
     workspaceFolders: [{ uri: { fsPath: root } }],
     openTextDocument: noop,
     getConfiguration: () => ({ get: () => undefined }),
+    onDidChangeConfiguration: noop,
     registerTextDocumentContentProvider: noop,
     fs: { readFile: async () => new Uint8Array() },
   },
@@ -83,6 +84,7 @@ const {
   runSessionTreeTest,
   runSubagentToolTest,
   runProjectFilesTest,
+  runResourceListingTest,
   runLiveToolCallTest,
   formatDiagnostics,
 } = extension.__spike;
@@ -92,6 +94,7 @@ report(await runSlashCommandTest(root));
 report(await runSessionTreeTest(root));
 report(await runSubagentToolTest(root));
 report(await runProjectFilesTest(root));
+report(await runResourceListingTest(root));
 
 if (process.env.PI_SPIKE_LIVE === "1") {
   console.log("\n# Live prompt + tool call");

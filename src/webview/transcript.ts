@@ -13,7 +13,7 @@ import { post } from "./host.js";
 import { BRANCH_ICON, REWIND_ICON, TAG_ICON } from "./icons.js";
 import { getDict } from "./i18n.js";
 import { renderMarkdown } from "./markdown.js";
-import { clearActiveSkills, markSkillActive } from "./resources-view.js";
+import { clearResourceHighlights, markExtensionUsed, markPromptUsed, markSkillActive, markToolUsed } from "./resources-view.js";
 import { messagesEl, scrollDownBtn } from "./shell.js";
 import { spinner } from "./spinner.js";
 import { state } from "./store.js";
@@ -148,7 +148,7 @@ function scrollToEnd(): void {
 export function applyEvent(event: ChatEvent): void {
   switch (event.kind) {
     case "user_message":
-      appendUserBubble(event.text, event.mode, event.skill);
+      appendUserBubble(event.text, event.mode, event.skill, event.prompt, event.extension);
       break;
     case "assistant_start":
       assistantBubble = undefined;
@@ -307,7 +307,7 @@ export function clearMessages(): void {
   activeWorkBlock = undefined;
   placeholderEl = undefined;
   // Skill marks describe the displayed transcript, so they go with it.
-  clearActiveSkills();
+  clearResourceHighlights();
 }
 
 /* ---------------------------------------------------------------- */
@@ -331,9 +331,15 @@ function appendMarkdownBubble(role: string, text: string): HTMLElement {
  * User message; queued (follow-up) and steering messages get a badge and a
  * distinct accent so they read differently from immediate prompts.
  */
-function appendUserBubble(text: string, mode?: "steer" | "followUp", skill?: string): void {
+function appendUserBubble(text: string, mode?: "steer" | "followUp", skill?: string, prompt?: string, extension?: string): void {
   const wrapper = appendMarkdownBubble("user", text);
   wrapper.appendChild(entryActionBar());
+  // A prompt template is expanded, and an extension command is consumed, before
+  // the agent runs, so neither leaves a tool card behind. The host resolves
+  // them from the submitted text; light up their resource rows here, the way a
+  // model-initiated load lights up a skill.
+  if (prompt) markPromptUsed(prompt);
+  if (extension) markExtensionUsed(extension);
   if (skill) {
     // `/skill:<name>` is expanded by the SDK before the agent runs, so no tool
     // card will ever report it; mark the bubble instead, and light up the skill
@@ -616,6 +622,9 @@ function startToolCard(id: string, name: string, args: unknown, skill?: SkillRef
   const work = ensureWorkBlock();
   work.toolCount += 1;
   work.activeTools.set(id, name);
+  // History replay funnels through here too, so the panel's "used here" mark
+  // covers replayed transcripts as well as live runs.
+  markToolUsed(name);
   updateWorkStatus(work, skill?.kind === "load" ? t.workLoadingSkill(skill.name) : t.workCalling(name));
   const entry = createCollapsible({
     classes: CARD_CLASSES,

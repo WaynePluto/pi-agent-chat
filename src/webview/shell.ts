@@ -17,6 +17,7 @@ root.innerHTML = `
       <button id="btn-new" title="${t.newSessionTitle}">${t.newSession}</button>
       <button id="btn-sessions" title="${t.sessionsTitle}">${t.sessions}</button>
       <button id="btn-tree" title="${t.treeTitle}">${t.tree}</button>
+      <button id="btn-resources" title="${t.resourcesToggleTitle}" aria-pressed="false">${t.resources}</button>
       <button id="btn-settings" title="${t.settingsTitle}">${t.settings}</button>
       <button id="btn-header-more" class="overflow-toggle hidden" title="${t.moreActions}" aria-label="${t.moreActions}" aria-expanded="false">${MORE_ICON}</button>
       <div id="header-menu" class="overflow-menu hidden"></div>
@@ -81,6 +82,7 @@ export const thinkingBtn = byId<HTMLButtonElement>("btn-thinking");
 export const newBtn = byId<HTMLButtonElement>("btn-new");
 export const sessionsBtn = byId<HTMLButtonElement>("btn-sessions");
 export const treeBtn = byId<HTMLButtonElement>("btn-tree");
+export const resourcesBtn = byId<HTMLButtonElement>("btn-resources");
 export const autocompleteEl = byId("autocomplete");
 export const fileRefsEl = byId("file-refs");
 export const resizeHandleEl = byId("resize-handle");

@@ -2,7 +2,7 @@
   "name": "pi-code-agent-chat",
   "displayName": "Pi Agent Chat",
   "description": "VS Code sidebar chat for the Pi Coding Agent, powered by the official SDK (0.84.1) bundled inside the extension — no Pi CLI required. Unofficial community project.",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "publisher": "waynepluto",
   "license": "MIT",
   "icon": "media/icon.png",

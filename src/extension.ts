@@ -8,6 +8,7 @@ import {
   runHistoryReplayTest,
   runLiveToolCallTest,
   runProjectFilesTest,
+  runResourceListingTest,
   runSessionTreeTest,
   runSlashCommandTest,
   runSpikeDiagnostics,
@@ -43,6 +44,7 @@ export function activate(context: vscode.ExtensionContext): void {
         ...(await runSessionTreeTest(resolveWorkspaceCwd())),
         ...(await runSubagentToolTest(resolveWorkspaceCwd())),
         ...(await runProjectFilesTest(resolveWorkspaceCwd())),
+        ...(await runResourceListingTest(resolveWorkspaceCwd())),
       ];
       const report = formatDiagnostics(results);
       output.appendLine(report);
@@ -83,6 +85,7 @@ export const __spike = {
   runSessionTreeTest,
   runSubagentToolTest,
   runProjectFilesTest,
+  runResourceListingTest,
   runLiveToolCallTest,
   formatDiagnostics,
   resolveWorkspaceCwd,

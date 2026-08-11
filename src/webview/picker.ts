@@ -52,7 +52,7 @@ export function closePicker(): void {
   if (hadFocus && !inputEl.disabled) inputEl.focus();
 }
 
-/** Chip click and the host's `/model` / `/thinking` commands both land here. */
+/** Chip click and the host's `/model` command both land here. */
 export function togglePicker(kind: PickerKind): void {
   if (openKind === kind) {
     closePicker();
@@ -62,7 +62,7 @@ export function togglePicker(kind: PickerKind): void {
 }
 
 export function openPicker(kind: PickerKind): void {
-  const anchor = kind === "model" ? modelBtn : thinkingBtn;
+  const anchor = anchorFor(kind);
   if (anchor.disabled) return;
   openKind = kind;
   pickerEl.classList.remove("hidden");
@@ -92,15 +92,19 @@ export function refreshPicker(): void {
 /* Frame and placement                                               */
 /* ---------------------------------------------------------------- */
 
+function anchorFor(kind: PickerKind): HTMLButtonElement {
+  return kind === "model" ? modelBtn : thinkingBtn;
+}
+
 function buildFrame(kind: PickerKind): void {
   pickerEl.replaceChildren();
-  pickerEl.appendChild(el("div", "picker-title", kind === "model" ? t.modelPickerTitle : t.thinkingPickerTitle));
+  pickerEl.appendChild(el("div", "picker-title", pickerTitle(kind)));
+  moreBtn = undefined;
   listEl = el("div", "picker-list");
   listEl.setAttribute("role", "listbox");
   pickerEl.appendChild(listEl);
-  // Everything this menu leaves out lives one click away. The row belongs to
-  // the frame, not to the list, so re-rendering rows cannot duplicate it.
-  moreBtn = undefined;
+  // Everything the model menu leaves out lives one click away. The row belongs
+  // to the frame, not to the list, so re-rendering rows cannot duplicate it.
   if (kind === "model") {
     moreBtn = button("picker-more", t.modelPickerOther, () => {
       closePicker();
@@ -108,6 +112,10 @@ function buildFrame(kind: PickerKind): void {
     });
     pickerEl.appendChild(moreBtn);
   }
+}
+
+function pickerTitle(kind: PickerKind): string {
+  return kind === "model" ? t.modelPickerTitle : t.thinkingPickerTitle;
 }
 
 /**
@@ -142,7 +150,7 @@ function moveSelection(delta: number): void {
   rows[selectedIndex]?.element.scrollIntoView?.({ block: "nearest" });
 }
 
-/** Shared row shape: check mark, name, muted trailing note. */
+/** Shared single-select row: check mark, name, muted trailing note. */
 function buildRow(name: string, options: { note?: string; current: boolean; accept(): void }): PickerRow {
   const element = el("div", `picker-row${options.current ? " current" : ""}`);
   element.setAttribute("role", "option");

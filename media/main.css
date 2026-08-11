@@ -138,6 +138,12 @@ button.chip,
   background: var(--hover-bg-strong);
 }
 
+/* Toggle buttons (the resources panel) read as pressed while switched on. */
+.header-actions button.active {
+  color: var(--vscode-foreground);
+  background: var(--hover-bg-strong);
+}
+
 .delegation-bar {
   display: flex;
   align-items: center;
@@ -1239,8 +1245,8 @@ textarea:disabled {
 }
 
 /* ---------------------------------------------------------------- */
-/* Composer quick menus: model and thinking level. Deliberately small */
-/* and anchored to their chip, like the editor's own chat controls.   */
+/* Composer quick menus: model and thinking level. Deliberately small   */
+/* and anchored to their chip, like the editor's own chat controls.     */
 /* ---------------------------------------------------------------- */
 
 .picker {
@@ -1651,7 +1657,10 @@ button.session-delete:hover:not(:disabled) {
 
 .resource-details {
   padding: 2px 4px 4px 16px;
-  color: var(--vscode-descriptionForeground);
+  /* Rows are plain foreground text: everything listed here is loaded and in
+     effect unless it says otherwise. Dimming is reserved for `.resource-inactive`
+     so "grey" has exactly one meaning in this panel. */
+  color: var(--vscode-foreground);
   word-break: break-all;
 }
 
@@ -1693,16 +1702,24 @@ button.session-delete:hover:not(:disabled) {
   text-decoration: underline;
 }
 
-/* Skills that were actually loaded in the displayed transcript.
-   Same green as the assistant bubble's left edge: "the agent used this". */
-.resource-file.active {
+/* Skills loaded, tools called, prompt templates invoked and extensions exercised
+   in the displayed transcript. Same green as the assistant bubble's left edge:
+   "the agent used this". */
+.resource-file.resource-used,
+.resource-details .resource-used,
+.resource-summary .resource-used {
   color: var(--vscode-charts-green, var(--accent));
   font-weight: 600;
 }
 
-.resource-summary .skill-active {
-  color: var(--vscode-charts-green, var(--accent));
-  font-weight: 600;
+/* Configured but not in effect: a tool outside the agent's active set, or an
+   extension that failed to load. Dimmed rather than hidden, so "off" stays
+   distinguishable from "gone". */
+.resource-summary .resource-inactive,
+.resource-details .resource-inactive {
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.6;
+  font-style: italic;
 }
 
 /* ---------------------------------------------------------------- */

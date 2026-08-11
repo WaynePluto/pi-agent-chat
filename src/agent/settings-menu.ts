@@ -224,7 +224,7 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
     if (!picked) return;
     if (picked.id === "providers") return void (await ui.login());
     if (picked.id === "scopedModels") return void (await ui.manageScopedModels());
-    if (picked.id === "shellPath") return void (await pickShellPath(runtime, ui, ""));
+    if (picked.id === "shellPath") return void (await pickShellPath(runtime, ui));
     if (picked.id === "help") return ui.help();
     if (picked.id === "openFile") return void (await openSettingsFile());
     if (picked.descriptor) await editSetting(runtime, ui, picked.descriptor);
@@ -304,19 +304,12 @@ async function firstExisting(paths: string[]): Promise<string | undefined> {
 }
 
 /**
- * Configure `shellPath`. With a non-empty `argument` (from `/shell-path <p>`)
- * the path is validated and set directly; otherwise a QuickPick lists detected
- * shells plus manual entry and reset-to-default.
+ * Configure `shellPath`: a QuickPick listing detected shells plus manual entry
+ * and reset-to-default. Reached from the settings menu.
  */
-export async function pickShellPath(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "status">, argument: string): Promise<void> {
+async function pickShellPath(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "status">): Promise<void> {
   const settings = runtime.session.settingsManager;
   const current = settings.getShellPath();
-
-  if (argument) {
-    const applied = await applyShellPath(settings, argument);
-    if (applied) ui.status(tf("shellPathSet", argument));
-    return;
-  }
 
   const candidates = process.platform === "win32" ? WINDOWS_SHELLS : UNIX_SHELLS;
   const detected = (

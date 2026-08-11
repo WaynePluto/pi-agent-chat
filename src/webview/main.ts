@@ -3,7 +3,7 @@ import { clearFileRefs, initComposer, onProjectFiles, send, setInput, setSlashCo
 import { post } from "./host.js";
 import { getDict } from "./i18n.js";
 import { SEND_ICON, STOP_ICON } from "./icons.js";
-import { hasResources, renderResources } from "./resources-view.js";
+import { hasResources, isResourcesShown, renderResources, toggleResources } from "./resources-view.js";
 import { initSessions, isSessionsOpen, renderSessions } from "./sessions-view.js";
 import { closePicker, openPicker, refreshPicker, setModelCatalog, togglePicker } from "./picker.js";
 import { createOverflowGroup } from "./overflow.js";
@@ -28,6 +28,7 @@ import {
   modelBtn,
   newBtn,
   recallBtn,
+  resourcesBtn,
   resourcesEl,
   sendBtn,
   sessionsBtn,
@@ -61,7 +62,7 @@ function openSessions(): void {
   sessionsEl.classList.remove("hidden");
   messagesWrapEl.classList.add("hidden");
   composerEl.classList.add("hidden");
-  resourcesEl.classList.add("hidden");
+  applyResourcesVisibility();
   delegationBarEl.classList.add("hidden");
   updateHeaderButtons();
   post({ type: "sessionsVisible", visible: true });
@@ -92,12 +93,26 @@ function updateHeaderButtons(): void {
   // On the sessions page the button is disabled; the way back to the chat is
   // picking a session row (or the current one).
   sessionsBtn.disabled = isSessionsOpen();
+  // Nothing to reveal without a listing, and the panel belongs to the chat.
+  resourcesBtn.disabled = !hasResources() || isSessionsOpen();
+}
+
+/**
+ * The resources panel is shown only when the header toggle asks for it and
+ * there is a listing to show, and never over the sessions or auth pages.
+ */
+function applyResourcesVisibility(): void {
+  const shown = isResourcesShown();
+  const gated = state.ready && Boolean(state.needsAuth);
+  resourcesEl.classList.toggle("hidden", !(shown && hasResources() && !gated && !isSessionsOpen()));
+  resourcesBtn.setAttribute("aria-pressed", String(shown));
+  resourcesBtn.classList.toggle("active", shown);
 }
 
 function showChat(): void {
   messagesWrapEl.classList.remove("hidden");
   composerEl.classList.remove("hidden");
-  resourcesEl.classList.toggle("hidden", !hasResources());
+  applyResourcesVisibility();
   delegationBarEl.classList.toggle("hidden", !state.delegation && !state.preview);
   // The composer was unmeasurable while hidden; settle its layout now.
   updateResponsiveLayout();
@@ -113,9 +128,9 @@ function applyAuthGate(): void {
   if (gated) {
     messagesWrapEl.classList.add("hidden");
     composerEl.classList.add("hidden");
-    resourcesEl.classList.add("hidden");
     delegationBarEl.classList.add("hidden");
     sessionsEl.classList.add("hidden");
+    applyResourcesVisibility();
   } else if (!isSessionsOpen()) {
     showChat();
   }
@@ -231,7 +246,7 @@ function applyState(next: ChatState): void {
  */
 const headerOverflow = createOverflowGroup({
   row: headerActionsEl,
-  items: [newBtn, sessionsBtn, treeBtn, settingsBtn],
+  items: [newBtn, sessionsBtn, treeBtn, resourcesBtn, settingsBtn],
   toggle: headerMoreBtn,
   menu: headerMenuEl,
   // What is left of the header once the title has been given its floor.
@@ -302,6 +317,10 @@ newBtn.addEventListener("click", () => {
   post({ type: "newSession" });
 });
 treeBtn.addEventListener("click", () => post({ type: "openSessionTree" }));
+resourcesBtn.addEventListener("click", () => {
+  toggleResources();
+  applyResourcesVisibility();
+});
 byId("btn-login").addEventListener("click", () => post({ type: "login" }));
 byId("btn-logout").addEventListener("click", () => post({ type: "logout" }));
 byId("btn-settings").addEventListener("click", () => post({ type: "openSettings" }));
@@ -332,7 +351,8 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   else if (message.type === "projectFiles") onProjectFiles(message.requestId, message.items, message.error);
   else if (message.type === "resources") {
     renderResources(message.sections);
-    if (!state.needsAuth && !isSessionsOpen()) resourcesEl.classList.toggle("hidden", !hasResources());
+    applyResourcesVisibility();
+    updateHeaderButtons();
   } else if (message.type === "setInput") setInput(message.text);
   else if (message.type === "dequeued") {
     removePendingBubbles();

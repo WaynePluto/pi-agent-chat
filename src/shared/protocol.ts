@@ -113,8 +113,9 @@ export interface SessionListItem {
 
 /**
  * One section of the CLI-style startup listing ([Context] / [Skills] /
- * [Prompts] / [Extensions] / [Themes]), rendered as a collapsible card at the
- * top of the transcript.
+ * [Prompts] / [Extensions] / [Tools]), rendered as a collapsible card at the
+ * top of the transcript. The CLI's [Themes] section has no GUI counterpart:
+ * the webview renders with VS Code theme variables and never loads a pi theme.
  */
 export interface ResourceSection {
   name: string;
@@ -124,9 +125,10 @@ export interface ResourceSection {
 
 /**
  * Where a resource comes from. The webview groups each section by this instead
- * of tagging every row, so a row only carries its own name.
+ * of tagging every row, so a row only carries its own name. `builtin` covers
+ * what ships with pi or with this extension: code, not a file the user wrote.
  */
-export type ResourceScope = "global" | "project" | "package" | "other";
+export type ResourceScope = "builtin" | "global" | "project" | "package" | "other";
 
 /** One row of a resource section. */
 export interface ResourceItem {
@@ -136,6 +138,15 @@ export interface ResourceItem {
   path?: string;
   /** Replaces `label` in the expanded row, e.g. an extension load error. */
   detail?: string;
+  /** Extra tooltip text, e.g. a tool's description. */
+  hint?: string;
+  /**
+   * Known to the session but not in effect: a registered tool outside the
+   * agent's active set, or an extension that failed to load. Rendered dimmed
+   * instead of hidden, so the listing answers "is it off, or missing?". Every
+   * other row is in effect, and is rendered in the plain foreground colour.
+   */
+  inactive?: boolean;
   scope: ResourceScope;
 }
 
@@ -160,8 +171,13 @@ export interface SlashCommand {
 
 /** Simplified, serializable projection of `AgentSessionEvent`. */
 export type ChatEvent =
-  /** `skill` is set when the SDK expanded a `/skill:<name>` invocation inline. */
-  | { kind: "user_message"; text: string; mode?: "steer" | "followUp"; skill?: string }
+  /**
+   * `skill` / `prompt` / `extension` attribute the message to the resource it
+   * invoked, so the resources panel can light that row up (see
+   * `agent/invocations.ts`). `extension` carries the providing extension's
+   * absolute path, the same value its resource row opens.
+   */
+  | { kind: "user_message"; text: string; mode?: "steer" | "followUp"; skill?: string; prompt?: string; extension?: string }
   | { kind: "assistant_start" }
   | { kind: "text_delta"; delta: string }
   | { kind: "thinking_delta"; delta: string }
@@ -211,8 +227,8 @@ export type HostMessage =
   | { type: "sessions"; items: SessionListItem[] }
   /** Answer to `listModels`, also pushed after credentials or markers change. */
   | { type: "models"; catalog: ModelCatalog }
-  /** Open a composer picker from the host side (`/model`, `/thinking`). */
-  | { type: "openPicker"; picker: "model" | "thinking" }
+  /** Open the composer's model picker from the host side (`/model`). */
+  | { type: "openPicker"; picker: "model" }
   | { type: "commands"; items: SlashCommand[] }
   /** Startup resource listing, pinned above the transcript. */
   | { type: "resources"; sections: ResourceSection[] }

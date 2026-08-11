@@ -72,10 +72,24 @@ const RESOURCE_SECTIONS = [
     ],
   },
   {
+    name: "Prompts",
+    items: [{ label: "/review", path: "/workspace/.pi/prompts/review.md", scope: "project" }],
+  },
+  {
     name: "Extensions",
     items: [
-      { label: "broken.ts (load failed)", detail: "broken.ts: parse failed", scope: "project" },
+      { label: "broken.ts (load failed)", detail: "broken.ts: parse failed", inactive: true, scope: "project" },
       { label: "ext.ts", path: "/workspace/.pi/extensions/ext.ts", scope: "project" },
+      { label: "notify.ts", path: "/home/me/.pi/agent/extensions/notify.ts", scope: "global" },
+    ],
+  },
+  {
+    name: "Tools",
+    items: [
+      { label: "bash", scope: "builtin", hint: "Execute a bash command" },
+      { label: "grep", scope: "builtin", hint: "Search file contents", inactive: true },
+      { label: "notify", path: "/home/me/.pi/agent/extensions/notify.ts", scope: "global", hint: "Send a desktop notification" },
+      { label: "subagent", scope: "builtin", hint: "Delegate one task to a child agent session" },
     ],
   },
 ];
@@ -245,7 +259,10 @@ const SCRIPT = [
     messages: [],
     // Card bodies render lazily; expanding them is the only way the snapshot
     // can cover tool args/output, diff rendering and the thinking card body.
+    // The resources panel itself only enters the layout once its header button
+    // is toggled on.
     beforeSnapshot: (window) => {
+      window.document.getElementById("btn-resources").click();
       for (const selector of [".work-header", ".resources-toggle", ".resource-header", ".card-header"]) {
         for (const header of window.document.querySelectorAll(selector)) header.click();
       }
@@ -253,6 +270,11 @@ const SCRIPT = [
       // sections must survive that rebuild instead of snapping shut.
       window.dispatchEvent(new window.MessageEvent("message", { data: { type: "resources", sections: RESOURCE_SECTIONS } }));
     },
+  },
+  {
+    label: "resources panel toggled back off from the header",
+    messages: [],
+    beforeSnapshot: (window) => window.document.getElementById("btn-resources").click(),
   },
   {
     label: "delegation: child session displayed",
@@ -322,6 +344,31 @@ const SCRIPT = [
       { type: "state", state: baseState },
     ],
   },
+  // Also last, for the same reason: it swaps the panel again.
+  {
+    label: "prompt template and extension invocations light up their resource rows",
+    messages: [
+      { type: "resources", sections: RESOURCE_SECTIONS },
+      {
+        type: "history",
+        events: [
+          // Expanded before the session stored it, so the bubble shows the body
+          // while the panel still credits `/review`.
+          { kind: "user_message", text: "Review the diff for regressions.", prompt: "review" },
+          // An extension command runs without ever reaching the model.
+          { kind: "user_message", text: "/ext-command", extension: "/workspace/.pi/extensions/ext.ts" },
+          // A tool call credits the extension that registered it, through the
+          // path both rows share.
+          { kind: "tool_end", id: "call-2", name: "notify", isError: false, text: "sent", args: { message: "done" } },
+          { kind: "assistant_message", text: "Nothing to flag." },
+        ],
+      },
+      { type: "state", state: baseState },
+    ],
+    // Only the panel is toggled back into the layout: its expansion state (and
+    // each section's) survives from the earlier steps.
+    beforeSnapshot: (window) => window.document.getElementById("btn-resources").click(),
+  },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -329,7 +376,7 @@ const SCRIPT = [
 /* ------------------------------------------------------------------ */
 
 /** Attributes that carry behaviour we care about; everything else is noise. */
-const KEPT_ATTRIBUTES = ["id", "class", "title", "placeholder", "disabled", "hidden", "aria-expanded", "type"];
+const KEPT_ATTRIBUTES = ["id", "class", "title", "placeholder", "disabled", "hidden", "aria-expanded", "aria-pressed", "aria-checked", "type"];
 const SPINNER_FRAMES = /[\u280b\u2819\u2839\u2838\u283c\u2834\u2826\u2827\u2807\u280f]/g;
 
 function serialize(node, depth = 0, lines = []) {

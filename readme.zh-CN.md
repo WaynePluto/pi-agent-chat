@@ -26,7 +26,7 @@
 
 与 Pi 本身一样，本插件保持精简：
 
-- **只做 UI，能力来自官方 SDK。** 基于官方 `@earendil-works/pi-coding-agent` SDK 独立开发的 VS Code UI。Agent 循环、工具、LLM 调用、extension/skill 加载全部来自 SDK，未作任何修改；无需安装 Pi 的 TUI/CLI 版本。
+- **只做 UI，能力来自官方 SDK。** 基于官方 `@earendil-works/pi-coding-agent` SDK 独立开发的 VS Code UI。Agent 循环、工具、LLM 调用、extension/skill 加载全部来自 SDK，未作任何修改；无需安装 Pi 的 TUI/CLI 版本。插件在 pi 自带工具之外只增加 `subagent` 一个工具，其余能力全部由 pi 本身或 `~/.pi/agent/extensions/` 下的 pi 扩展提供（与 CLI 共享同一份）。
 - **零 VS Code 配置。** 没有设置页，不往 `settings.json` 里加任何配置项。一切配置都按 Pi 的方式放在 `~/.pi/agent/`，与终端 Pi 共享，可直接手工编辑。
 - **完整兼容 Pi 生态。** 上下文（AGENTS.md）、skills、extensions、prompt 模板、模型与认证与 CLI 行为完全一致；会话可在插件与终端之间互通。UI 本身跟随 VS Code 颜色主题（不使用 Pi 的 TUI 主题渲染）。
 - **不堆功能。** 单会话模式、小而克制的功能面，只在真正有益处时接入 VS Code 原生能力（diff 视图、QuickPick、主题颜色）。
@@ -59,7 +59,7 @@
 
 ### 支持子代理的 Skill
 
-为什么会有子代理？因为当前 LLM 的上下文窗口不够大：`subagent` 工具的作用是把与任务主线无关的内容从上下文中剥离出去，保持主代理上下文聚焦。因此本项目已经设置为：agent **默认不使用 `subagent` 工具**，只有用户明确要求或相关 Skill 指定时才会调用。以后如果 LLM 的上下文变大了（比如 1 GB 上下文），子代理也就可以去掉了。
+为什么会有子代理？因为当前 LLM 的上下文窗口不够大：`subagent` 工具的作用是把与任务主线无关的内容从上下文中剥离出去，保持主代理上下文聚焦。它的工具描述只陈述机制事实（串行、上下文隔离、不可嵌套），插件不向 system prompt 注入任何使用策略；如果你想控制什么时候才委派，请写在自己的 `~/.pi/agent/APPEND_SYSTEM.md` 或项目 `AGENTS.md` 里——那些文件 CLI 也会读。以后如果 LLM 的上下文变大了（比如 1 GB 上下文），子代理也就可以去掉了。
 
 Skill 应检测能力而不是判断具体 UI：若当前提供 `subagent` 工具，就传入完整任务调用它；否则 CLI skill 可使用 `pi --print` 或自己的降级路径。Pi Agent Chat 不拦截 skill 命令，也不模拟 `pi` 可执行文件。
 

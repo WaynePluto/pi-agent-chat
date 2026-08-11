@@ -24,6 +24,12 @@ export interface PiRuntimeOptions {
   log: (message: string) => void;
 }
 
+/** A `ctx.ui.notify` call from a pi extension, routed to the transcript. */
+export interface ExtensionNotice {
+  level: "info" | "warning" | "error";
+  text: string;
+}
+
 /**
  * Thin wrapper around the SDK's `AgentSessionRuntime`.
  *
@@ -39,6 +45,9 @@ export class PiRuntime implements vscode.Disposable {
     private readonly log: (message: string) => void,
   ) {}
 
+  /** Injected by `ChatBridge`; routes extension notifications to a transcript. */
+  private extensionNotice?: (session: AgentSession, notice: ExtensionNotice) => void;
+
   static async create(options: PiRuntimeOptions): Promise<PiRuntime> {
     const { cwd, log } = options;
     const subagents = new SubagentCoordinator(log);
@@ -53,6 +62,9 @@ export class PiRuntime implements vscode.Disposable {
           services,
           sessionManager,
           sessionStartEvent,
+          // The only tool this extension adds to pi's own set. Everything else
+          // the agent can call comes from pi or from a pi extension in
+          // `~/.pi/agent/extensions/`, shared with the CLI.
           customTools: [subagents.tool],
           scopedModels: await resolveScopedModels(services, log, lifetime.signal),
         })),
@@ -204,11 +216,23 @@ export class PiRuntime implements vscode.Disposable {
     });
   }
 
+  /**
+   * Route `ctx.ui.notify` into the transcript instead of native popups.
+   *
+   * Must be set before the first `bindExtensions()` call, since the sink is
+   * captured by the UI context created there.
+   */
+  setExtensionNoticeSink(sink: (session: AgentSession, notice: ExtensionNotice) => void): void {
+    this.extensionNotice = sink;
+  }
+
   /** Bind extension UI hooks for an SDK session owned by this application. */
   async bindSessionExtensions(session: AgentSession, abortHandler: () => void): Promise<void> {
     await session.bindExtensions({
       mode: "rpc",
-      uiContext: createVsCodeExtensionUiContext(),
+      uiContext: createVsCodeExtensionUiContext(
+        this.extensionNotice ? (notice) => this.extensionNotice?.(session, notice) : undefined,
+      ),
       abortHandler,
     });
   }
@@ -274,8 +298,12 @@ async function resolveScopedModels(
  * `ExtensionUIContext` also contains many TUI-only members (widgets, custom
  * components, themes). Those are served by a no-op Proxy fallback so an
  * extension written for the terminal cannot crash the extension host.
+ *
+ * `notify` goes to the transcript when a sink is wired (notifications are
+ * often multi-line reports that a notification toast truncates); the native
+ * popup stays as the fallback so nothing is silently dropped.
  */
-function createVsCodeExtensionUiContext(): ExtensionUIContext {
+function createVsCodeExtensionUiContext(notice?: (notice: ExtensionNotice) => void): ExtensionUIContext {
   const implemented: Record<string, unknown> = {
     async select(title: string, options: string[]): Promise<string | undefined> {
       return vscode.window.showQuickPick(options, { title, ignoreFocusOut: true });
@@ -292,6 +320,10 @@ function createVsCodeExtensionUiContext(): ExtensionUIContext {
       return vscode.window.showInputBox({ title, value: prefill, ignoreFocusOut: true });
     },
     notify(message: string, type: "info" | "warning" | "error" = "info"): void {
+      if (notice) {
+        notice({ level: type, text: message });
+        return;
+      }
       if (type === "error") vscode.window.showErrorMessage(message);
       else if (type === "warning") vscode.window.showWarningMessage(message);
       else vscode.window.showInformationMessage(message);

@@ -5,7 +5,6 @@ import type { PiRuntime } from "./runtime.js";
 import { t, tf } from "./i18n.js";
 import { isChinese } from "../shared/messages.js";
 import { cloneSession, navigateSessionTree, pickForkPoint, type SessionTreeUi } from "./session-tree.js";
-import { pickShellPath } from "./settings-menu.js";
 
 /**
  * Slash commands for the sidebar.
@@ -22,7 +21,6 @@ const BUILTIN_COMMANDS: Array<{ name: string; description: string; descriptionZh
   { name: "help", description: "List built-in commands", descriptionZh: "查看内置命令列表" },
   { name: "model", description: "Select model (opens selector UI)", descriptionZh: "选择模型（打开选择器）", argumentHint: "<provider/model>" },
   { name: "scoped-models", description: "Enable/disable models for the model picker", descriptionZh: "设置模型选择器中的常用模型" },
-  { name: "thinking", description: "Select thinking level", descriptionZh: "选择思考等级" },
   { name: "compact", description: "Manually compact the session context", descriptionZh: "手动压缩会话上下文", argumentHint: "[instructions]" },
   { name: "name", description: "Set session display name", descriptionZh: "设置会话显示名称", argumentHint: "<name>" },
   { name: "session", description: "Show session info and stats", descriptionZh: "显示会话信息与统计" },
@@ -35,7 +33,6 @@ const BUILTIN_COMMANDS: Array<{ name: string; description: string; descriptionZh
   { name: "import", description: "Import and resume a session from a JSONL file", descriptionZh: "从 JSONL 文件导入并恢复会话", argumentHint: "<path.jsonl>" },
   { name: "export", description: "Export session (HTML default, or specify path: .html/.jsonl)", descriptionZh: "导出会话（默认 HTML，可指定 .html/.jsonl 路径）", argumentHint: "[path]" },
   { name: "reload", description: "Reload extensions, skills, prompts and context files", descriptionZh: "重新加载扩展、技能、提示词与上下文文件" },
-  { name: "shell-path", description: "Configure the shell used by the bash tool", descriptionZh: "配置 bash 工具使用的 shell", argumentHint: "[path]" },
   { name: "login", description: "Sign in to a model provider", descriptionZh: "登录模型供应商" },
   { name: "logout", description: "Remove a stored provider credential", descriptionZh: "移除已存储的供应商凭据" },
 ];
@@ -104,7 +101,6 @@ export interface BuiltinCommandActions extends SessionTreeUi {
   pickModel(argument: string): Promise<void>;
   /** `/scoped-models`: maintain the frequently used model list. */
   manageScopedModels(): Promise<void>;
-  pickThinkingLevel(): Promise<void>;
   reload(): Promise<void>;
   login(): Promise<void>;
   logout(): Promise<void>;
@@ -146,9 +142,6 @@ export async function runBuiltinCommand(
       break;
     case "scoped-models":
       await actions.manageScopedModels();
-      break;
-    case "thinking":
-      await actions.pickThinkingLevel();
       break;
     case "compact": {
       actions.status(t("compacting"));
@@ -198,9 +191,6 @@ export async function runBuiltinCommand(
     case "reload":
       await actions.reload();
       actions.status(t("resourcesReloaded"));
-      break;
-    case "shell-path":
-      await pickShellPath(runtime, { status: actions.status }, argument);
       break;
     case "login":
       await actions.login();

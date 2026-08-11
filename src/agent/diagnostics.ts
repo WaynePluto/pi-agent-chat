@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAgentSession, getAgentDir, getPackageDir, SessionManager } from "@earendil-works/pi-coding-agent";
-import { buildHistoryEntryEvents } from "./bridge.js";
+import { buildHistoryEntryEvents, collectResourceSections } from "./bridge.js";
 import { collectSlashCommands } from "./commands.js";
 import { describe } from "./errors.js";
 import { buildTreeChoices } from "./session-tree.js";
@@ -240,7 +240,11 @@ export async function runProjectFilesTest(cwd: string): Promise<DiagnosticResult
   }
 }
 
-/** Offline check: the application-provided subagent tool is registered and excludable. */
+/**
+ * Offline check on the one tool this extension adds to pi's own set: it must be
+ * registered and active without any explicit activation call, must not leak
+ * into a child session, and must not displace pi's core tools.
+ */
 export async function runSubagentToolTest(cwd: string): Promise<DiagnosticResult[]> {
   const coordinator = new SubagentCoordinator(() => {});
   try {
@@ -249,7 +253,7 @@ export async function runSubagentToolTest(cwd: string): Promise<DiagnosticResult
       customTools: [coordinator.tool],
       sessionManager: SessionManager.inMemory(cwd),
     });
-    const parentHasTool = parentResult.session.agent.state.tools.some((tool) => tool.name === "subagent");
+    const parentActive = new Set(parentResult.session.getActiveToolNames());
     parentResult.session.dispose();
 
     const childResult = await createAgentSession({
@@ -262,14 +266,39 @@ export async function runSubagentToolTest(cwd: string): Promise<DiagnosticResult
     childResult.session.dispose();
     await coordinator.dispose();
 
+    const missingCore = ["read", "bash", "edit", "write"].filter((name) => !parentActive.has(name));
     return [{
       name: "subagent tool",
-      ok: parentHasTool && !childHasTool,
-      detail: `parent=${parentHasTool ? "enabled" : "missing"}, child=${childHasTool ? "unexpectedly enabled" : "excluded"}`,
+      ok: parentActive.has("subagent") && !childHasTool && missingCore.length === 0,
+      detail: `active: ${[...parentActive].sort().join(", ") || "(none)"}; child=${childHasTool ? "unexpectedly enabled" : "excluded"}`,
     }];
   } catch (error) {
     await coordinator.dispose();
     return [{ name: "subagent tool", ok: false, detail: describe(error) }];
+  }
+}
+
+/**
+ * Offline check on the resource listing shown above the transcript: it must
+ * come back with the tool registry, and mark as inactive the tools pi
+ * registers but does not activate (`grep`/`find`/`ls`, unless an extension
+ * turns them on).
+ */
+export async function runResourceListingTest(cwd: string): Promise<DiagnosticResult[]> {
+  try {
+    const { session } = await createAgentSession({ cwd, sessionManager: SessionManager.inMemory(cwd) });
+    const sections = collectResourceSections({ session, cwd });
+    session.dispose();
+    const tools = sections.find((section) => section.name === "Tools")?.items ?? [];
+    const active = tools.filter((tool) => !tool.inactive).map((tool) => tool.label);
+    const inactive = tools.filter((tool) => tool.inactive).map((tool) => tool.label);
+    return [{
+      name: "resource listing",
+      ok: tools.length > 0 && active.includes("read"),
+      detail: `sections: ${sections.map((section) => `${section.name} ${section.items.length}`).join(", ")}; tools active: ${active.join(", ") || "(none)"}; inactive: ${inactive.join(", ") || "(none)"}`,
+    }];
+  } catch (error) {
+    return [{ name: "resource listing", ok: false, detail: describe(error) }];
   }
 }
 

@@ -26,7 +26,7 @@ This extension is implemented with the **official** `@earendil-works/pi-coding-a
 
 Like Pi itself, this extension stays minimal:
 
-- **UI only, powered by the official SDK.** The extension is a standalone VS Code UI built on the official `@earendil-works/pi-coding-agent` SDK. Agent loop, tools, LLM calls, extension/skill loading — all come from the SDK, unmodified. The Pi TUI/CLI does not need to be installed.
+- **UI only, powered by the official SDK.** The extension is a standalone VS Code UI built on the official `@earendil-works/pi-coding-agent` SDK. Agent loop, tools, LLM calls, extension/skill loading — all come from the SDK, unmodified. The Pi TUI/CLI does not need to be installed. The only tool this extension adds on top of pi's own set is `subagent`; anything else is supplied by pi or by a pi extension in `~/.pi/agent/extensions/`, shared with the CLI.
 - **Zero VS Code configuration.** No settings pages, no `settings.json` keys. Everything is configured the Pi way, in `~/.pi/agent/` — shared with the terminal Pi and editable by hand.
 - **Full Pi compatibility.** Context (AGENTS.md), skills, extensions, prompt templates, models and auth all work exactly as in the CLI. Sessions are interchangeable between the extension and the terminal. The UI itself follows your VS Code color theme (Pi TUI themes are not used for rendering).
 - **No feature sprawl.** Single-session mode, a small surface area, and native VS Code integration (diff view, QuickPick, theme colors) where it genuinely helps — nothing more.
@@ -59,7 +59,7 @@ Overall, this extension bets on simplicity and on the continued progress of the 
 
 ### Subagent-aware skills
 
-Why does the subagent exist at all? Because current LLM context windows are limited: the `subagent` tool exists to peel off work that is irrelevant to the main task line, keeping the parent's context focused. For that reason, the agent is instructed **not to use the `subagent` tool by default** — it is only invoked when the user explicitly asks for it or an enabled skill specifically requires it. If context windows grow large enough one day (say, 1 GB of context), the subagent can simply be removed.
+Why does the subagent exist at all? Because current LLM context windows are limited: the `subagent` tool exists to peel off work that is irrelevant to the main task line, keeping the parent's context focused. Its tool description states only how the mechanism behaves (serial, isolated, one child at a time); no usage policy is injected into the system prompt — if you want to steer when delegation happens, put that in your own `~/.pi/agent/APPEND_SYSTEM.md` or a project `AGENTS.md`, which the CLI reads too. If context windows grow large enough one day (say, 1 GB of context), the subagent can simply be removed.
 
 Skills should detect capabilities rather than a particular UI. If the `subagent` tool is available, call it with a complete task. Otherwise a CLI skill may use `pi --print` or its own fallback. Pi Agent Chat does not intercept skill commands or emulate the `pi` executable.
 

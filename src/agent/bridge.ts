@@ -16,6 +16,7 @@ import { openEditDiff } from "./diff-view.js";
 import { ProjectFileIndex } from "./project-files.js";
 import { buildModelCatalog, manageScopedModels, pickModel } from "./model-picker.js";
 import type { PiRuntime } from "./runtime.js";
+import { EMPTY_PROMPT_INDEX, buildPromptIndex, expandedPrompt, resolveInvocation, type PromptIndex } from "./invocations.js";
 import { EMPTY_SKILL_INDEX, buildSkillIndex, collapseSkillInvocation, invokedSkill, matchSkill, readSkillInvocation, type SkillIndex } from "./skills.js";
 import type { SubagentObserver, SubagentOutcome, SubagentRun } from "./subagent.js";
 
@@ -59,7 +60,11 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private readonly pendingToolArgs = new Map<string, unknown>();
   /** Absolute skill paths, used to label tool calls that load or run a skill. */
   private skillIndex: SkillIndex = EMPTY_SKILL_INDEX;
+  /** Loaded prompt templates, used to attribute user messages to a `/command`. */
+  private promptIndex: PromptIndex = EMPTY_PROMPT_INDEX;
   private readonly projectFiles: ProjectFileIndex;
+  /** >0 while an extension `/command` handler is running (nestable in theory). */
+  private extensionCommandDepth = 0;
 
   constructor(
     private readonly runtime: PiRuntime,
@@ -68,6 +73,16 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   ) {
     this.projectFiles = new ProjectFileIndex((message) => host.log(message));
     runtime.subagents.setObserver(this);
+    // Must be wired before the first bindExtensions() in attach().
+    runtime.setExtensionNoticeSink((session, notice) => {
+      this.emit(session, {
+        kind: notice.level === "error" ? "error" : "status",
+        text: notice.text,
+        // During a command the notice is the result the user asked for (top
+        // level, expanded); otherwise it is a background hint (work block).
+        scope: this.extensionCommandDepth > 0 ? "command" : undefined,
+      });
+    });
   }
 
   /** Subscribe to the current session and push the initial state. */
@@ -80,6 +95,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.histories.clear();
     this.compactionQueues.clear();
     this.skillIndex = buildSkillIndex(session);
+    this.promptIndex = buildPromptIndex(session);
     const events = this.buildHistory(session);
     this.histories.set(session.sessionId, events);
     this.unsubscribe = session.subscribe((event) => this.onSessionEvent(session, event));
@@ -104,12 +120,14 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
   /**
    * The CLI-style startup listing ([Context] / [Skills] / [Prompts] /
-   * [Extensions] / [Themes]), pinned above the transcript in the webview.
+   * [Extensions] / [Tools]), shown above the transcript when the header's
+   * resources button is toggled on.
    */
   postResources(): void {
     try {
-      // Extensions and skills are (re)loaded by now, so refresh the matcher too.
+      // Extensions and skills are (re)loaded by now, so refresh the matchers too.
       this.skillIndex = buildSkillIndex(this.runtime.session);
+      this.promptIndex = buildPromptIndex(this.runtime.session);
       this.host.post({ type: "resources", sections: collectResourceSections(this.runtime) });
     } catch (error) {
       this.host.log(`failed to collect resources: ${describe(error)}`);
@@ -261,7 +279,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
   /** Full active-branch replay with the current skill index applied to tool cards. */
   private buildHistory(session: AgentSession): ChatEvent[] {
-    return buildHistoryEntryEvents(session.sessionManager.getBranch(), this.runtime.cwd, this.skillIndex);
+    return buildHistoryEntryEvents(session.sessionManager.getBranch(), this.runtime.cwd, this.skillIndex, this.promptIndex);
   }
 
   private emit(session: AgentSession, event: ChatEvent): void {
@@ -378,13 +396,6 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     void promptPromise.finally(() => this.postState());
   }
 
-  private isExtensionCommand(session: AgentSession, text: string): boolean {
-    if (!text.startsWith("/")) return false;
-    const separator = text.indexOf(" ");
-    const name = separator === -1 ? text.slice(1) : text.slice(1, separator);
-    return session.extensionRunner.getRegisteredCommands().some((command) => command.invocationName === name);
-  }
-
   private onSessionEvent(session: AgentSession, event: AgentSessionEvent): void {
     const toolKey = (id: string) => `${session.sessionId}:${id}`;
     switch (event.type) {
@@ -432,10 +443,19 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       }
       case "message_end":
         this.emit(session, { kind: "assistant_end" });
-        // The SDK defers writing a brand-new session to disk until the first
-        // assistant message completes; refresh here so the sessions list can
-        // show the new session before the whole run settles.
-        if (event.message.role === "assistant") this.refreshSessions();
+        // Assistant messages carry the provider's finalized usage, cache and
+        // cost figures. Refresh after the SDK persists the message so the
+        // footer updates after every model response, including responses that
+        // only request a tool, rather than waiting for the whole agent run.
+        // AgentSession notifies subscribers before appending message_end to its
+        // SessionManager, so defer collection until the current stack unwinds.
+        if (event.message.role === "assistant") {
+          queueMicrotask(() => void this.postState());
+          // The SDK defers writing a brand-new session to disk until the first
+          // assistant message completes; refresh here so the sessions list can
+          // show the new session before the whole run settles.
+          this.refreshSessions();
+        }
         // Provider failures are encoded on the completed assistant message.
         // AgentState.errorMessage is only updated at turn_end, so it is not
         // available yet when message_end is delivered.
@@ -767,7 +787,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private async previewSession(file: string): Promise<void> {
     try {
       const manager = SessionManager.open(file);
-      const events = buildHistoryEntryEvents(manager.getBranch(), this.runtime.cwd, this.skillIndex);
+      const events = buildHistoryEntryEvents(manager.getBranch(), this.runtime.cwd, this.skillIndex, this.promptIndex);
       const firstUser = events.find((event) => event.kind === "user_message") as { text?: string } | undefined;
       this.preview = { file, title: (firstUser?.text ?? "").split("\n")[0] ?? "", events };
       this.postHistory();
@@ -842,7 +862,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     }
 
     const session = this.runtime.session;
-    const extensionCommand = this.isExtensionCommand(session, trimmed);
+    // Resolved before `prompt()` runs: it rewrites `/template` into the expanded
+    // body and swallows extension commands entirely.
+    const invocation = resolveInvocation(session, trimmed);
+    const extensionCommand = invocation.isExtensionCommand;
     if (session.isCompacting && !extensionCommand) {
       this.queueDuringCompaction(session, trimmed, streamingBehavior ?? "followUp");
       return;
@@ -852,14 +875,23 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     const mode = streaming ? (streamingBehavior ?? "followUp") : undefined;
     // The SDK expands `/skill:<name>` inside prompt(); the text emitted here is
     // still the command form, so the skill is resolved from the command itself.
-    this.emit(session, { kind: "user_message", text: trimmed, mode, skill: invokedSkill(this.skillIndex, trimmed) });
+    this.emit(session, {
+      kind: "user_message",
+      text: trimmed,
+      mode,
+      skill: invokedSkill(this.skillIndex, trimmed),
+      prompt: invocation.prompt,
+      extension: invocation.extension,
+    });
     try {
+      if (extensionCommand) this.extensionCommandDepth += 1;
       await session.prompt(trimmed, {
         streamingBehavior: mode,
       });
     } catch (error) {
       this.reportError(this.runtime.session, "prompt failed", error);
     } finally {
+      if (extensionCommand) this.extensionCommandDepth -= 1;
       await this.postState();
     }
   }
@@ -914,13 +946,6 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         await manageScopedModels(this.runtime, this.modelPickerUi());
         await this.postModels();
         await this.postState();
-      },
-      pickThinkingLevel: async () => {
-        if (this.runtime.session.getAvailableThinkingLevels().length <= 1) {
-          vscode.window.showInformationMessage(t("noThinkingLevels"));
-          return;
-        }
-        this.host.post({ type: "openPicker", picker: "thinking" });
       },
       login: async () => {
         await this.login();
@@ -1077,9 +1102,17 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       return;
     }
     const isActive = file === this.runtime.session.sessionFile;
-    const currentName = isActive
-      ? this.runtime.session.sessionManager.getSessionName()
-      : undefined;
+    // Prefill the input with the existing name so a rename edits it instead of
+    // starting from scratch; inactive sessions read it off their own file.
+    let manager: SessionManager | undefined;
+    let currentName: string | undefined;
+    try {
+      manager = isActive ? this.runtime.session.sessionManager : SessionManager.open(file);
+      currentName = manager.getSessionName();
+    } catch (error) {
+      this.reportError(this.runtime.session, "rename session failed", error);
+      return;
+    }
     const value = (
       await vscode.window.showInputBox({ title: t("sessionNameTitle"), value: currentName ?? "" })
     )?.trim();
@@ -1088,7 +1121,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       if (isActive) {
         this.runtime.session.setSessionName(value);
       } else {
-        SessionManager.open(file).appendSessionInfo(value);
+        manager.appendSessionInfo(value);
       }
     } catch (error) {
       this.reportError(this.runtime.session, "rename session failed", error);
@@ -1113,11 +1146,23 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 }
 
 /**
+ * What the listing needs from the runtime. Structural so the offline
+ * diagnostics can pass a bare session instead of a full `PiRuntime`.
+ */
+export interface ResourceHost {
+  session: AgentSession;
+  cwd: string;
+}
+
+/**
  * Build the CLI-style startup listing from the session's resource loader,
  * mirroring `interactive-mode`'s [Context] / [Skills] / [Prompts] /
- * [Extensions] / [Themes] sections. Empty sections are omitted.
+ * [Extensions] sections, plus a [Tools] section the CLI has no equivalent for.
+ * Empty sections are omitted, and the CLI's [Themes] section is dropped
+ * entirely: the webview renders with VS Code theme variables, so a pi theme
+ * would be listed as loaded while having no effect here.
  */
-export function collectResourceSections(runtime: PiRuntime): ResourceSection[] {
+export function collectResourceSections(runtime: ResourceHost): ResourceSection[] {
   const loader = runtime.session.resourceLoader;
   const sections: ResourceSection[] = [];
   // Every row can be opened in the editor, so it shows just the name (the path
@@ -1151,30 +1196,50 @@ export function collectResourceSections(runtime: PiRuntime): ResourceSection[] {
       sortedSection("Extensions", [
         ...extensions.map((extension) => entry(basename(extension.path), extension.path, (extension as { sourceInfo?: { origin?: string } }).sourceInfo)),
         // A failed extension has no loaded file to open, so it keeps the error
-        // as its row text.
+        // as its row text, and is dimmed: it is configured but not in effect.
         ...extensionErrors.map((failure) => ({
           label: `${basename(failure.path)} (load failed)`,
           detail: `${failure.path}: ${String(failure.error)}`,
+          inactive: true,
           scope: resourceScope(failure.path, runtime.cwd),
         })),
       ]),
     );
   }
 
-  const themes = loader.getThemes().themes.filter((theme) => (theme as { sourcePath?: string }).sourcePath);
-  if (themes.length > 0) {
-    sections.push(
-      sortedSection(
-        "Themes",
-        themes.map((theme) => {
-          const path = (theme as { sourcePath?: string }).sourcePath ?? "";
-          return entry((theme as { name?: string }).name ?? basename(path), path);
-        }),
-      ),
-    );
+  const tools = collectToolItems(runtime);
+  if (tools.length > 0) {
+    sections.push(sortedSection("Tools", tools));
   }
 
   return sections;
+}
+
+/**
+ * Every tool the session has configured, whether or not it is active.
+ *
+ * pi registers seven built-in tools but only activates `read`/`bash`/`edit`/
+ * `write` (`core/sdk.ts`), so `grep`/`find`/`ls` show up here as inactive until
+ * an extension turns them on — which is exactly the question this row answers.
+ * Built-in and SDK-provided tools carry a synthetic `<builtin:read>` path and
+ * open nothing; tools registered by an extension keep that extension's file,
+ * so the row leads to whoever provides them.
+ */
+function collectToolItems(runtime: ResourceHost): ResourceItem[] {
+  const session = runtime.session;
+  const active = new Set(session.getActiveToolNames());
+  return session.getAllTools().map((tool) => {
+    const sourceInfo = tool.sourceInfo as { path?: string; origin?: string } | undefined;
+    const path = sourceInfo?.path && !sourceInfo.path.startsWith("<") ? sourceInfo.path : undefined;
+    const hint = tool.description?.split("\n").find((line) => line.trim())?.trim();
+    return {
+      label: tool.name,
+      scope: path ? resourceScope(path, runtime.cwd, sourceInfo) : ("builtin" as const),
+      ...(path ? { path } : {}),
+      ...(hint ? { hint } : {}),
+      ...(active.has(tool.name) ? {} : { inactive: true }),
+    };
+  });
 }
 
 /**
@@ -1228,10 +1293,15 @@ function resultText(result: unknown): string {
  * Convert a persisted transcript into the same `ChatEvent` shapes the live
  * stream produces, so the webview has a single rendering path.
  */
-export function buildHistoryEvents(messages: readonly unknown[], cwd: string, skills: SkillIndex = EMPTY_SKILL_INDEX): ChatEvent[] {
+export function buildHistoryEvents(
+  messages: readonly unknown[],
+  cwd: string,
+  skills: SkillIndex = EMPTY_SKILL_INDEX,
+  prompts: PromptIndex = EMPTY_PROMPT_INDEX,
+): ChatEvent[] {
   const events: ChatEvent[] = [];
   const toolArgs = new Map<string, unknown>();
-  for (const message of messages) appendHistoryMessage(events, toolArgs, message, cwd, skills);
+  for (const message of messages) appendHistoryMessage(events, toolArgs, message, cwd, skills, prompts);
   return events;
 }
 
@@ -1241,7 +1311,12 @@ export function buildHistoryEvents(messages: readonly unknown[], cwd: string, sk
  * deliberately not expanded because those messages already exist earlier in a
  * regular Pi session and would otherwise be duplicated.
  */
-export function buildHistoryEntryEvents(entries: readonly SessionEntry[], cwd: string, skills: SkillIndex = EMPTY_SKILL_INDEX): ChatEvent[] {
+export function buildHistoryEntryEvents(
+  entries: readonly SessionEntry[],
+  cwd: string,
+  skills: SkillIndex = EMPTY_SKILL_INDEX,
+  prompts: PromptIndex = EMPTY_PROMPT_INDEX,
+): ChatEvent[] {
   const events: ChatEvent[] = [];
   const toolArgs = new Map<string, unknown>();
   for (const entry of entries) {
@@ -1254,7 +1329,7 @@ export function buildHistoryEntryEvents(entries: readonly SessionEntry[], cwd: s
       continue;
     }
     for (const message of sessionEntryToContextMessages(entry)) {
-      appendHistoryMessage(events, toolArgs, message, cwd, skills);
+      appendHistoryMessage(events, toolArgs, message, cwd, skills, prompts);
     }
   }
   return events;
@@ -1266,6 +1341,7 @@ function appendHistoryMessage(
   raw: unknown,
   cwd: string,
   skills: SkillIndex,
+  prompts: PromptIndex,
 ): void {
   const message = raw as {
     role?: string;
@@ -1280,7 +1356,9 @@ function appendHistoryMessage(
 
   if (message.role === "user") {
     const { text, skill } = readSkillInvocation(contentText(message.content));
-    if (text.trim()) events.push({ kind: "user_message", text, skill });
+    // Prompt templates leave no marker once expanded, so only placeholder-free
+    // bodies can be traced back to their `/command` here.
+    if (text.trim()) events.push({ kind: "user_message", text, skill, prompt: skill ? undefined : expandedPrompt(prompts, text) });
     return;
   }
 

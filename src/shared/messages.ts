@@ -65,10 +65,7 @@ export const sharedMessages = {
   },
   signInAction: { en: "Sign in", zh: "登录" },
   selectModelTitle: { en: "Pi Agent Chat: select model", zh: "Pi Agent Chat：选择模型" },
-  noThinkingLevels: {
-    en: "Pi Agent Chat: the current model has no selectable thinking levels.",
-    zh: "Pi Agent Chat：当前模型没有可选的思考等级。",
-  },
+
   current: { en: "current", zh: "当前" },
   favoriteModels: { en: "Frequently used", zh: "常用模型" },
   addFavoriteModel: { en: "Add to frequently used models", zh: "设为常用模型" },

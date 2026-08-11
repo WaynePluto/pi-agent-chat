@@ -6,33 +6,50 @@ import { getDict } from "./i18n.js";
 import { resourcesEl } from "./shell.js";
 
 /**
- * CLI-style startup listing ([Context] / [Skills] / ...), pinned above the
- * transcript as one bordered, fully collapsible panel. Default state is
- * collapsed: only a slim one-line header is visible. Expanding shows the
- * sections; each section can further expand to full file paths.
+ * CLI-style startup listing ([Context] / [Skills] / [Tools] / ...), shown above
+ * the transcript as one bordered, fully collapsible panel.
  *
- * Skills the transcript saw being loaded are marked active here, so the panel
- * answers "did any skill actually kick in?" without scanning the work blocks.
+ * The panel is only in the layout while the header's resources button is
+ * toggled on, and it comes up collapsed: just a slim one-line header. Expanding
+ * shows the sections; each section can further expand to full file paths.
+ *
+ * Two highlights answer "what actually happened in this session?": resources
+ * the transcript saw being used — skills loaded, tools called, prompt templates
+ * invoked, extensions whose command or tool ran — are coloured, while rows that
+ * are configured but not in effect (a tool outside the active set, an extension
+ * that failed to load) are dimmed. Everything else is plain foreground text:
+ * loaded and in effect, just not exercised here.
  */
 
 const t = getDict();
 
-/** Section whose items are skill names, matched by the host-side listing. */
+/** Sections whose rows can be highlighted from the displayed transcript. */
 const SKILLS_SECTION = "Skills";
+const TOOLS_SECTION = "Tools";
+const PROMPTS_SECTION = "Prompts";
+const EXTENSIONS_SECTION = "Extensions";
 
 /**
- * Display order of the scope groups inside a section: the resources shared
- * across projects first, then the ones this workspace brings in. Rows carry no
- * scope tag of their own; the group heading answers "where is this from?".
+ * Display order of the scope groups inside a section: what ships with the
+ * agent first, then the resources shared across projects, then the ones this
+ * workspace brings in. Rows carry no scope tag of their own; the group heading
+ * answers "where is this from?".
  */
-const SCOPE_ORDER: readonly ResourceScope[] = ["global", "project", "package", "other"];
+const SCOPE_ORDER: readonly ResourceScope[] = ["builtin", "global", "project", "package", "other"];
 
+/** Header toggle: the panel stays out of the layout until asked for. */
+let panelShown = false;
 let resourcesExpanded = false;
-/** Section expansion survives full re-renders triggered by skill highlighting. */
+/** Section expansion survives full re-renders triggered by the highlights. */
 const expandedSections = new Set<string>();
 let lastSections: ResourceSection[] = [];
-/** Skills loaded in the displayed transcript; reset on session/transcript swap. */
-const activeSkills = new Set<string>();
+/** Skills loaded / tools called in the displayed transcript; reset on swap. */
+const usedSkills = new Set<string>();
+const usedTools = new Set<string>();
+/** Prompt template names invoked in the displayed transcript. */
+const usedPrompts = new Set<string>();
+/** Absolute paths of extensions whose command ran in the displayed transcript. */
+const usedExtensions = new Set<string>();
 
 export function renderResources(sections: ResourceSection[]): void {
   lastSections = sections;
@@ -52,7 +69,6 @@ export function renderResources(sections: ResourceSection[]): void {
   });
 
   for (const section of sections) {
-    const skills = section.name === SKILLS_SECTION;
     const block = createCollapsible({
       classes: RESOURCE_SECTION_CLASSES,
       rootClass: "resource-section",
@@ -65,14 +81,17 @@ export function renderResources(sections: ResourceSection[]): void {
         else expandedSections.delete(section.name);
       },
     });
-    // Loaded skills are coloured rather than prefixed, so the summary line
-    // keeps reading as a plain comma-separated list.
-    if (skills) block.statusEl.replaceChildren(...summaryNodes(section));
+    // What was used is coloured and what is switched off is dimmed, rather than
+    // prefixed, so the summary line keeps reading as a plain comma-separated
+    // list.
+    if (section.items.some((item) => item.inactive || isUsed(section.name, item))) {
+      block.statusEl.replaceChildren(...summaryNodes(section));
+    }
     for (const scope of SCOPE_ORDER) {
       const rows = section.items.filter((item) => item.scope === scope);
       if (rows.length === 0) continue;
       block.body.appendChild(el("div", "resource-scope", t.resourceScopes[scope]));
-      for (const item of rows) block.body.appendChild(resourceRow(item, skills && isActive(item) ? item.label : undefined));
+      for (const item of rows) block.body.appendChild(resourceRow(item, section.name));
     }
   }
 }
@@ -81,23 +100,64 @@ function summaryNodes(section: ResourceSection): Node[] {
   const nodes: Node[] = [];
   section.items.forEach((item, index) => {
     if (index > 0) nodes.push(document.createTextNode(", "));
-    nodes.push(isActive(item) ? el("span", "skill-active", item.label) : document.createTextNode(item.label));
+    const highlight = isUsed(section.name, item) ? "resource-used" : item.inactive ? "resource-inactive" : undefined;
+    nodes.push(highlight ? el("span", highlight, item.label) : document.createTextNode(item.label));
   });
   return nodes;
 }
 
-/** Record that a skill was loaded in the current transcript. */
-export function markSkillActive(name: string): void {
-  if (activeSkills.has(name)) return;
-  activeSkills.add(name);
-  if (lastSections.some((section) => section.name === SKILLS_SECTION)) renderResources(lastSections);
+/** Header toggle: flip the whole panel in or out of the layout. */
+export function toggleResources(): void {
+  panelShown = !panelShown;
 }
 
-/** Drop the active marks when another transcript is displayed. */
-export function clearActiveSkills(): void {
-  if (activeSkills.size === 0) return;
-  activeSkills.clear();
+/** Whether the user asked for the panel; visibility also needs `hasResources()`. */
+export function isResourcesShown(): boolean {
+  return panelShown;
+}
+
+/** Record that a skill was loaded in the current transcript. */
+export function markSkillActive(name: string): void {
+  if (usedSkills.has(name)) return;
+  usedSkills.add(name);
+  rerenderIfPresent(SKILLS_SECTION);
+}
+
+/** Record that a tool was called in the current transcript. */
+export function markToolUsed(name: string): void {
+  if (usedTools.has(name)) return;
+  usedTools.add(name);
+  // The extension that registered the tool lights up with it; the link is the
+  // shared file path, so it is derived at render time rather than stored here.
+  rerenderIfPresent(TOOLS_SECTION);
+}
+
+/** Record that a prompt template was invoked in the current transcript. */
+export function markPromptUsed(name: string): void {
+  if (usedPrompts.has(name)) return;
+  usedPrompts.add(name);
+  rerenderIfPresent(PROMPTS_SECTION);
+}
+
+/** Record that an extension's command ran in the current transcript. */
+export function markExtensionUsed(path: string): void {
+  if (usedExtensions.has(path)) return;
+  usedExtensions.add(path);
+  rerenderIfPresent(EXTENSIONS_SECTION);
+}
+
+/** Drop the "used here" marks when another transcript is displayed. */
+export function clearResourceHighlights(): void {
+  if (usedSkills.size === 0 && usedTools.size === 0 && usedPrompts.size === 0 && usedExtensions.size === 0) return;
+  usedSkills.clear();
+  usedTools.clear();
+  usedPrompts.clear();
+  usedExtensions.clear();
   if (lastSections.length > 0) renderResources(lastSections);
+}
+
+function rerenderIfPresent(sectionName: string): void {
+  if (lastSections.some((section) => section.name === sectionName)) renderResources(lastSections);
 }
 
 /** True when there is something worth showing; drives the panel's visibility. */
@@ -105,16 +165,53 @@ export function hasResources(): boolean {
   return resourcesEl.hasChildNodes();
 }
 
-function isActive(item: ResourceItem): boolean {
-  return activeSkills.has(item.label);
+function isUsed(sectionName: string, item: ResourceItem): boolean {
+  if (sectionName === SKILLS_SECTION) return usedSkills.has(item.label);
+  if (sectionName === TOOLS_SECTION) return usedTools.has(item.label);
+  // Prompt rows carry the `/name` form the user types.
+  if (sectionName === PROMPTS_SECTION) return usedPrompts.has(item.label.replace(/^\//, ""));
+  if (sectionName === EXTENSIONS_SECTION) return item.path !== undefined && isExtensionUsed(item.path);
+  return false;
 }
 
-function resourceRow(item: ResourceItem, activeSkill?: string): HTMLElement {
-  // Rows that carry a file open in the editor; error rows stay plain text.
+/**
+ * An extension counts as used once one of its commands ran, or once a tool it
+ * registered was called: tool rows carry the registering extension's file as
+ * their path, which is the same path the extension row opens.
+ */
+function isExtensionUsed(path: string): boolean {
+  if (usedExtensions.has(path)) return true;
+  const tools = lastSections.find((section) => section.name === TOOLS_SECTION)?.items ?? [];
+  return tools.some((tool) => tool.path === path && usedTools.has(tool.label));
+}
+
+/** Why this row is highlighted, in the words of its own section. */
+function usedTitle(sectionName: string, label: string): string {
+  if (sectionName === SKILLS_SECTION) return t.skillActiveTitle(label);
+  if (sectionName === PROMPTS_SECTION) return t.promptUsedTitle;
+  if (sectionName === EXTENSIONS_SECTION) return t.extensionUsedTitle;
+  return t.toolUsedTitle;
+}
+
+function resourceRow(item: ResourceItem, sectionName: string): HTMLElement {
+  // Rows that carry a file open in the editor; error rows and built-in tools
+  // stay plain text.
+  const used = isUsed(sectionName, item);
   const text = item.detail ?? item.label;
-  if (!item.path) return el("div", undefined, text);
+  const modifiers = [used ? "resource-used" : "", item.inactive ? "resource-inactive" : ""].filter(Boolean);
+  // Tooltip: what it is, then how it stands in this session, then what a click
+  // would do.
+  const notes = [item.hint];
+  if (item.inactive) notes.push(t.resourceInactiveTitle);
+  else if (used) notes.push(usedTitle(sectionName, item.label));
+  const lines = notes.filter(Boolean) as string[];
+  if (!item.path) {
+    const row = el("div", modifiers.join(" ") || undefined, text);
+    if (lines.length > 0) row.title = lines.join("\n");
+    return row;
+  }
   const target = item.path;
-  const row = button(activeSkill ? "resource-file active" : "resource-file", text, () => post({ type: "openFile", path: target }));
-  row.title = activeSkill ? `${target}\n${t.skillActiveTitle(activeSkill)}` : `${target}\n${t.resourceOpenTitle}`;
+  const row = button(["resource-file", ...modifiers].join(" "), text, () => post({ type: "openFile", path: target }));
+  row.title = [...lines, `${target}\n${t.resourceOpenTitle}`].join("\n");
   return row;
 }

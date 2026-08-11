@@ -58,13 +58,9 @@ export class SubagentCoordinator {
       name: "subagent",
       label: "Subagent",
       description:
-        "Delegate one task to an isolated, visible child agent session. Use this tool only when the user explicitly asks you to use a subagent or an enabled skill specifically requires the subagent tool; otherwise, do not call it proactively. The current session waits for the child and receives its final answer. Only one child can run at a time.",
+        "Delegate one task to an isolated child agent session. Execution is strictly serial: the parent session pauses and waits until the child finishes, then receives the child's final answer as the tool result. Only one child can run at a time, and children cannot create nested subagents. The child starts with a fresh context and keeps nothing after it exits, so the task must be complete and self-contained and its outcome must fit in one final answer.",
       promptSnippet:
-        "Delegate an isolated task to a visible child agent session only when explicitly requested by the user or required by an enabled skill; do not invoke proactively",
-      promptGuidelines: [
-        "Use subagent only when the user explicitly requests it or an enabled skill specifically requires it; otherwise do not call it proactively.",
-        "Subagents run sequentially and cannot create nested subagents.",
-      ],
+        "Delegate a self-contained task to a visible child agent session; the parent waits for the child's final answer",
       parameters: Type.Object({
         task: Type.String({ description: "Complete, self-contained task for the child agent" }),
         title: Type.Optional(Type.String({ description: "Short session title shown in the session list" })),
@@ -165,9 +161,9 @@ export class SubagentCoordinator {
       sessionManager: SessionManager.create(host.getCwd()),
       model,
       thinkingLevel,
-      // Resource-loader extensions remain available, but neither this built-in
-      // custom tool nor another extension tool named `subagent` may recurse.
-      customTools: [],
+      // Resource-loader extensions remain available to the child, but neither
+      // this built-in custom tool nor an extension tool named `subagent` may
+      // recurse.
       excludeTools: ["subagent"],
     });
     const child = result.session;
