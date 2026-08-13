@@ -39,25 +39,25 @@
     "configuration": {
       "title": "%configuration.title%",
       "properties": {
-        "piAgentChat.parallelSubagent.enabled": {
+        "piAgentChat.subagent.enabled": {
           "type": "boolean",
           "default": false,
           "scope": "resource",
-          "markdownDescription": "%configuration.parallelSubagent.enabled%"
+          "markdownDescription": "%configuration.subagent.enabled%"
         },
-        "piAgentChat.parallelSubagent.maxParallel": {
+        "piAgentChat.subagent.maxSubagents": {
           "type": "number",
           "default": 3,
           "minimum": 1,
           "maximum": 8,
           "scope": "resource",
-          "markdownDescription": "%configuration.parallelSubagent.maxParallel%"
+          "markdownDescription": "%configuration.subagent.maxSubagents%"
         },
-        "piAgentChat.parallelSubagent.defaultModel": {
+        "piAgentChat.subagent.defaultModel": {
           "type": "string",
           "default": "",
           "scope": "resource",
-          "markdownDescription": "%configuration.parallelSubagent.defaultModel%"
+          "markdownDescription": "%configuration.subagent.defaultModel%"
         }
       }
     },

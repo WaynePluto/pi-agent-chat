@@ -1,12 +1,12 @@
 import * as vscode from "vscode";
 import {
-  MAX_PARALLEL_HARD_CAP,
+  SUBAGENT_HARD_CAP,
   hasWorkspaceScope,
-  parallelSubagentSettingId,
-  readParallelSubagentConfig,
-  readParallelSubagentOverride,
-  writeParallelSubagentSetting,
-  type ParallelSubagentKey,
+  subagentSettingId,
+  readSubagentConfig,
+  readSubagentOverride,
+  writeSubagentSetting,
+  type SubagentKey,
   type SettingsScope,
 } from "./config.js";
 import { describe } from "./errors.js";
@@ -16,7 +16,7 @@ import type { PiRuntime } from "./runtime.js";
 /**
  * The "Subagent" form behind the header settings menu.
  *
- * `parallel_subagent` exists only in this host, so its switches live in VS Code
+ * The `subagent` tool exists only in this host, so its switches live in VS Code
  * settings rather than in the shared `~/.pi/agent/settings.json` (AGENTS.md,
  * "配置项归属"). The one thing a settings file cannot express is *where* a value
  * should go, so the form makes that an explicit first row: everything edited
@@ -46,7 +46,7 @@ export type SubagentSettingsOutcome = "dismissed" | "navigated";
 
 /** One editable row of the form. */
 interface Field {
-  key: ParallelSubagentKey;
+  key: SubagentKey;
   label: string;
   detail: string;
   /** How the currently effective value reads. */
@@ -76,7 +76,7 @@ async function modelChoices(runtime: PiRuntime): Promise<Array<{ label: string; 
   }
 }
 
-function fields(config: ReturnType<typeof readParallelSubagentConfig>): Field[] {
+function fields(config: ReturnType<typeof readSubagentConfig>): Field[] {
   return [
     {
       key: "enabled",
@@ -91,13 +91,13 @@ function fields(config: ReturnType<typeof readParallelSubagentConfig>): Field[] 
       ],
     },
     {
-      key: "maxParallel",
-      label: t("subagentMaxParallel"),
-      detail: t("subagentMaxParallelDetail"),
-      value: String(config.maxParallel),
-      current: String(config.maxParallel),
+      key: "maxSubagents",
+      label: t("subagentMaxSubagents"),
+      detail: t("subagentMaxSubagentsDetail"),
+      value: String(config.maxSubagents),
+      current: String(config.maxSubagents),
       choices: async () => [
-        ...Array.from({ length: MAX_PARALLEL_HARD_CAP }, (_, index) => ({ label: String(index + 1), value: index + 1 })),
+        ...Array.from({ length: SUBAGENT_HARD_CAP }, (_, index) => ({ label: String(index + 1), value: index + 1 })),
         { label: t("subagentClearOverride"), value: undefined },
       ],
     },
@@ -133,7 +133,7 @@ export async function openSubagentSettings(runtime: PiRuntime, ui: SubagentSetti
   // Loop so the whole form can be filled in one visit.
   for (;;) {
     const cwd = runtime.cwd;
-    const config = readParallelSubagentConfig(cwd);
+    const config = readSubagentConfig(cwd);
     const items: Item[] = [
       {
         id: "scope",
@@ -161,7 +161,7 @@ export async function openSubagentSettings(runtime: PiRuntime, ui: SubagentSetti
     });
     if (!picked) return "dismissed";
     if (picked.id === "open") {
-      await vscode.commands.executeCommand("workbench.action.openSettings", parallelSubagentSettingId());
+      await vscode.commands.executeCommand("workbench.action.openSettings", subagentSettingId());
       return "navigated";
     }
     if (picked.id === "scope") {
@@ -177,8 +177,8 @@ export async function openSubagentSettings(runtime: PiRuntime, ui: SubagentSetti
 }
 
 /** `set in <scope>` when this scope holds an explicit value, else nothing. */
-function overrideSource(cwd: string, scope: SettingsScope, key: ParallelSubagentKey): string | undefined {
-  const stored = readParallelSubagentOverride<unknown>(cwd, scope, key);
+function overrideSource(cwd: string, scope: SettingsScope, key: SubagentKey): string | undefined {
+  const stored = readSubagentOverride<unknown>(cwd, scope, key);
   return stored === undefined ? undefined : tf("subagentSettingSource", scopeLabel(scope));
 }
 
@@ -213,7 +213,7 @@ async function editField(runtime: PiRuntime, ui: SubagentSettingsUi, scope: Sett
       await vscode.window.showInputBox({
         title: t("subagentModelInputTitle"),
         prompt: t("subagentModelInputPrompt"),
-        value: readParallelSubagentOverride<string>(runtime.cwd, scope, "defaultModel") ?? "",
+        value: readSubagentOverride<string>(runtime.cwd, scope, "defaultModel") ?? "",
       })
     )?.trim();
     if (typed === undefined) return;
@@ -221,7 +221,7 @@ async function editField(runtime: PiRuntime, ui: SubagentSettingsUi, scope: Sett
   }
 
   try {
-    await writeParallelSubagentSetting(runtime.cwd, scope, field.key, value);
+    await writeSubagentSetting(runtime.cwd, scope, field.key, value);
   } catch (error) {
     vscode.window.showWarningMessage(describe(error));
     return;

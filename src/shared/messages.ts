@@ -105,13 +105,13 @@ export const sharedMessages = {
   settingsHelp: { en: "Command help", zh: "命令帮助" },
   settingsSubagent: { en: "Subagent", zh: "子代理" },
   settingsSubagentDetail: {
-    en: "Configure parallel_subagent (this window only, not shared with the pi CLI)",
-    zh: "配置并行子代理（仅本插件，不与终端 pi 共用）",
+    en: "Configure the subagent tool (this window only, not shared with the pi CLI)",
+    zh: "配置 subagent 工具（仅本插件，不与终端 pi 共用）",
   },
 
-  /* Parallel subagent settings form -------------------------------------- */
+  /* Subagent settings form ---------------------------------------------- */
 
-  subagentSettingsTitle: { en: "Parallel subagent settings", zh: "并行子代理设置" },
+  subagentSettingsTitle: { en: "Subagent settings", zh: "子代理设置" },
   subagentSettingsHint: {
     en: "Stored in VS Code settings; changes apply to the next session",
     zh: "保存在 VS Code 设置中，更改在下一个会话生效",
@@ -127,13 +127,13 @@ export const sharedMessages = {
     en: "No folder is open, so values can only be written to user settings.",
     zh: "当前没有打开文件夹，只能写入用户设置。",
   },
-  subagentEnabled: { en: "Parallel subagent", zh: "并行子代理" },
+  subagentEnabled: { en: "Subagent", zh: "子代理" },
   subagentEnabledDetail: {
     en: "Let the agent delegate several tasks at once to child sessions that write to your working tree directly",
     zh: "允许主代理一次派出多路子会话，它们会直接修改你的工作区",
   },
-  subagentMaxParallel: { en: "Max parallel subagents", zh: "最大并行数" },
-  subagentMaxParallelDetail: {
+  subagentMaxSubagents: { en: "Max subagents per call", zh: "单次调用子代理上限" },
+  subagentMaxSubagentsDetail: {
     en: "Upper bound for one call; also published to the model as the schema limit",
     zh: "单次调用的上限，同时作为 schema 限制告知模型",
   },
@@ -341,16 +341,16 @@ export const sharedMessages = {
   copiedLastMessage: { en: "last assistant message copied", zh: "已复制最后一条助手消息" },
 
   /**
-   * A parallel-subagent setting changed.
+   * A subagent setting changed.
    *
    * A session's tool set is fixed when the session is built, and `reload()`
    * keeps the host's `customTools`, so the change cannot reach a conversation
    * already in progress — and silently rebuilding the session would throw that
    * conversation away.
    */
-  parallelSubagentSettingChanged: {
-    en: "Parallel subagent settings changed. They apply to the next session.",
-    zh: "并行子代理设置已更改，将在下一个会话生效。",
+  subagentSettingChanged: {
+    en: "Subagent settings changed. They apply to the next session.",
+    zh: "子代理设置已更改，将在下一个会话生效。",
   },
 
   /** Fills the source slot of `subagentModelFallback`. */

@@ -138,15 +138,13 @@ const en = {
         : []),
       ...(shadowedSubagent
         ? [
-            `The "subagent" tool registered by the extension at ${shadowedSubagent.path} is disabled here. ` +
-              "Delegating to a subagent depends on the host, and this is not a terminal Pi process — an extension " +
-              "that delegates by launching Pi again cannot locate it from inside the VS Code extension host, and " +
-              "would return an empty result instead of failing. The same extension keeps working in the Pi CLI.",
-            shadowedSubagent.parallelSubagentEnabled
-              ? "This window delegates through its own parallel_subagent tool instead, which is enabled for this " +
-                "session. Each subagent is given its task and the paths it may write to; it has no role file behind it."
-              : "This window has its own parallel_subagent tool, but it is turned off, so this session has no " +
-                "delegation tool at all. Turn it on under Settings → Subagent (it applies to the next session).",
+            `The "subagent" tool registered by the extension at ${shadowedSubagent.path} is disabled here because ` +
+              "this window has its own subagent tool under that name. The extension keeps working in the Pi CLI.",
+            shadowedSubagent.subagentEnabled
+              ? "Delegation in this session goes through this window's subagent tool, which is enabled here. " +
+                "Each subagent is given its task and the paths it may write to; it has no role file behind it."
+              : "It is currently turned off, so this session has no delegation tool at all. Turn it on under " +
+                "Settings → Subagent (it applies to the next session).",
           ]
         : []),
     ].join("\n\n"),
@@ -299,14 +297,12 @@ const zh: Dict = {
       ...(systemPromptOverridden ? ["默认 system prompt 已被覆盖，因此模型可能不知道 Pi 随附文档的位置。"] : []),
       ...(shadowedSubagent
         ? [
-            `扩展 ${shadowedSubagent.path} 注册的“subagent”工具在这里已被禁用。` +
-              "子代理委派依赖宿主能力，而这里并不是终端里的 Pi 进程——通过重新启动 Pi 来委派的扩展，" +
-              "在 VS Code 扩展宿主中无法定位到 Pi，且会返回空结果而不是报错。该扩展在 Pi CLI 中仍然正常工作。",
-            shadowedSubagent.parallelSubagentEnabled
-              ? "本窗口改用自带的 parallel_subagent 工具委派，它在本会话中已开启——" +
-                "每个子代理只拿到任务描述和可写入的路径范围，背后没有角色文件。"
-              : "本窗口自带 parallel_subagent 工具，但当前未开启，因此本会话没有任何委派工具。" +
-                "可在“设置 → 子代理”中开启（在下一个会话生效）。",
+            `扩展 ${shadowedSubagent.path} 注册的“subagent”工具在这里已被禁用：本窗口自带同名的 subagent 工具。` +
+              "该扩展在 Pi CLI 中仍然正常工作。",
+            shadowedSubagent.subagentEnabled
+              ? "本会话经本窗口的 subagent 工具委派（已开启）。每个子代理只拿到任务描述和可写入的路径范围，" +
+                "背后没有角色文件。"
+              : "它当前未开启，因此本会话没有任何委派工具。可在“设置 → 子代理”中开启（在下一个会话生效）。",
           ]
         : []),
     ].join("\n\n"),

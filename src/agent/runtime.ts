@@ -16,8 +16,8 @@ import {
   SessionManager,
   type WidgetPlacement,
 } from "@earendil-works/pi-coding-agent";
-import { ParallelSubagentCoordinator } from "./parallel-subagent.js";
-import { readParallelSubagentConfig } from "./config.js";
+import { SubagentCoordinator, SUBAGENT_TOOL } from "./subagent.js";
+import { readSubagentConfig } from "./config.js";
 import { configureHttpDispatcher } from "./http.js";
 import { t } from "./i18n.js";
 
@@ -39,27 +39,26 @@ export interface PiRuntimeOptions {
 interface ToolSetupRef {
   /** Extension whose `subagent` tool was suppressed, if any. */
   shadowedSubagent?: string;
-  /** Whether this window's own `parallel_subagent` tool was installed. */
-  parallelSubagent: boolean;
+  /** Whether this window's own `subagent` tool was installed. */
+  subagent: boolean;
 }
-
-/** The CLI-ecosystem tool name this host cannot run; see below. */
-const SUBAGENT_TOOL_NAME = "subagent";
 
 /**
  * Path of a loaded pi extension that registers a tool named `subagent`.
  *
  * Such a tool is always suppressed here, whether or not this window's own
- * `parallel_subagent` is enabled, because in this host it cannot work: an
- * extension can only start a subagent by re-launching pi, and it can only find
- * pi by introspecting its own process (`process.argv[1]` / `process.execPath`).
- * Inside the VS Code extension host that introspection points at VS Code's own
- * bootstrap, which exists — so the check passes and the spawn exits 0 with no
- * output. The model then reasons on an empty result. Suppressing it leaves the
- * user with either no delegation tool or a working one, never a broken one.
+ * `subagent` tool is enabled, because the plugin owns that name: it cannot
+ * know how an arbitrary extension implements its `subagent` (or which host
+ * capabilities it relies on), and one name must not mean two things in one
+ * window. When the setting is on, the SDK's tool registry makes the host
+ * tool win outright — a custom tool overrides an extension tool of the same
+ * name (`core/agent-session.ts`, `_refreshToolRegistry()`) — and when it is
+ * off the name is excluded. Either way the user is never offered an
+ * extension `subagent` whose arguments would not match the call shape their
+ * session history records.
  *
- * Only the tool *name* is matched. No extension is identified by name, path or
- * capability, and nothing here inspects how an extension is implemented.
+ * Only the tool *name* is matched. No extension is identified by name, path
+ * or capability, and nothing here inspects how an extension is implemented.
  *
  * Safe to call right after `createAgentSessionServices()`: it awaits
  * `resourceLoader.reload()` internally, so extension tool names are known
@@ -68,7 +67,7 @@ const SUBAGENT_TOOL_NAME = "subagent";
 export function findShadowedSubagentExtension(services: AgentSessionServices): string | undefined {
   try {
     const { extensions } = services.resourceLoader.getExtensions();
-    return extensions.find((extension) => extension.tools.has(SUBAGENT_TOOL_NAME))?.path;
+    return extensions.find((extension) => extension.tools.has(SUBAGENT_TOOL))?.path;
   } catch {
     return undefined;
   }
@@ -155,7 +154,7 @@ export interface SessionLifecycleSink {
 export class PiRuntime implements vscode.Disposable {
   private constructor(
     readonly runtime: AgentSessionRuntime,
-    readonly subagents: ParallelSubagentCoordinator,
+    readonly subagents: SubagentCoordinator,
     /** Aborted on dispose; cancels every auth/model call this runtime started. */
     private readonly lifetime: AbortController,
     private readonly log: (message: string) => void,
@@ -176,15 +175,15 @@ export class PiRuntime implements vscode.Disposable {
   }
 
   /**
-   * Whether `parallel_subagent` is part of *this* session's tool set.
+   * Whether this host's `subagent` tool is part of *this* session's tool set.
    *
    * Read from the session factory rather than from the setting: the tool set is
    * fixed when the session is built, so a setting flipped mid-conversation only
    * lands on the next session, and the notice must describe the session the
    * user is actually in.
    */
-  get parallelSubagentEnabled(): boolean {
-    return this.toolSetupRef.parallelSubagent;
+  get subagentEnabled(): boolean {
+    return this.toolSetupRef.subagent;
   }
 
   /** Injected by `ChatBridge`; routes extension notifications to a transcript. */
@@ -213,10 +212,10 @@ export class PiRuntime implements vscode.Disposable {
 
   static async create(options: PiRuntimeOptions): Promise<PiRuntime> {
     const { cwd, log } = options;
-    const subagents = new ParallelSubagentCoordinator(log);
+    const subagents = new SubagentCoordinator(log);
     const lifetime = new AbortController();
 
-    const toolSetup: ToolSetupRef = { parallelSubagent: false };
+    const toolSetup: ToolSetupRef = { subagent: false };
 
     const createRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd: effectiveCwd, sessionManager, sessionStartEvent }) => {
       // modelRuntimeSignal cancels the create-time credential restore and
@@ -224,16 +223,16 @@ export class PiRuntime implements vscode.Disposable {
       const services = await createAgentSessionServices({ cwd: effectiveCwd, modelRuntimeSignal: lifetime.signal });
       toolSetup.shadowedSubagent = findShadowedSubagentExtension(services);
       if (toolSetup.shadowedSubagent) {
-        log(`suppressing the subagent tool registered by extension ${toolSetup.shadowedSubagent}: it cannot run in this host`);
+        log(`shadowing the subagent tool registered by extension ${toolSetup.shadowedSubagent}: this window owns that name`);
       }
       // Read per session, not once at startup: the tool set is fixed when the
       // session is built, so this is the point where a changed setting lands.
-      const parallelConfig = readParallelSubagentConfig(effectiveCwd);
-      toolSetup.parallelSubagent = parallelConfig.enabled;
+      const subagentConfig = readSubagentConfig(effectiveCwd);
+      toolSetup.subagent = subagentConfig.enabled;
       log(
-        parallelConfig.enabled
-          ? `parallel_subagent enabled (max ${parallelConfig.maxParallel}${parallelConfig.defaultModel ? `, model ${parallelConfig.defaultModel}` : ""})`
-          : "parallel_subagent disabled",
+        subagentConfig.enabled
+          ? `subagent enabled (max ${subagentConfig.maxSubagents}${subagentConfig.defaultModel ? `, model ${subagentConfig.defaultModel}` : ""})`
+          : "subagent disabled",
       );
       return {
         ...(await createAgentSessionFromServices({
@@ -244,10 +243,16 @@ export class PiRuntime implements vscode.Disposable {
           // user asked for it. Everything else the agent can call comes from pi
           // or from a pi extension in `~/.pi/agent/extensions/`, shared with the
           // CLI.
-          customTools: parallelConfig.enabled ? [subagents.createTool(parallelConfig)] : [],
-          // Always dropped, independently of the setting above; see
-          // `findShadowedSubagentExtension`.
-          excludeTools: [SUBAGENT_TOOL_NAME],
+          customTools: subagentConfig.enabled ? [subagents.createTool(subagentConfig)] : [],
+          // The name `subagent` belongs to this window, in both switch states:
+          // enabled, no exclusion is needed — the SDK's tool registry lets a
+          // custom tool override an extension tool of the same name
+          // (`core/agent-session.ts`, `_refreshToolRegistry()`), so the model
+          // always resolves the name to this host's tool; disabled, the name
+          // is excluded so the extension's tool is not offered either. The
+          // exclusion set (and the custom tools) persist on the session, so
+          // `/reload` keeps whichever arrangement the session was built with.
+          excludeTools: subagentConfig.enabled ? [] : [SUBAGENT_TOOL],
           scopedModels: await resolveScopedModels(services, log, lifetime.signal),
         })),
         services,
@@ -286,7 +291,7 @@ export class PiRuntime implements vscode.Disposable {
     subagents.attachHost({
       getSession: () => wrapper.session,
       getCwd: () => wrapper.cwd,
-      getConfig: () => readParallelSubagentConfig(wrapper.cwd),
+      getConfig: () => readSubagentConfig(wrapper.cwd),
       // Shared with every child: `createSubagentServices()` passes this exact
       // instance on, so a model resolved here is the one a lane will run.
       getModelRuntime: () => wrapper.runtime.services.modelRuntime,

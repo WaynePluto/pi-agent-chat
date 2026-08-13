@@ -384,7 +384,7 @@ Open in editor" type="button">
         <span>
           "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
 
-===== empty state: extension subagent shadowed, parallel subagent off =====
+===== empty state: extension subagent shadowed, subagent off =====
 <div id="root">
   <header id="header" class="header">
     <div id="header-title" class="header-title" title="New session">
@@ -539,7 +539,7 @@ Open in editor" type="button">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
       <div class="bubble status empty-session">
-        "No messages in this session yet. Pi can explain its own features and look up its docs. Ask it how to use or extend Pi. The "subagent" tool registered by the extension at /home/u/.pi/agent/extensions/subagent/index.ts is disabled here. Delegating to a subagent depends on the host, and this is not a terminal Pi process — an extension that delegates by launching Pi again cannot locate it from inside the VS Code extension host, and would return an empty result instead of failing. The same extension keeps working in the Pi CLI. This window has its own parallel_subagent tool, but it is turned off, so this session has no delegation tool at all. Turn it on under Settings → Subagent (it applies to the next session)."
+        "No messages in this session yet. Pi can explain its own features and look up its docs. Ask it how to use or extend Pi. The "subagent" tool registered by the extension at /home/u/.pi/agent/extensions/subagent/index.ts is disabled here because this window has its own subagent tool under that name. The extension keeps working in the Pi CLI. It is currently turned off, so this session has no delegation tool at all. Turn it on under Settings → Subagent (it applies to the next session)."
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -577,7 +577,7 @@ Open in editor" type="button">
         <span>
           "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
 
-===== empty state: extension subagent shadowed, parallel subagent on =====
+===== empty state: extension subagent shadowed, subagent on =====
 <div id="root">
   <header id="header" class="header">
     <div id="header-title" class="header-title" title="New session">
@@ -732,7 +732,7 @@ Open in editor" type="button">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
       <div class="bubble status empty-session">
-        "No messages in this session yet. Pi can explain its own features and look up its docs. Ask it how to use or extend Pi. The "subagent" tool registered by the extension at /home/u/.pi/agent/extensions/subagent/index.ts is disabled here. Delegating to a subagent depends on the host, and this is not a terminal Pi process — an extension that delegates by launching Pi again cannot locate it from inside the VS Code extension host, and would return an empty result instead of failing. The same extension keeps working in the Pi CLI. This window delegates through its own parallel_subagent tool instead, which is enabled for this session. Each subagent is given its task and the paths it may write to; it has no role file behind it."
+        "No messages in this session yet. Pi can explain its own features and look up its docs. Ask it how to use or extend Pi. The "subagent" tool registered by the extension at /home/u/.pi/agent/extensions/subagent/index.ts is disabled here because this window has its own subagent tool under that name. The extension keeps working in the Pi CLI. Delegation in this session goes through this window's subagent tool, which is enabled here. Each subagent is given its task and the paths it may write to; it has no role file behind it."
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -4659,7 +4659,7 @@ Open in editor" type="button">
         <span>
           "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
 
-===== parallel subagents: card on the parent =====
+===== subagent: card on the parent =====
 <div id="root">
   <header id="header" class="header">
     <div id="header-title" class="header-title" title="New session">
@@ -4794,7 +4794,8 @@ Open in editor" type="button">
               ","
               "notify"
               ","
-              "subagent"
+              <span class="resource-used">
+                "subagent"
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
@@ -4806,7 +4807,8 @@ Called in this session">
             <div class="resource-inactive" title="Search file contents
 Configured, but not in effect in this session">
               "grep"
-            <div title="Delegate one task to a child agent session">
+            <div class="resource-used" title="Delegate one task to a child agent session
+Called in this session">
               "subagent"
             <div class="resource-scope">
               "Global"
@@ -5062,7 +5064,7 @@ Open in editor" type="button">
           <span class="work-label">
             "Work"
           <span class="work-status">
-            "thinking 0 · tools 1 · last parallel_subagent"
+            "thinking 0 · tools 1 · last subagent"
           <span class="work-pulse">
           <span class="work-chevron">
             <svg/>
@@ -5070,7 +5072,7 @@ Open in editor" type="button">
           <div class="tool-card error">
             <button class="card-header" title="Collapse" aria-expanded="true" type="button">
               <span class="card-label">
-                "parallel_subagent"
+                "subagent"
               <span class="card-status">
                 "done"
               <span class="card-pulse">
@@ -5156,7 +5158,7 @@ Open in editor" type="button">
         <span>
           "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
 
-===== parallel subagents: one lane displayed =====
+===== subagent: one lane displayed =====
 <div id="root">
   <header id="header" class="header">
     <div id="header-title" class="header-title" title="New session">
@@ -5291,7 +5293,8 @@ Open in editor" type="button">
               ","
               "notify"
               ","
-              "subagent"
+              <span class="resource-used">
+                "subagent"
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
@@ -5303,7 +5306,8 @@ Called in this session">
             <div class="resource-inactive" title="Search file contents
 Configured, but not in effect in this session">
               "grep"
-            <div title="Delegate one task to a child agent session">
+            <div class="resource-used" title="Delegate one task to a child agent session
+Called in this session">
               "subagent"
             <div class="resource-scope">
               "Global"
@@ -5561,7 +5565,7 @@ Open in editor" type="button">
           <span class="work-label">
             "Work"
           <span class="work-status">
-            "thinking 0 · tools 1 · last parallel_subagent"
+            "thinking 0 · tools 1 · last subagent"
           <span class="work-pulse">
           <span class="work-chevron">
             <svg/>
@@ -5569,7 +5573,7 @@ Open in editor" type="button">
           <div class="tool-card error">
             <button class="card-header" title="Collapse" aria-expanded="true" type="button">
               <span class="card-label">
-                "parallel_subagent"
+                "subagent"
               <span class="card-status">
                 "done"
               <span class="card-pulse">
@@ -5832,7 +5836,8 @@ Open in editor" type="button">
               ","
               "notify"
               ","
-              "subagent"
+              <span class="resource-used">
+                "subagent"
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
@@ -5844,7 +5849,8 @@ Called in this session">
             <div class="resource-inactive" title="Search file contents
 Configured, but not in effect in this session">
               "grep"
-            <div title="Delegate one task to a child agent session">
+            <div class="resource-used" title="Delegate one task to a child agent session
+Called in this session">
               "subagent"
             <div class="resource-scope">
               "Global"
@@ -6102,7 +6108,7 @@ Open in editor" type="button">
           <span class="work-label">
             "Work"
           <span class="work-status">
-            "thinking 0 · tools 1 · last parallel_subagent"
+            "thinking 0 · tools 1 · last subagent"
           <span class="work-pulse">
           <span class="work-chevron">
             <svg/>
@@ -6110,7 +6116,7 @@ Open in editor" type="button">
           <div class="tool-card error">
             <button class="card-header" title="Collapse" aria-expanded="true" type="button">
               <span class="card-label">
-                "parallel_subagent"
+                "subagent"
               <span class="card-status">
                 "done"
               <span class="card-pulse">
@@ -6368,7 +6374,8 @@ Open in editor" type="button">
               ","
               "notify"
               ","
-              "subagent"
+              <span class="resource-used">
+                "subagent"
             <span class="resource-chevron">
               <svg/>
           <div class="resource-details">
@@ -6380,7 +6387,8 @@ Called in this session">
             <div class="resource-inactive" title="Search file contents
 Configured, but not in effect in this session">
               "grep"
-            <div title="Delegate one task to a child agent session">
+            <div class="resource-used" title="Delegate one task to a child agent session
+Called in this session">
               "subagent"
             <div class="resource-scope">
               "Global"
@@ -6638,7 +6646,7 @@ Open in editor" type="button">
           <span class="work-label">
             "Work"
           <span class="work-status">
-            "thinking 0 · tools 1 · last parallel_subagent"
+            "thinking 0 · tools 1 · last subagent"
           <span class="work-pulse">
           <span class="work-chevron">
             <svg/>
@@ -6646,7 +6654,7 @@ Open in editor" type="button">
           <div class="tool-card error">
             <button class="card-header" title="Collapse" aria-expanded="true" type="button">
               <span class="card-label">
-                "parallel_subagent"
+                "subagent"
               <span class="card-status">
                 "done"
               <span class="card-pulse">

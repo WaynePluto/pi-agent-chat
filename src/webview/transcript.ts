@@ -1,5 +1,5 @@
 import type { ChatEvent, JsonValue, ShadowedSubagentNotice, SkillRef } from "../shared/protocol.js";
-import { PARALLEL_SUBAGENT_TOOL } from "../shared/protocol.js";
+import { SUBAGENT_TOOL } from "../shared/protocol.js";
 import { CARD_CLASSES, WORK_CLASSES, createCollapsible, type Collapsible } from "./collapsible.js";
 import { button, el, icon } from "./dom.js";
 import {
@@ -795,7 +795,7 @@ function startToolCard(id: string, name: string, args: unknown, skill?: SkillRef
   // body reads back from `entry`. The delegation card is the only view of what
   // the subagents are doing, and the parent produces no output while it waits:
   // collapsed by default it would look like the window had frozen.
-  if (name === PARALLEL_SUBAGENT_TOOL) entry.setExpanded(true);
+  if (name === SUBAGENT_TOOL) entry.setExpanded(true);
 }
 
 /**
@@ -841,11 +841,11 @@ function endToolCard(event: Extract<ChatEvent, { kind: "tool_end" }>): void {
 /** Full body of a tool card: args summary + output text or diff + actions. */
 function renderToolBody(entry: ToolCard, body: HTMLElement): void {
   body.replaceChildren();
-  // The parallel subagent card is built from `details` rather than from the
+  // The subagent card is built from `details` rather than from the
   // result text: while the call runs that payload is the only live view of what
   // each subagent is doing, and the parent produces no output of its own
   // meanwhile.
-  if (entry.toolName === PARALLEL_SUBAGENT_TOOL && renderLanes(entry, body)) return;
+  if (entry.toolName === SUBAGENT_TOOL && renderLanes(entry, body)) return;
   if (entry.argsText) body.appendChild(el("div", "tool-args", entry.argsText));
   if (entry.patch) {
     const diff = el("div");
@@ -866,7 +866,7 @@ function renderToolBody(entry: ToolCard, body: HTMLElement): void {
 }
 
 /**
- * Per-subagent rows of a `parallel_subagent` call.
+ * Per-subagent rows of a `subagent` call.
  *
  * Returns false when the payload is not the expected shape, so the card falls
  * back to the generic rendering rather than showing nothing.

@@ -27,9 +27,9 @@ This extension is implemented with the **official** `@earendil-works/pi-coding-a
 Like Pi itself, this extension stays minimal:
 
 - **A second Pi host, not a CLI front-end.** The extension is a standalone VS Code UI built on the official `@earendil-works/pi-coding-agent` SDK. Agent loop, tools, LLM calls, extension/skill loading — all come from the SDK, unmodified. The Pi TUI/CLI does not need to be installed. Because it is a *different host*, matching the CLI feature for feature was never reachable: any CLI extension that depends on a terminal Pi process cannot work here. Compatibility is therefore drawn on the **data** side, not the capability side.
-- **Compatible where it counts — on the data side.** Configuration, sessions, extensions, skills and agent roles all live in `~/.pi/agent/`, shared with the terminal Pi and editable by hand. Either host can pick up the other's session. VS Code settings exist only for capabilities that are *unique to this host* (currently the parallel subagent), because putting those in the shared file would leave the CLI reading keys it does not understand.
+- **Compatible where it counts — on the data side.** Configuration, sessions, extensions, skills and agent roles all live in `~/.pi/agent/`, shared with the terminal Pi and editable by hand. Either host can pick up the other's session. VS Code settings exist only for capabilities that are *unique to this host* (currently the subagent tool), because putting those in the shared file would leave the CLI reading keys it does not understand.
 - **Shares the Pi ecosystem.** Context (AGENTS.md), skills, extensions, prompt templates, models and auth are read from the same place and behave as they do in the CLI — with the exception of extensions that depend on a terminal Pi process ([Host boundaries](#host-boundaries)). Sessions are interchangeable between the extension and the terminal. The UI itself follows your VS Code color theme (Pi TUI themes are not used for rendering).
-- **No feature sprawl.** Single-session mode, a small surface area, and native VS Code integration (diff view, QuickPick, theme colors) where it genuinely helps — nothing more. Exactly one tool is added on top of pi's own set, `parallel_subagent`, and it is off by default; anything else is supplied by pi or by a pi extension in `~/.pi/agent/extensions/`, shared with the CLI.
+- **No feature sprawl.** Single-session mode, a small surface area, and native VS Code integration (diff view, QuickPick, theme colors) where it genuinely helps — nothing more. Exactly one tool is added on top of pi's own set, `subagent`, and it is off by default; anything else is supplied by pi or by a pi extension in `~/.pi/agent/extensions/`, shared with the CLI.
 
 ## Single-session mode (by design)
 
@@ -41,7 +41,7 @@ This is intentional — parallel *sessions* are not planned:
 - With multiple tasks, it works better to send them as one task list and let the agent execute in order, or queue them up. Keeping context in a single session gives the AI a better grasp of the whole picture.
 - While a run is in progress, grab a coffee and come back to review the result — more efficient and less stressful than juggling parallel sessions.
 
-**Parallel subagents are not an exception to this rule — they are what follows from it.** What gets parallelized there is the *execution*, never the conversation: still one task line, one report to read, one agent to answer to. Subagent panels have no input box by design — you can watch a lane and stop it, but you cannot talk to it, so "who am I talking to now?" never becomes a question. That is precisely why delegation could be added here while parallel sessions stay out: it multiplies the machine's work without multiplying the conversations you have to hold.
+**Subagents are not an exception to this rule — they are what follows from it.** What gets parallelized there is the *execution*, never the conversation: still one task line, one report to read, one agent to answer to. Subagent panels have no input box by design — you can watch a lane and stop it, but you cannot talk to it, so "who am I talking to now?" never becomes a question. That is precisely why delegation could be added here while parallel sessions stay out: it multiplies the machine's work without multiplying the conversations you have to hold.
 
 Overall, this extension bets on simplicity and on the continued progress of the models themselves: the less the agent harness interferes with the model, the better.
 
@@ -58,19 +58,19 @@ Overall, this extension bets on simplicity and on the continued progress of the 
 - Resource listing pinned above the transcript (Context / Skills / Prompts / Extensions), same as the CLI startup listing
 - Auto-continues the most recent session of the workspace on startup
 - `@` project file references: type `@` in the composer to fuzzy-search workspace files (respecting `.gitignore`; `Ctrl+→` toggles showing ignored files, which are labeled along with potentially sensitive ones); selected files become removable chips and are sent as plain relative paths for the model to `read` itself
-- Parallel subagents (opt-in): one call fans out into several child sessions that each write directly to your working tree within a declared path range, shown as live rows in the parent's transcript
+- Subagent (opt-in): one call fans out into several child sessions that each write directly to your working tree within a declared path range, shown as live rows in the parent's transcript
 
-### Parallel subagents (off by default)
+### Subagent (off by default)
 
-One `parallel_subagent` call starts several isolated child sessions at once. Each is given a task and a **write range**, works on its own, and reports back; the parent waits for all of them and receives one report. The point is throughput, not context saving — although each child does start with a fresh context.
+One `subagent` call starts several isolated child sessions at once. Each is given a task and a **write range**, works on its own, and reports back; the parent waits for all of them and receives one report. The point is throughput, not context saving — although each child does start with a fresh context.
 
 It is **off by default** because it is genuinely aggressive: children write to your real working tree, and failures are reported rather than undone. Turn it on from the header **Settings → Subagent** form — which asks first whether to save to the workspace or to your user settings, and then writes the three values below — or edit them yourself:
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `piAgentChat.parallelSubagent.enabled` | `false` | Offer the tool at all |
-| `piAgentChat.parallelSubagent.maxParallel` | `3` | Ceiling for one call (hard maximum 8); also published to the model as the schema limit. Set it to `1` for plain serial delegation — write ranges are still enforced |
-| `piAgentChat.parallelSubagent.defaultModel` | *(empty)* | `provider/modelId` for children that do not name one; empty inherits the parent's |
+| `piAgentChat.subagent.enabled` | `false` | Offer the tool at all |
+| `piAgentChat.subagent.maxSubagents` | `3` | Ceiling for one call (hard maximum 8); also published to the model as the schema limit. Set it to `1` for plain serial delegation — write ranges are still enforced |
+| `piAgentChat.subagent.defaultModel` | *(empty)* | `provider/modelId` for children that do not name one; empty inherits the parent's |
 
 All three are `resource`-scoped, so a `.vscode/settings.json` can enable it in a playground and leave it off in a production repository. Changing them applies to the **next** session: a session's tool set is fixed when the session is built, and rebuilding it silently would throw away the conversation.
 
@@ -94,9 +94,9 @@ Skills should detect capabilities rather than a particular UI. Otherwise a CLI s
 
 #### If you already have a `subagent` extension
 
-A pi extension that registers a tool named `subagent` is **always disabled in this window**, whether or not the parallel subagent above is enabled. The check matches the tool *name* only — no extension is identified by name, path or capability, and nothing inspects how it is written. It is automatic, has no setting, and is re-evaluated per working directory, so a project-local extension counts too.
+A pi extension that registers a tool named `subagent` is **always disabled in this window**, whether or not the subagent tool above is enabled. The reason is the name itself: this window has its own `subagent` tool, and one name must mean one thing here. When the setting is on, the SDK's tool registry resolves the name to this window's tool; when it is off, the name is excluded entirely — either way the model never reaches the extension's implementation. The check matches the tool *name* only — no extension is identified by name, path or capability, and nothing inspects how it is written. It is automatic, has no setting, and is re-evaluated per working directory, so a project-local extension counts too.
 
-The reason is that **delegating to a subagent depends on the host**, and this window is not a terminal Pi process. `ExtensionContext` offers no way to start a child session, so an extension delegates by launching Pi again — and it can only locate Pi by introspecting its own process (`process.argv[1]` / `process.execPath`). Inside the VS Code extension host that introspection lands on VS Code's own `bootstrap-fork.js`, which *exists*, so the guard passes and the wrong program is started. The result is the worst kind of failure: exit code 0, no output, no error, and a model that keeps reasoning on an empty result. Disabling it leaves you with either no delegation tool or a working one — never a broken one.
+An extension-side subagent could not work here anyway: `ExtensionContext` offers no way to start a child session, so an extension delegates by launching Pi again — and it can only locate Pi by introspecting its own process (`process.argv[1]` / `process.execPath`). Inside the VS Code extension host that introspection lands on VS Code's own `bootstrap-fork.js`, which *exists*, so the guard passes and the wrong program is started: exit code 0, no output, no error, and a model that keeps reasoning on an empty result. Shadowing the name loses you nothing.
 
 Your extension is untouched and keeps working in the Pi CLI, where that introspection is correct. The disabled tool is named in the new-session notice, so this is never silent. If you want your own implementation reachable here as well, register it under a different tool name.
 
@@ -106,12 +106,12 @@ This is the *only* tool name treated this way. See [Host boundaries](#host-bound
 
 #### Opening a session with subagent calls in the Pi CLI
 
-Sessions live in `~/.pi/agent/` and are shared with the terminal Pi, so a session containing `parallel_subagent` calls can be resumed there. Nothing breaks:
+Sessions live in `~/.pi/agent/` and are shared with the terminal Pi, so a session containing `subagent` calls can be resumed there, best-effort. Nothing breaks:
 
 - The CLI has no such tool, so the call falls back to the generic tool card (name, JSON arguments, text result) instead of a dedicated renderer — same for `/export`.
 - History replays and can be continued; the SDK even inserts synthetic results for tool calls left unanswered (for example when VS Code was closed mid-delegation).
 - The report is written to be readable on its own, so the model can still tell what each subagent did and which files it wrote.
-- If the model imitates the history and calls `parallel_subagent` again, it just receives a `Tool parallel_subagent not found` error result and picks another route. The name is deliberately *not* `subagent`: a same-named tool with different parameters would instead produce confusing argument errors against whatever `subagent` means over there.
+- If the model imitates the history and calls `subagent` again, the outcome depends on what that name means over there: with a `subagent` extension installed in the CLI, it gets that tool's schema instead of this window's, so the call may produce argument errors against the wrong parameters; without one, it just receives `Tool subagent not found` and picks another route. Cross-host resumption is best-effort by design — see [Host boundaries](#host-boundaries).
 
 What you lose is the parent↔child link: each child is a **separate** session file named `Subagent: <title>`, listed flat among the other sessions, with no navigation from the parent and not part of its session tree. Delegation itself is unavailable in the CLI.
 
@@ -121,7 +121,7 @@ Extensions, skills and settings in `~/.pi/agent/` are shared with the Pi CLI, an
 
 Most extensions never notice. The ones that can are those that **introspect their own process** — typically to re-launch Pi as a child process, since `process.argv[1]` and `process.execPath` describe Pi itself when Pi is the running program, but describe VS Code inside the extension host. Such an extension may misbehave here while working perfectly in the terminal.
 
-The extension does not try to detect this in general: there is no data anywhere that says "this tool needs a terminal Pi", and guessing would mean reading extension source or hard-coding extension names. `subagent` is handled explicitly (above) only because its failure mode is confirmed *and silent*, and because disabling it costs you nothing here — the roles that made it valuable are picked up by `parallel_subagent`. For anything else, if an extension tool behaves oddly here but works in the CLI, this is the first thing to check.
+The extension does not try to detect this in general: there is no data anywhere that says "this tool needs a terminal Pi", and guessing would mean reading extension source or hard-coding extension names. `subagent` is handled explicitly (above) only because the name belongs to this window's own tool — not because of anything about the extension's implementation. For anything else, if an extension tool behaves oddly here but works in the CLI, this is the first thing to check.
 
 
 As always, never resume a session in the CLI while the extension is running it: session JSONL is append-only without locking.
@@ -165,7 +165,7 @@ $env:PI_SPIKE_LIVE="1"; node scripts/smoke_load.mjs   # additionally runs a real
 - `src/agent/runtime.ts` — thin wrapper around the SDK `AgentSessionRuntime`
 - `src/agent/bridge.ts` — bidirectional translation: SDK events ↔ webview messages
 - `src/agent/auth.ts` — login/logout mapped to native VS Code dialogs
-- `src/agent/parallel-subagent.ts` — parallel SDK child-session coordination and the `parallel_subagent` tool
+- `src/agent/subagent.ts` — multi-lane SDK child-session coordination and the `subagent` tool
 - `src/agent/scope.ts`, `src/agent/scoped-tools.ts` — subagent write ranges: overlap checking, refusal and bookkeeping
 - `src/agent/config.ts` — the extension's own VS Code settings (host-unique capabilities only)
 - `src/shared/protocol.ts` — host ↔ webview message protocol (zero dependencies)

@@ -22,7 +22,7 @@ import type { JsonValue } from "../shared/protocol.js";
  *
  * The first seven are the tools pi ships (`core/tools/index.ts`).
  *
- * `parallel_subagent` is deliberately *not* here even though it has a card of
+ * `subagent` is deliberately *not* here even though it has a card of
  * its own: that card is built *from* `details`, which is what carries the
  * per-lane state both while the call runs and when the transcript is replayed
  * later.

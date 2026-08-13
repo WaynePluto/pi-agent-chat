@@ -8,7 +8,7 @@ import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, 
 import { formatLocalTimestamp } from "../shared/time.js";
 import { loginFlow, logoutFlow } from "./auth.js";
 import { ActivityTracker, type ResourceActivity } from "./activity.js";
-import { affectsParallelSubagentConfig } from "./config.js";
+import { affectsSubagentConfig } from "./config.js";
 import { collectSlashCommands, formatHelp, runBuiltinCommand } from "./commands.js";
 import { describe } from "./errors.js";
 import { t, tf } from "./i18n.js";
@@ -24,7 +24,7 @@ import { EMPTY_PROMPT_INDEX, buildPromptIndex, expandedPrompt, resolveInvocation
 import { EMPTY_SKILL_INDEX, buildSkillIndex, collapseSkillInvocation, invokedSkill, matchSkill, readSkillInvocation, type SkillIndex } from "./skills.js";
 import { contentText, firstUserLine, sessionTitle } from "./session-title.js";
 import { sanitizeToolDetails } from "./tool-details.js";
-import type { LaneNotice, LaneState, ParallelObserver, ParallelRun } from "./parallel-subagent.js";
+import type { LaneNotice, LaneState, SubagentObserver, SubagentRun } from "./subagent.js";
 
 export interface BridgeHost {
   post(message: HostMessage): void;
@@ -76,12 +76,12 @@ type View =
  * Re-subscribes and re-binds extensions on every session replacement, as the
  * SDK requires (`vscode-pi-design.md` §4).
  */
-export class ChatBridge implements vscode.Disposable, ParallelObserver {
+export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private unsubscribe?: () => void;
   private disposed = false;
   /** What the webview is showing; see `View`. The only source of truth for it. */
   private view: View = { kind: "live" };
-  private activeRun?: ParallelRun;
+  private activeRun?: SubagentRun;
   /**
    * Live child sessions by lane id, for switching the displayed transcript.
    *
@@ -192,8 +192,8 @@ export class ChatBridge implements vscode.Disposable, ParallelObserver {
     // cannot reach the running conversation. Say so rather than rebuilding the
     // session behind the user's back.
     this.settingsWatcher = vscode.workspace.onDidChangeConfiguration((event) => {
-      if (!affectsParallelSubagentConfig(event, this.runtime.cwd)) return;
-      this.emit(this.runtime.session, { kind: "status", text: t("parallelSubagentSettingChanged") });
+      if (!affectsSubagentConfig(event, this.runtime.cwd)) return;
+      this.emit(this.runtime.session, { kind: "status", text: t("subagentSettingChanged") });
     });
   }
 
@@ -400,7 +400,7 @@ export class ChatBridge implements vscode.Disposable, ParallelObserver {
     // event it would also evict the very placeholder it belongs to.
     const shadowedPath = this.runtime.shadowedSubagentExtension;
     const shadowedSubagent = shadowedPath
-      ? { path: shadowedPath, parallelSubagentEnabled: this.runtime.parallelSubagentEnabled }
+      ? { path: shadowedPath, subagentEnabled: this.runtime.subagentEnabled }
       : undefined;
     if (this.view.kind === "replay") {
       this.host.post({
@@ -863,7 +863,7 @@ export class ChatBridge implements vscode.Disposable, ParallelObserver {
     }
   }
 
-  onRunStarted(run: ParallelRun): void {
+  onRunStarted(run: SubagentRun): void {
     this.activeRun = run;
     this.mergeLanes(run.lanes);
     // The view is never moved for the user: not into a lane when a run starts,
@@ -885,7 +885,7 @@ export class ChatBridge implements vscode.Disposable, ParallelObserver {
     }
   }
 
-  onLaneStarted(run: ParallelRun, lane: LaneState, session: AgentSession): void {
+  onLaneStarted(run: SubagentRun, lane: LaneState, session: AgentSession): void {
     if (this.activeRun !== run) return;
     this.laneSessions.set(lane.id, session);
     // Seed the lane transcript with its task, the way the parent's transcript
@@ -896,13 +896,13 @@ export class ChatBridge implements vscode.Disposable, ParallelObserver {
     this.refreshSessions();
   }
 
-  onLaneChanged(run: ParallelRun, _lane: LaneState): void {
+  onLaneChanged(run: SubagentRun, _lane: LaneState): void {
     if (this.activeRun !== run) return;
     this.mergeLanes(run.lanes);
     void this.postState();
   }
 
-  onLaneEvent(run: ParallelRun, lane: LaneState, event: AgentSessionEvent): void {
+  onLaneEvent(run: SubagentRun, lane: LaneState, event: AgentSessionEvent): void {
     if (this.activeRun !== run) return;
     const session = this.laneSessions.get(lane.id);
     if (session) this.onSessionEvent(session, event);
@@ -916,7 +916,7 @@ export class ChatBridge implements vscode.Disposable, ParallelObserver {
    * the spelling or the missing credentials, so telling it would only invite it
    * to "correct" arguments it never sent.
    */
-  onLaneNotice(run: ParallelRun, lane: LaneState, notice: LaneNotice): void {
+  onLaneNotice(run: SubagentRun, lane: LaneState, notice: LaneNotice): void {
     if (this.activeRun !== run) return;
     const source = t("subagentModelSourceSetting");
     const using = notice.using ?? t("subagentModelFallbackParent");
@@ -926,7 +926,7 @@ export class ChatBridge implements vscode.Disposable, ParallelObserver {
     });
   }
 
-  onRunFinished(run: ParallelRun): void {
+  onRunFinished(run: SubagentRun): void {
     if (this.activeRun !== run) return;
     for (const lane of run.lanes) {
       const session = this.laneSessions.get(lane.id);

@@ -1,14 +1,14 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAgentSession, createAgentSessionFromServices, createAgentSessionServices, getAgentDir, getPackageDir, SessionManager, type AgentSession } from "@earendil-works/pi-coding-agent";
+import { createAgentSession, createAgentSessionFromServices, createAgentSessionServices, getAgentDir, getPackageDir, SessionManager, type AgentSession, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { buildHistoryEntryEvents, ChatBridge, collectResourceSections } from "./bridge.js";
 import { collectSlashCommands } from "./commands.js";
 import { OriginalContentProvider } from "./diff-view.js";
 import { describe } from "./errors.js";
 import { createSubagentServices, findShadowedSubagentExtension, PiRuntime } from "./runtime.js";
 import { buildTreeChoices } from "./session-tree.js";
-import { ParallelSubagentCoordinator, PARALLEL_SUBAGENT_TOOL, planModel, type LaneState, type ParallelRun } from "./parallel-subagent.js";
+import { SubagentCoordinator, SUBAGENT_TOOL, planModel, type LaneState, type SubagentRun } from "./subagent.js";
 import { findScopeConflict, normalizeScopes, ScopeGuard } from "./scope.js";
 import { createScopedFileTools } from "./scoped-tools.js";
 import { ProjectFileIndex } from "./project-files.js";
@@ -252,16 +252,16 @@ export async function runProjectFilesTest(cwd: string): Promise<DiagnosticResult
  * core tools. When disabled it must be absent entirely.
  */
 export async function runSubagentToolTest(cwd: string): Promise<DiagnosticResult[]> {
-  const coordinator = new ParallelSubagentCoordinator(() => {});
-  const tool = coordinator.createTool({ enabled: true, maxParallel: 3 });
+  const coordinator = new SubagentCoordinator(() => {});
+  const tool = coordinator.createTool({ enabled: true, maxSubagents: 3 });
   try {
     const parentResult = await createAgentSession({
       cwd,
       customTools: [tool],
-      // Mirror the real assembly in `runtime.ts`: the extension-registered
-      // `subagent` is dropped unconditionally, so a check that omitted this
-      // would report the shadowed tool as active and stop guarding the rule.
-      excludeTools: ["subagent"],
+      // Mirror the real assembly in `runtime.ts`: when enabled there is no
+      // exclusion — the SDK's tool registry makes the custom tool override an
+      // extension tool of the same name (`core/agent-session.ts`,
+      // `_refreshToolRegistry()`).
       sessionManager: SessionManager.inMemory(cwd),
     });
     const parentActive = new Set(parentResult.session.getActiveToolNames());
@@ -272,17 +272,18 @@ export async function runSubagentToolTest(cwd: string): Promise<DiagnosticResult
     const childResult = await createAgentSession({
       cwd,
       customTools: [tool],
-      excludeTools: [PARALLEL_SUBAGENT_TOOL, "subagent"],
+      excludeTools: [SUBAGENT_TOOL],
       sessionManager: SessionManager.inMemory(cwd),
     });
-    const childHasTool = childResult.session.agent.state.tools.some((entry) => entry.name === PARALLEL_SUBAGENT_TOOL);
+    const childHasTool = childResult.session.agent.state.tools.some((entry) => entry.name === SUBAGENT_TOOL);
     childResult.session.dispose();
 
-    // Disabled is the default, and must mean the name is simply not there.
+    // Disabled is the default, and must mean the name is simply not there:
+    // excluded, since there is no host tool to take the name over.
     const offResult = await createAgentSession({
       cwd,
       customTools: [],
-      excludeTools: ["subagent"],
+      excludeTools: [SUBAGENT_TOOL],
       sessionManager: SessionManager.inMemory(cwd),
     });
     const offActive = new Set(offResult.session.getActiveToolNames());
@@ -290,22 +291,18 @@ export async function runSubagentToolTest(cwd: string): Promise<DiagnosticResult
     await coordinator.dispose();
 
     const missingCore = ["read", "bash", "edit", "write"].filter((name) => !parentActive.has(name));
-    // Neither state may ever expose a `subagent`: off means no delegation tool
-    // at all, on means exactly one, and never the one that fails silently here.
-    const shadowLeaked = parentActive.has("subagent") || offActive.has("subagent");
     return [{
-      name: "parallel subagent tool",
+      name: "subagent tool",
       ok:
-        parentActive.has(PARALLEL_SUBAGENT_TOOL) &&
+        parentActive.has(SUBAGENT_TOOL) &&
         !childHasTool &&
-        !offActive.has(PARALLEL_SUBAGENT_TOOL) &&
-        !shadowLeaked &&
+        !offActive.has(SUBAGENT_TOOL) &&
         missingCore.length === 0,
-      detail: `active: ${[...parentActive].sort().join(", ") || "(none)"}; child=${childHasTool ? "unexpectedly enabled" : "excluded"}; disabled=${offActive.has(PARALLEL_SUBAGENT_TOOL) ? "still present" : "absent"}; subagent=${shadowLeaked ? "LEAKED" : "shadowed"}`,
-    }, ...(await checkSubagentShadow(cwd)), ...(await checkScopeEnforcement(cwd)), checkSubagentModelSelection(), ...(await checkSubagentIsolation(cwd))];
+      detail: `active: ${[...parentActive].sort().join(", ") || "(none)"}; child=${childHasTool ? "unexpectedly enabled" : "excluded"}; disabled=${offActive.has(SUBAGENT_TOOL) ? "still present" : "absent"}`,
+    }, ...(await checkSubagentShadow(cwd, tool)), ...(await checkScopeEnforcement(cwd)), checkSubagentModelSelection(), ...(await checkSubagentIsolation(cwd))];
   } catch (error) {
     await coordinator.dispose();
-    return [{ name: "parallel subagent tool", ok: false, detail: describe(error) }];
+    return [{ name: "subagent tool", ok: false, detail: describe(error) }];
   }
 }
 
@@ -325,19 +322,21 @@ export default function (pi) {
 /**
  * An extension's `subagent` tool must never reach the model in this host.
  *
- * It cannot work here: such an extension re-launches pi and locates it by
- * introspecting its own process, which inside the extension host points at VS
- * Code's own bootstrap — the spawn then exits 0 with no output and the model
- * reasons on an empty result. Suppression is unconditional, independent of
- * whether this window's own delegation tool is enabled, so the user is never
- * offered a broken tool.
+ * The plugin owns the name, in both switch states: when the host tool is
+ * disabled the name is excluded, and when it is enabled the SDK's tool
+ * registry makes the custom tool override an extension tool of the same name
+ * (`core/agent-session.ts`, `_refreshToolRegistry()`), so the model always
+ * resolves `subagent` to the host's tool or to nothing — never to the
+ * extension's.
  *
- * Pins both halves: the tool really is gone from the session, and the
- * suppressed extension is still identifiable so the new-session notice can name
- * it. Also pins the timing detection relies on — extension tool names are
+ * Pins the halves: the suppressed extension is still identifiable so the
+ * new-session notice can name it, the disabled state really has no `subagent`
+ * at all, the enabled state resolves the name to the *host's* tool (checked
+ * by description, not by name alone), and the override survives a reload.
+ * Also pins the timing detection relies on — extension tool names are
  * readable straight after `createAgentSessionServices()`.
  */
-async function checkSubagentShadow(cwd: string): Promise<DiagnosticResult[]> {
+async function checkSubagentShadow(cwd: string, tool: ToolDefinition): Promise<DiagnosticResult[]> {
   let dir: string | undefined;
   try {
     dir = await mkdtemp(join(tmpdir(), "pi-vscode-subagent-ext-"));
@@ -347,24 +346,51 @@ async function checkSubagentShadow(cwd: string): Promise<DiagnosticResult[]> {
       resourceLoaderOptions: { additionalExtensionPaths: [dir] },
     });
     const shadowed = findShadowedSubagentExtension(services);
-    const { session } = await createAgentSessionFromServices({
+
+    // Disabled half: exactly what `PiRuntime.create()` does — exclude the name.
+    const off = await createAgentSessionFromServices({
       services,
       sessionManager: SessionManager.inMemory(cwd),
-      // Exactly what `PiRuntime.create()` does: always exclude.
-      excludeTools: ["subagent"],
+      excludeTools: [SUBAGENT_TOOL],
     });
-    const stillThere = session.getActiveToolNames().includes("subagent");
-    session.dispose();
+    const offClean = !off.session.getActiveToolNames().includes(SUBAGENT_TOOL);
+    off.session.dispose();
+
+    // Enabled half: no exclusion; the host tool must win the name.
+    const on = await createAgentSessionFromServices({
+      services,
+      sessionManager: SessionManager.inMemory(cwd),
+      customTools: [tool],
+    });
+    const onOurs = isHostSubagentTool(on.session);
+    // The override must survive a reload: reload() rebuilds the registry from
+    // the session's persistent exclusion set and custom tools, and re-activates
+    // every extension tool (`includeAllExtensionTools`), so a name that is not
+    // actually overridden would resurface right here.
+    await on.session.reload();
+    const reloadOurs = isHostSubagentTool(on.session);
+    on.session.dispose();
+
     return [{
-      name: "subagent suppression",
-      ok: shadowed === dir && !stillThere,
-      detail: `detected=${shadowed ?? "(none)"}; tool=${stillThere ? "STILL ACTIVE" : "suppressed"}`,
+      name: "subagent shadowing",
+      ok: shadowed === dir && offClean && onOurs && reloadOurs,
+      detail:
+        `detected=${shadowed ?? "(none)"}; off=${offClean ? "absent" : "LEAKED"}; ` +
+        `on=${onOurs ? "host tool wins" : "EXTENSION TOOL EXPOSED"}; ` +
+        `after reload=${reloadOurs ? "host tool wins" : "EXTENSION TOOL EXPOSED"}`,
     }];
   } catch (error) {
-    return [{ name: "subagent suppression", ok: false, detail: describe(error) }];
+    return [{ name: "subagent shadowing", ok: false, detail: describe(error) }];
   } finally {
     if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+/** The `subagent` tool this session resolves must be the host's, not the extension's. */
+function isHostSubagentTool(session: AgentSession): boolean {
+  const info = session.getAllTools().find((entry) => entry.name === SUBAGENT_TOOL);
+  // The host tool's description names isolated subagents; the probe's does not.
+  return info?.description?.includes("isolated subagents") ?? false;
 }
 
 /**
@@ -438,7 +464,7 @@ function checkSubagentModelSelection(): DiagnosticResult {
     } as unknown as Options["modelRuntime"];
     const parentModel = known[1] as Options["parentModel"];
     const base = { modelRuntime, parentModel, index: 0 };
-    const enabled = { enabled: true, maxParallel: 3 };
+    const enabled = { enabled: true, maxSubagents: 3 };
 
     let requestedRejected = false;
     try {
@@ -634,7 +660,7 @@ export default function (pi) {
  * `customTools` nor pi's core tools may fall out of the rebuilt registry.
  */
 export async function runExtensionReloadTest(cwd: string): Promise<DiagnosticResult[]> {
-  const coordinator = new ParallelSubagentCoordinator(() => {});
+  const coordinator = new SubagentCoordinator(() => {});
   let dir: string | undefined;
   try {
     dir = await mkdtemp(join(tmpdir(), "pi-vscode-reload-"));
@@ -647,7 +673,7 @@ export async function runExtensionReloadTest(cwd: string): Promise<DiagnosticRes
     const { session } = await createAgentSessionFromServices({
       services,
       sessionManager: SessionManager.inMemory(cwd),
-      customTools: [coordinator.createTool({ enabled: true, maxParallel: 3 })],
+      customTools: [coordinator.createTool({ enabled: true, maxSubagents: 3 })],
     });
     // Bindings of the same shape the sidebar attaches: without any, reload()
     // skips session_start and the probe would prove less than it looks.
@@ -660,7 +686,7 @@ export async function runExtensionReloadTest(cwd: string): Promise<DiagnosticRes
     session.dispose();
     await coordinator.dispose();
 
-    const dropped = ["read", "bash", "edit", "write", PARALLEL_SUBAGENT_TOOL].filter((name) => !after.includes(name));
+    const dropped = ["read", "bash", "edit", "write", SUBAGENT_TOOL].filter((name) => !after.includes(name));
     const ok = before.includes("reload_probe_before") &&
       after.includes("reload_probe_after") &&
       !after.includes("reload_probe_before") &&
@@ -789,7 +815,7 @@ export async function runViewStateTest(cwd: string): Promise<DiagnosticResult[]>
       sessionId: child.sessionId,
       sessionFile: child.sessionFile,
     };
-    const run: ParallelRun = { id: "run-probe", parent: runtime.session, lanes: [lane], startedAt: Date.now() };
+    const run: SubagentRun = { id: "run-probe", parent: runtime.session, lanes: [lane], startedAt: Date.now() };
     bridge.onRunStarted(run);
     bridge.onLaneStarted(run, lane, child);
     await bridge.handleMessage({ type: "showLane", laneId: lane.id });

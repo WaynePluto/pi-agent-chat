@@ -133,24 +133,24 @@ const SCRIPT = [
     // session setup, so it belongs in the new-session notice — not in a
     // transcript event, which would evict that very placeholder and open a
     // bogus work block.
-    label: "empty state: extension subagent shadowed, parallel subagent off",
+    label: "empty state: extension subagent shadowed, subagent off",
     messages: [
       {
         type: "history",
         events: [],
-        shadowedSubagent: { path: "/home/u/.pi/agent/extensions/subagent/index.ts", parallelSubagentEnabled: false },
+        shadowedSubagent: { path: "/home/u/.pi/agent/extensions/subagent/index.ts", subagentEnabled: false },
       },
     ],
   },
   {
     // Same fact, different wording: with the tool off this session has no
     // delegation tool at all, so the notice must not promise one.
-    label: "empty state: extension subagent shadowed, parallel subagent on",
+    label: "empty state: extension subagent shadowed, subagent on",
     messages: [
       {
         type: "history",
         events: [],
-        shadowedSubagent: { path: "/home/u/.pi/agent/extensions/subagent/index.ts", parallelSubagentEnabled: true },
+        shadowedSubagent: { path: "/home/u/.pi/agent/extensions/subagent/index.ts", subagentEnabled: true },
       },
     ],
   },
@@ -341,7 +341,7 @@ const SCRIPT = [
     beforeSnapshot: (window) => window.document.getElementById("btn-resources").click(),
   },
   {
-    label: "parallel subagents: card on the parent",
+    label: "subagent: card on the parent",
     messages: [
       {
         type: "state",
@@ -377,8 +377,8 @@ const SCRIPT = [
         type: "event",
         event: {
           kind: "tool_start",
-          id: "call-parallel",
-          name: "parallel_subagent",
+          id: "call-subagent",
+          name: "subagent",
           args: { tasks: [{ task: "make login async", scope: ["src/auth"] }] },
         },
       },
@@ -386,9 +386,9 @@ const SCRIPT = [
         type: "event",
         event: {
           kind: "tool_end",
-          id: "call-parallel",
-          name: "parallel_subagent",
-          text: "Parallel subagents: 1/2 completed.",
+          id: "call-subagent",
+          name: "subagent",
+          text: "Subagents: 1/2 completed.",
           details: {
             lanes: [
               {
@@ -418,7 +418,7 @@ const SCRIPT = [
     ],
   },
   {
-    label: "parallel subagents: one lane displayed",
+    label: "subagent: one lane displayed",
     messages: [
       {
         type: "state",

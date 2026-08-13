@@ -1,7 +1,7 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
 /**
- * Write ranges for parallel subagents.
+ * Write ranges for subagents.
  *
  * A range is a **path prefix** relative to the session cwd — a directory or a
  * single file — not a glob. That restriction is deliberate: the whole design

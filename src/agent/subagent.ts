@@ -9,15 +9,15 @@ import {
   type ModelRuntime,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import type { ParallelSubagentConfig } from "./config.js";
+import type { SubagentConfig } from "./config.js";
 import { describe } from "./errors.js";
 import { findScopeConflict, normalizeScopes, ScopeGuard, type ScopePrefix } from "./scope.js";
 import { createScopedFileTools, SCOPED_TOOL_NAMES } from "./scoped-tools.js";
 
-export const PARALLEL_SUBAGENT_TOOL = "parallel_subagent";
+export const SUBAGENT_TOOL = "subagent";
 
 /** Tool names a child session may never reach, whatever else it is given. */
-const NEVER_IN_CHILD = [PARALLEL_SUBAGENT_TOOL, "subagent"];
+const NEVER_IN_CHILD = [SUBAGENT_TOOL];
 
 export type LaneStatus = "running" | "completed" | "failed" | "stopped";
 
@@ -95,27 +95,27 @@ export interface LaneState {
   endedAt?: number;
 }
 
-export interface ParallelRun {
+export interface SubagentRun {
   readonly id: string;
   readonly parent: AgentSession;
   readonly lanes: readonly LaneState[];
   readonly startedAt: number;
 }
 
-export interface ParallelObserver {
-  onRunStarted(run: ParallelRun): void;
+export interface SubagentObserver {
+  onRunStarted(run: SubagentRun): void;
   /** A lane's child session exists; the UI can now show its transcript. */
-  onLaneStarted(run: ParallelRun, lane: LaneState, session: AgentSession): void;
+  onLaneStarted(run: SubagentRun, lane: LaneState, session: AgentSession): void;
   /** A lane changed status or progress; the UI should re-render its row. */
-  onLaneChanged(run: ParallelRun, lane: LaneState): void;
+  onLaneChanged(run: SubagentRun, lane: LaneState): void;
   /** Forwarded child session event, for the lane's own transcript. */
-  onLaneEvent(run: ParallelRun, lane: LaneState, event: AgentSessionEvent): void;
+  onLaneEvent(run: SubagentRun, lane: LaneState, event: AgentSessionEvent): void;
   /** User-facing note about a lane's setup; never reaches the parent agent. */
-  onLaneNotice(run: ParallelRun, lane: LaneState, notice: LaneNotice): void;
-  onRunFinished(run: ParallelRun): void;
+  onLaneNotice(run: SubagentRun, lane: LaneState, notice: LaneNotice): void;
+  onRunFinished(run: SubagentRun): void;
 }
 
-export interface ParallelHost {
+export interface SubagentHost {
   getSession(): AgentSession;
   getCwd(): string;
   /**
@@ -132,7 +132,7 @@ export interface ParallelHost {
    */
   getModelRuntime(): ModelRuntime;
   bindExtensions(session: AgentSession, abortHandler: () => void): Promise<void>;
-  getConfig(): ParallelSubagentConfig;
+  getConfig(): SubagentConfig;
 }
 
 /**
@@ -149,10 +149,10 @@ export interface ParallelHost {
  * each lane wrote before it stopped and decides what to do; that is only a
  * defensible design because the bookkeeping is complete for `edit`/`write`.
  */
-export class ParallelSubagentCoordinator {
-  private host?: ParallelHost;
-  private observer?: ParallelObserver;
-  private active?: ParallelRun;
+export class SubagentCoordinator {
+  private host?: SubagentHost;
+  private observer?: SubagentObserver;
+  private active?: SubagentRun;
   private readonly sessions = new Map<string, AgentSession>();
   private readonly stopped = new Set<string>();
   private runStopped = false;
@@ -161,15 +161,15 @@ export class ParallelSubagentCoordinator {
 
   constructor(private readonly log: (message: string) => void) {}
 
-  attachHost(host: ParallelHost): void {
+  attachHost(host: SubagentHost): void {
     this.host = host;
   }
 
-  setObserver(observer: ParallelObserver | undefined): void {
+  setObserver(observer: SubagentObserver | undefined): void {
     this.observer = observer;
   }
 
-  get current(): ParallelRun | undefined {
+  get current(): SubagentRun | undefined {
     return this.active;
   }
 
@@ -185,7 +185,7 @@ export class ParallelSubagentCoordinator {
    * proposing too many and being rejected. A changed setting therefore takes
    * effect when the session's tool set is rebuilt.
    */
-  createTool(config: ParallelSubagentConfig): ToolDefinition {
+  createTool(config: SubagentConfig): ToolDefinition {
     const TaskItem = Type.Object({
       task: Type.String({
         description:
@@ -200,10 +200,10 @@ export class ParallelSubagentCoordinator {
     });
 
     return defineTool({
-      name: PARALLEL_SUBAGENT_TOOL,
-      label: "Parallel subagent",
+      name: SUBAGENT_TOOL,
+      label: "Subagent",
       description:
-        `Run up to ${config.maxParallel} isolated subagents at the same time, each on its own task. ` +
+        `Run up to ${config.maxSubagents} isolated subagents at the same time, each on its own task. ` +
         "Every subagent in one call runs concurrently with the others; separate calls run one after another, " +
         "so tasks that could overlap in time belong in the same call. " +
         "Every subagent starts with a fresh context, writes directly to the working tree within the paths it is given, " +
@@ -214,7 +214,7 @@ export class ParallelSubagentCoordinator {
       parameters: Type.Object({
         tasks: Type.Array(TaskItem, {
           minItems: 1,
-          maxItems: config.maxParallel,
+          maxItems: config.maxSubagents,
           description: "Subagents to run concurrently.",
         }),
       }),
@@ -252,14 +252,14 @@ export class ParallelSubagentCoordinator {
       model?: string;
       title?: string;
     }[],
-    config: ParallelSubagentConfig,
+    config: SubagentConfig,
     signal: AbortSignal | undefined,
     onUpdate: ((partial: { content: { type: "text"; text: string }[]; details: unknown }) => void) | undefined,
   ) {
-    if (this.disposed) throw new Error("Parallel subagent coordinator is disposed");
-    if (this.active) throw new Error("A parallel subagent run is already in progress");
+    if (this.disposed) throw new Error("Subagent coordinator is disposed");
+    if (this.active) throw new Error("A subagent run is already in progress");
     const host = this.host;
-    if (!host) throw new Error("Parallel subagent host is not attached");
+    if (!host) throw new Error("Subagent host is not attached");
 
     const cwd = host.getCwd();
     const parent = host.getSession();
@@ -310,7 +310,7 @@ export class ParallelSubagentCoordinator {
       startedAt: Date.now(),
     }));
 
-    const run: ParallelRun = { id: runId, parent, lanes, startedAt: Date.now() };
+    const run: SubagentRun = { id: runId, parent, lanes, startedAt: Date.now() };
     this.active = run;
     this.runStopped = false;
     this.stopped.clear();
@@ -327,7 +327,7 @@ export class ParallelSubagentCoordinator {
     prepared.forEach((item, index) => {
       for (const notice of item.notices) this.observer?.onLaneNotice(run, lanes[index]!, notice);
     });
-    this.log(`parallel subagent started: ${lanes.length} lanes`);
+    this.log(`subagent run started: ${lanes.length} lanes`);
 
     const publish = () => {
       onUpdate?.({
@@ -353,7 +353,7 @@ export class ParallelSubagentCoordinator {
       this.sessions.clear();
     }
 
-    this.log(`parallel subagent finished: ${lanes.filter((lane) => lane.status === "completed").length}/${lanes.length}`);
+    this.log(`subagent run finished: ${lanes.filter((lane) => lane.status === "completed").length}/${lanes.length}`);
     return {
       content: [{ type: "text" as const, text: report(lanes) }],
       details: { lanes: lanes.map(snapshot) },
@@ -361,10 +361,10 @@ export class ParallelSubagentCoordinator {
   }
 
   private async runLane(
-    run: ParallelRun,
+    run: SubagentRun,
     lane: LaneState,
     item: { task: string; scope: ScopePrefix[]; model?: SubagentModel },
-    host: ParallelHost,
+    host: SubagentHost,
     cwd: string,
     changed: () => void,
   ): Promise<void> {
@@ -487,7 +487,7 @@ function summarize(task: string): string {
  */
 export function planModel(options: {
   requested?: string;
-  config: ParallelSubagentConfig;
+  config: SubagentConfig;
   modelRuntime: ModelRuntime;
   parentModel?: SubagentModel;
   index: number;
@@ -585,7 +585,7 @@ function describeProgress(event: AgentSessionEvent): string | undefined {
 
 function progressLine(lanes: readonly LaneState[]): string {
   const done = lanes.filter((lane) => lane.status !== "running").length;
-  return `Parallel subagents: ${done}/${lanes.length} finished`;
+  return `Subagents: ${done}/${lanes.length} finished`;
 }
 
 function snapshot(lane: LaneState) {
@@ -619,7 +619,7 @@ function snapshot(lane: LaneState) {
 function report(lanes: readonly LaneState[]): string {
   const completed = lanes.filter((lane) => lane.status === "completed").length;
   const lines: string[] = [
-    `Parallel subagents: ${completed}/${lanes.length} completed. All changes were written to the working tree and none were rolled back.`,
+    `Subagents: ${completed}/${lanes.length} completed. All changes were written to the working tree and none were rolled back.`,
     "",
   ];
 

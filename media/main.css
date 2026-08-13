@@ -977,7 +977,7 @@ button.bubble-action svg {
 }
 
 /* Generic tree for a tool's own `details` payload; collapsed by default. */
-/* Parallel subagent card: one row per subagent -------------------------- */
+/* Subagent card: one row per subagent -------------------------- */
 
 .lane-list {
   display: flex;

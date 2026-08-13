@@ -37,28 +37,32 @@ export interface ChatStats {
 /**
  * Name of the one tool this extension adds to pi's own set.
  *
- * Deliberately not `subagent`: that name is taken in the CLI ecosystem, and a
- * same-named tool with different parameters would make sessions unreadable
- * across the two hosts — resuming in the CLI, the model would copy the call
- * shape it sees in the history and get an argument error.
+ * Deliberately the familiar ecosystem name: the model knows what a `subagent`
+ * is for. The plugin owns the name in this window — an extension that
+ * registers a same-named tool is shadowed (see `ShadowedSubagentNotice`), and
+ * the tool itself is the host's or nothing, never the extension's. Cross-host
+ * resume is best-effort by design (see AGENTS.md): a CLI that has its own
+ * `subagent` extension may see the model imitate the call shape recorded
+ * here.
  */
-export const PARALLEL_SUBAGENT_TOOL = "parallel_subagent";
+export const SUBAGENT_TOOL = "subagent";
 
 /**
  * Notice that an extension-registered `subagent` tool was suppressed.
  *
- * The two values travel together because the wording depends on both: what the
- * user gets instead is `parallel_subagent`, which is off unless opted in, so
- * saying "use this window's own subagent" would be wrong for most sessions.
+ * The two values travel together because the wording depends on both: the
+ * tool the user can use instead is this window's own `subagent`, which is off
+ * unless opted in, so saying "use this window's own subagent" would be wrong
+ * for most sessions.
  */
 export interface ShadowedSubagentNotice {
   /** Path of the pi extension that registered the suppressed tool. */
   path: string;
-  /** Whether `parallel_subagent` is part of this session's tool set. */
-  parallelSubagentEnabled: boolean;
+  /** Whether the `subagent` tool is part of this session's tool set. */
+  subagentEnabled: boolean;
 }
 
-/** One subagent of a running `parallel_subagent` call. */
+/** One subagent of a running `subagent` call. */
 export interface DelegationLane {
   id: string;
   title: string;
@@ -86,7 +90,7 @@ export interface DelegationLane {
 }
 
 /**
- * Parallel delegation as seen by the currently displayed session.
+ * Subagent delegation as seen by the currently displayed session.
  *
  * Present on the parent while a run is in progress, and on a lane whenever one
  * is being viewed — including after the run finished, so the user is never
@@ -135,7 +139,7 @@ export interface ChatState {
   needsAuth?: boolean;
   /** Number of messages in the session (0 = brand-new empty session). */
   messageCount?: number;
-  /** Present while a parallel delegation is running or being viewed. */
+  /** Present while a subagent delegation is running or being viewed. */
   delegation?: DelegationState;
   /** Present while another session is opened read-only during a run. */
   preview?: { file: string; title: string };
@@ -299,7 +303,7 @@ export type ChatEvent =
   /**
    * Partial result of a still-running tool.
    *
-   * `details` carries the tool's own live payload; the parallel subagent card is
+   * `details` carries the tool's own live payload; the subagent card is
    * built from it, which is what lets its per-subagent rows move while the call
    * is in progress.
    */
@@ -354,9 +358,10 @@ export type HostMessage =
       systemPromptOverridden?: boolean;
       /**
        * Set when a pi extension registers a `subagent` tool, which is always
-       * dropped in this host. Part of the new-session notice rather than a
-       * transcript event: it describes how this session is set up, not
-       * something that happened in it.
+       * dropped in this host: the name belongs to the window's own tool.
+       * Part of the new-session notice rather than a transcript event: it
+       * describes how this session is set up, not something that happened in
+       * it.
        */
       shadowedSubagent?: ShadowedSubagentNotice;
     }
