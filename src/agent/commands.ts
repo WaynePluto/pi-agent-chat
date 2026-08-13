@@ -5,6 +5,7 @@ import type { PiRuntime } from "./runtime.js";
 import { t, tf } from "./i18n.js";
 import { isChinese } from "../shared/messages.js";
 import { cloneSession, navigateSessionTree, pickForkPoint, type SessionTreeUi } from "./session-tree.js";
+import { sessionTitle } from "./session-title.js";
 
 /**
  * Slash commands for the sidebar.
@@ -151,7 +152,12 @@ export async function runBuiltinCommand(
       break;
     }
     case "name": {
-      const value = argument || (await vscode.window.showInputBox({ title: t("sessionNameTitle") }))?.trim();
+      // Same prefill rule as the sessions list: start from the title the user
+      // already sees (name, else first user message) rather than an empty box.
+      const value = argument || (await vscode.window.showInputBox({
+        title: t("sessionNameTitle"),
+        value: sessionTitle(session.sessionManager) ?? "",
+      }))?.trim();
       if (!value) break;
       session.setSessionName(value);
       actions.status(tf("sessionRenamed", value));

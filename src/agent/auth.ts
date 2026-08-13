@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import type { AuthEvent, AuthInteraction, AuthPrompt, AuthType, ModelsRefreshResult } from "@earendil-works/pi-ai";
 import { CredentialSynchronizationError } from "@earendil-works/pi-coding-agent";
 import { describe } from "./errors.js";
+import { configuredProviderIds, deleteConfiguredProvider, openModelsConfig } from "./model-config.js";
 import { t, tf } from "./i18n.js";
 import type { PiRuntime } from "./runtime.js";
 
@@ -74,19 +75,55 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
     return false;
   }
 
-  const picked = await vscode.window.showQuickPick(
-    options.map((option) => ({
+  type ProviderItem = vscode.QuickPickItem & { option?: LoginOption; custom?: boolean };
+  // Providers pi does not know about are configured in models.json, not by
+  // logging in. This row is the only pointer users have to that file, so it
+  // leads the list instead of trailing a long provider catalogue.
+  const fromModelsConfig = await configuredProviderIds();
+  const items: ProviderItem[] = [
+    { label: t("customProviderLabel"), detail: t("customProviderDetail"), custom: true },
+    { label: t("settingsProviders"), kind: vscode.QuickPickItemKind.Separator },
+    ...options.map((option) => ({
       label: option.name,
       description: option.authType === "oauth" ? (option.loginLabel ?? t("oauthDescription")) : t("apiKeyDescription"),
       detail: option.configured
         ? tf("configuredDetail", option.subscription ? `${option.configured} · ${t("subscriptionLabel")}` : option.configured)
         : undefined,
+      // Only entries models.json defines can be removed from it, and the row
+      // action sits where that provider is listed — like the model picker's.
+      buttons: fromModelsConfig.has(option.id) ? [getDeleteProviderButton()] : undefined,
       option,
     })),
-    { title: t("signInTitle"), matchOnDescription: true, ignoreFocusOut: true },
-  );
+  ];
+
+  const quickPick = vscode.window.createQuickPick<ProviderItem>();
+  quickPick.title = t("signInTitle");
+  quickPick.matchOnDescription = true;
+  quickPick.matchOnDetail = true;
+  quickPick.ignoreFocusOut = true;
+  quickPick.items = items;
+  let deleteTarget: string | undefined;
+  const picked = await new Promise<ProviderItem | undefined>((resolve) => {
+    quickPick.onDidTriggerItemButton((event) => {
+      deleteTarget = event.item.option?.id;
+      // Close first: the confirmation is modal and would dismiss the picker
+      // anyway, which would leave the flow guessing whether it was cancelled.
+      quickPick.hide();
+    });
+    quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0]));
+    quickPick.onDidHide(() => resolve(undefined));
+    quickPick.show();
+  });
+  quickPick.dispose();
+  if (deleteTarget) return await confirmDeleteProvider(deleteTarget, log);
   if (!picked) return false;
+  if (picked.custom) {
+    await openModelsConfig();
+    // No credential was stored; the file watcher reloads models.json on save.
+    return false;
+  }
   const option = picked.option;
+  if (!option) return false;
 
   if (!option.hasLogin) {
     vscode.window.showInformationMessage(tf("ambientCredentials", option.name));
@@ -113,6 +150,44 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
     vscode.window.showErrorMessage(tf("loginFailed", message));
     return false;
   }
+}
+
+/**
+ * Row action that removes a provider from models.json. Built lazily: the
+ * headless smoke test loads this module without a real `vscode` runtime.
+ */
+let deleteProviderButton: vscode.QuickInputButton | undefined;
+function getDeleteProviderButton(): vscode.QuickInputButton {
+  deleteProviderButton ??= { iconPath: new vscode.ThemeIcon("trash"), tooltip: t("deleteCustomProvider") };
+  return deleteProviderButton;
+}
+
+/**
+ * Confirm and remove one models.json provider entry.
+ *
+ * Returns true when the file changed. Saving it also makes the bridge reload
+ * the configuration; the caller's refresh keeps the composer in sync without
+ * waiting for that round trip.
+ */
+async function confirmDeleteProvider(providerId: string, log: (message: string) => void): Promise<boolean> {
+  const confirm = t("deleteCustomProviderAction");
+  const answer = await vscode.window.showWarningMessage(
+    tf("deleteCustomProviderConfirm", providerId),
+    { modal: true, detail: t("deleteCustomProviderDetail") },
+    confirm,
+  );
+  if (answer !== confirm) return false;
+  try {
+    if (!(await deleteConfiguredProvider(providerId))) return false;
+  } catch (error) {
+    const message = describe(error);
+    log(`failed to delete provider ${providerId} from models.json: ${message}`);
+    vscode.window.showErrorMessage(tf("deleteCustomProviderFailed", providerId, message));
+    return false;
+  }
+  log(`deleted provider ${providerId} from models.json`);
+  vscode.window.showInformationMessage(tf("customProviderDeleted", providerId));
+  return true;
 }
 
 /**

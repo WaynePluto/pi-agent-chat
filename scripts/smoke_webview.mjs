@@ -18,6 +18,11 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { JSDOM } from "jsdom";
 
+// Session timestamps are rendered in the machine's own time zone, so the
+// baseline would otherwise differ between developers. Pin it before anything
+// constructs a Date; UTC keeps the recorded values equal to the fixtures.
+process.env.TZ = "UTC";
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bundlePath = join(root, "dist", "webview.js");
 const baselinePath = join(root, "scripts", "webview-snapshot.txt");
@@ -124,6 +129,32 @@ const SCRIPT = [
     messages: [{ type: "history", events: [], systemPromptOverridden: true }],
   },
   {
+    // The built-in subagent shadowing an extension's tool is a fact about the
+    // session setup, so it belongs in the new-session notice — not in a
+    // transcript event, which would evict that very placeholder and open a
+    // bogus work block.
+    label: "empty state: extension subagent shadowed, parallel subagent off",
+    messages: [
+      {
+        type: "history",
+        events: [],
+        shadowedSubagent: { path: "/home/u/.pi/agent/extensions/subagent/index.ts", parallelSubagentEnabled: false },
+      },
+    ],
+  },
+  {
+    // Same fact, different wording: with the tool off this session has no
+    // delegation tool at all, so the notice must not promise one.
+    label: "empty state: extension subagent shadowed, parallel subagent on",
+    messages: [
+      {
+        type: "history",
+        events: [],
+        shadowedSubagent: { path: "/home/u/.pi/agent/extensions/subagent/index.ts", parallelSubagentEnabled: true },
+      },
+    ],
+  },
+  {
     label: "history replay: user + thinking + tool + assistant",
     messages: [
       {
@@ -228,6 +259,36 @@ const SCRIPT = [
     ],
   },
   {
+    // A tool from a pi extension has no dedicated card, so the host forwards
+    // its own `details` payload and the webview draws it as a generic tree.
+    // Covers scalars, nested arrays of objects, and an empty object.
+    label: "extension tool: structured details",
+    messages: [
+      { type: "event", event: { kind: "tool_start", id: "call-5", name: "web_search", args: { query: "pi agent" } } },
+      {
+        type: "event",
+        event: {
+          kind: "tool_end",
+          id: "call-5",
+          name: "web_search",
+          isError: false,
+          text: "2 results",
+          details: {
+            engine: "duckduckgo",
+            elapsedMs: 412,
+            cached: false,
+            missing: null,
+            results: [
+              { title: "Pi docs", score: 0.91 },
+              { title: "Pi repo", score: 0.77 },
+            ],
+            empty: {},
+          },
+        },
+      },
+    ],
+  },
+  {
     label: "manual compaction: input stays editable and submissions queue",
     messages: [
       { type: "state", state: { ...baseState, isCompacting: true } },
@@ -266,6 +327,9 @@ const SCRIPT = [
       for (const selector of [".work-header", ".resources-toggle", ".resource-header", ".card-header"]) {
         for (const header of window.document.querySelectorAll(selector)) header.click();
       }
+      // Nested blocks only exist once their parent body has rendered, so they
+      // need a second pass: a tool's `details` tree lives inside a tool card.
+      for (const header of window.document.querySelectorAll(".tool-details-block > .card-header")) header.click();
       // Resource updates and skill highlights both rebuild this panel. Expanded
       // sections must survive that rebuild instead of snapping shut.
       window.dispatchEvent(new window.MessageEvent("message", { data: { type: "resources", sections: RESOURCE_SECTIONS } }));
@@ -277,7 +341,84 @@ const SCRIPT = [
     beforeSnapshot: (window) => window.document.getElementById("btn-resources").click(),
   },
   {
-    label: "delegation: child session displayed",
+    label: "parallel subagents: card on the parent",
+    messages: [
+      {
+        type: "state",
+        state: {
+          ...baseState,
+          isStreaming: true,
+          delegation: {
+            role: "parent",
+            running: true,
+            lanes: [
+              {
+                id: "run-1-lane-1",
+                title: "auth",
+                scope: ["src/auth"],
+                status: "running",
+                progress: "editing src/auth/login.ts",
+                writtenFiles: ["src/auth/session.ts"],
+              },
+              {
+                id: "run-1-lane-2",
+                title: "api",
+                scope: ["src/api"],
+                status: "completed",
+                writtenFiles: ["src/api/client.ts"],
+                sessionFile: "/workspace/lane-2.jsonl",
+                durationMs: 31000,
+              },
+            ],
+          },
+        },
+      },
+      {
+        type: "event",
+        event: {
+          kind: "tool_start",
+          id: "call-parallel",
+          name: "parallel_subagent",
+          args: { tasks: [{ task: "make login async", scope: ["src/auth"] }] },
+        },
+      },
+      {
+        type: "event",
+        event: {
+          kind: "tool_end",
+          id: "call-parallel",
+          name: "parallel_subagent",
+          text: "Parallel subagents: 1/2 completed.",
+          details: {
+            lanes: [
+              {
+                id: "run-1-lane-1",
+                title: "auth",
+                scope: ["src/auth"],
+                status: "failed",
+                summary: "could not find the fixture loader",
+                writtenFiles: ["src/auth/session.ts"],
+                scopeViolations: 1,
+                deniedPaths: ["src/api/client.ts"],
+                bashMayHaveWritten: true,
+              },
+              {
+                id: "run-1-lane-2",
+                title: "api",
+                scope: ["src/api"],
+                status: "completed",
+                summary: "added retry to the client",
+                writtenFiles: ["src/api/client.ts"],
+                sessionFile: "/workspace/lane-2.jsonl",
+              },
+            ],
+          },
+        },
+      },
+    ],
+  },
+  {
+    label: "parallel subagents: one lane displayed",
     messages: [
       {
         type: "state",
@@ -285,7 +426,21 @@ const SCRIPT = [
           ...baseState,
           isStreaming: true,
           inputDisabled: true,
-          delegation: { role: "child", title: "research task", peerSessionId: "session-0", peerSessionFile: "/p.jsonl" },
+          delegation: {
+            role: "child",
+            running: true,
+            currentLaneId: "run-1-lane-1",
+            parentHasNewActivity: true,
+            lanes: [
+              {
+                id: "run-1-lane-1",
+                title: "auth",
+                scope: ["src/auth"],
+                status: "running",
+                writtenFiles: [],
+              },
+            ],
+          },
         },
       },
     ],
@@ -368,6 +523,145 @@ const SCRIPT = [
     // Only the panel is toggled back into the layout: its expansion state (and
     // each section's) survives from the earlier steps.
     beforeSnapshot: (window) => window.document.getElementById("btn-resources").click(),
+  },
+  // The other half of the highlight: rows the host marks itself, for what the
+  // transcript cannot show (context files that went out with a request, an
+  // extension that only registers event handlers). The fresh history first
+  // drops the transcript-derived marks of the step above.
+  {
+    label: "host-marked rows: context sent, event-only extension ran",
+    messages: [
+      { type: "history", events: [] },
+      {
+        type: "resources",
+        sections: RESOURCE_SECTIONS.map((section) => ({
+          ...section,
+          items: section.items.map((item) =>
+            section.name === "Context" || item.path === "/workspace/.pi/extensions/ext.ts" ? { ...item, used: true } : item,
+          ),
+        })),
+      },
+      { type: "state", state: baseState },
+    ],
+  },
+  {
+    label: "extension surfaces: setStatus row and setWidget blocks above and below the composer",
+    messages: [
+      { type: "history", events: [] },
+      { type: "state", state: baseState },
+      {
+        type: "extensionStatus",
+        items: [
+          { key: "services", text: "\u25b6 2 running" },
+          { key: "branch", text: "main" },
+        ],
+      },
+      {
+        type: "extensionWidgets",
+        items: [
+          { key: "services", lines: ["dev  :5173  pid 1234", "api  :3000  pid 5678"], placement: "aboveEditor" },
+          { key: "hint", lines: ["press /services for details"], placement: "belowEditor" },
+        ],
+      },
+    ],
+  },
+  {
+    label: "extension widget collapsed by the user keeps its line count",
+    messages: [],
+    beforeSnapshot: (window) => window.document.querySelector("#widgets-above .widget-header").click(),
+  },
+  {
+    label: "extension surfaces cleared when the extension clears its keys",
+    messages: [
+      { type: "extensionStatus", items: [] },
+      { type: "extensionWidgets", items: [] },
+    ],
+  },
+  // A subagent whose live session is gone (window reloaded since the run) is
+  // replayed from its session file. It must still read as that subagent, not as
+  // a generic preview offering "back to the running session".
+  {
+    label: "replayed subagent: keeps the subagent banner, not the preview one",
+    messages: [
+      {
+        type: "history",
+        transcriptId: "/workspace/lane-b.jsonl",
+        events: [{ kind: "user_message", text: "check the python version" }],
+      },
+      {
+        type: "state",
+        state: {
+          ...baseState,
+          inputDisabled: true,
+          preview: { file: "/workspace/lane-b.jsonl", title: "check the python version" },
+          delegation: {
+            role: "child",
+            currentLaneId: "replayed",
+            running: false,
+            lanes: [{ id: "replayed", title: "Python version", scope: [], status: "completed", writtenFiles: [] }],
+          },
+        },
+      },
+    ],
+  },
+  // Stepping into a subagent and back rebuilds the parent transcript from
+  // scratch. An execution process the user had opened must come back open:
+  // silently re-collapsing it loses their place every time they look at a lane.
+  {
+    label: "return from a subagent: expanded work block and reading position kept",
+    messages: [
+      // Back on the parent, so the previous step's preview state does not bleed
+      // into this snapshot.
+      { type: "state", state: baseState },
+      {
+        type: "history",
+        transcriptId: "parent-session",
+        events: [
+          { kind: "user_message", text: "check both versions" },
+          { kind: "thinking_message", text: "Delegating." },
+          { kind: "assistant_message", text: "Done." },
+        ],
+      },
+    ],
+    beforeSnapshot: (window) => {
+      window.document.querySelector(".work-header")?.click();
+      // Away to the subagent's transcript and back. The round trip is the point:
+      // remembering only the current transcript would lose the expansion here.
+      const replay = (transcriptId, events) =>
+        window.dispatchEvent(new window.MessageEvent("message", { data: { type: "history", transcriptId, events } }));
+      replay("/workspace/lane-a.jsonl", [{ kind: "user_message", text: "check the node version" }]);
+      replay("parent-session", [
+        { kind: "user_message", text: "check both versions" },
+        { kind: "thinking_message", text: "Delegating." },
+        { kind: "assistant_message", text: "Done." },
+      ]);
+      // Reading position is remembered alongside the expansion, for the message
+      // list and for the execution process's own scroller. Asserted here rather
+      // than in the DOM snapshot, which does not capture scroll offsets.
+      const messages = window.document.getElementById("messages");
+      const workBody = window.document.querySelector(".work-body");
+      messages.scrollTop = 120;
+      if (workBody) workBody.scrollTop = 40;
+      replay("/workspace/lane-a.jsonl", [{ kind: "user_message", text: "check the node version" }]);
+      replay("parent-session", [
+        { kind: "user_message", text: "check both versions" },
+        { kind: "thinking_message", text: "Delegating." },
+        { kind: "assistant_message", text: "Done." },
+      ]);
+      const restoredWork = window.document.querySelector(".work-body");
+      const problems = [];
+      if (messages.scrollTop !== 120) problems.push(`message list at ${messages.scrollTop}, expected 120`);
+      if (restoredWork && restoredWork.scrollTop !== 40) problems.push(`work block at ${restoredWork.scrollTop}, expected 40`);
+      if (problems.length > 0) throw new Error(`scroll position not restored: ${problems.join("; ")}`);
+    },
+  },
+  // Last, because it wipes the transcript: "new session" has nothing to load,
+  // so it must show the empty-session bubble straight away rather than flash
+  // the loading spinner for one round trip.
+  {
+    label: "new session click: empty-session placeholder instead of a spinner",
+    messages: [],
+    beforeSnapshot: (window) => window.document.getElementById("btn-new").click(),
   },
 ];
 
@@ -452,10 +746,18 @@ async function run() {
   window.eval(readFileSync(bundlePath, "utf8"));
 
   const sections = [];
-  for (const step of SCRIPT) {
+  for (const [index, step] of SCRIPT.entries()) {
     step.beforeMessages?.(window);
     for (const message of step.messages) {
-      window.dispatchEvent(new window.MessageEvent("message", { data: message }));
+      // The host always identifies the transcript it is replaying; the webview
+      // keys per-transcript view state (expanded work blocks) off it. Default
+      // one per step so scenarios stay isolated, and let a step opt into a
+      // shared id when the point is that state survives a rebuild.
+      const data =
+        message.type === "history" && message.transcriptId === undefined
+          ? { ...message, transcriptId: `step-${index}` }
+          : message;
+      window.dispatchEvent(new window.MessageEvent("message", { data }));
     }
     step.beforeSnapshot?.(window);
     await flush(window);

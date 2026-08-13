@@ -9,10 +9,14 @@ import {
   runLiveToolCallTest,
   runProjectFilesTest,
   runResourceListingTest,
+  runViewStateTest,
+  runExtensionReloadTest,
+  runExtensionCommandContextTest,
   runSessionTreeTest,
   runSlashCommandTest,
   runSpikeDiagnostics,
   runSubagentToolTest,
+  runExtensionSdkImportTest,
 } from "./agent/diagnostics.js";
 import { OriginalContentProvider, ORIGINAL_SCHEME } from "./agent/diff-view.js";
 import { describeWithStack } from "./agent/errors.js";
@@ -23,6 +27,14 @@ import type { HostMessage, WebviewMessage } from "./shared/protocol.js";
 const VIEW_ID = "piAgentChat.view";
 
 export function activate(context: vscode.ExtensionContext): void {
+  // SDK-MIRROR: dist/cli.js sets these on the way in, and rpc-entry.js repeats
+  // PI_CODING_AGENT — they are application-entry duties, not CLI decoration.
+  // Extensions and anything the `bash` tool runs read them to tell they are
+  // inside an agent (pagers, colour, prompts). The rest of cli.js is
+  // deliberately not mirrored: process.title and emitWarning belong to VS Code
+  // here, and the HTTP dispatcher is configured by agent/http.ts below.
+  process.env.PI_CODING_AGENT = "true";
+  process.env.AI_AGENT = "pi";
   registerBunOAuthFlows();
   const output = vscode.window.createOutputChannel("Pi Agent Chat");
   context.subscriptions.push(output);
@@ -44,7 +56,11 @@ export function activate(context: vscode.ExtensionContext): void {
         ...(await runSessionTreeTest(resolveWorkspaceCwd())),
         ...(await runSubagentToolTest(resolveWorkspaceCwd())),
         ...(await runProjectFilesTest(resolveWorkspaceCwd())),
+        ...(await runExtensionSdkImportTest(resolveWorkspaceCwd())),
+        ...(await runExtensionReloadTest(resolveWorkspaceCwd())),
+        ...(await runExtensionCommandContextTest(resolveWorkspaceCwd())),
         ...(await runResourceListingTest(resolveWorkspaceCwd())),
+        ...(await runViewStateTest(resolveWorkspaceCwd())),
       ];
       const report = formatDiagnostics(results);
       output.appendLine(report);
@@ -85,7 +101,11 @@ export const __spike = {
   runSessionTreeTest,
   runSubagentToolTest,
   runProjectFilesTest,
+  runExtensionSdkImportTest,
+  runExtensionReloadTest,
+  runExtensionCommandContextTest,
   runResourceListingTest,
+  runViewStateTest,
   runLiveToolCallTest,
   formatDiagnostics,
   resolveWorkspaceCwd,

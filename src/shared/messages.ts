@@ -103,6 +103,55 @@ export const sharedMessages = {
     zh: "选择模型选择器中优先列出的模型",
   },
   settingsHelp: { en: "Command help", zh: "命令帮助" },
+  settingsSubagent: { en: "Subagent", zh: "子代理" },
+  settingsSubagentDetail: {
+    en: "Configure parallel_subagent (this window only, not shared with the pi CLI)",
+    zh: "配置并行子代理（仅本插件，不与终端 pi 共用）",
+  },
+
+  /* Parallel subagent settings form -------------------------------------- */
+
+  subagentSettingsTitle: { en: "Parallel subagent settings", zh: "并行子代理设置" },
+  subagentSettingsHint: {
+    en: "Stored in VS Code settings; changes apply to the next session",
+    zh: "保存在 VS Code 设置中，更改在下一个会话生效",
+  },
+  subagentScope: { en: "Save to", zh: "写入位置" },
+  subagentScopeDetail: {
+    en: "Which settings file the values below are written to",
+    zh: "下面的设置写入哪个设置文件",
+  },
+  subagentScopeWorkspace: { en: "Workspace (.vscode/settings.json)", zh: "工作区（.vscode/settings.json）" },
+  subagentScopeUser: { en: "User (global settings.json)", zh: "用户（全局 settings.json）" },
+  subagentScopeNoWorkspace: {
+    en: "No folder is open, so values can only be written to user settings.",
+    zh: "当前没有打开文件夹，只能写入用户设置。",
+  },
+  subagentEnabled: { en: "Parallel subagent", zh: "并行子代理" },
+  subagentEnabledDetail: {
+    en: "Let the agent delegate several tasks at once to child sessions that write to your working tree directly",
+    zh: "允许主代理一次派出多路子会话，它们会直接修改你的工作区",
+  },
+  subagentMaxParallel: { en: "Max parallel subagents", zh: "最大并行数" },
+  subagentMaxParallelDetail: {
+    en: "Upper bound for one call; also published to the model as the schema limit",
+    zh: "单次调用的上限，同时作为 schema 限制告知模型",
+  },
+  subagentDefaultModel: { en: "Default subagent model", zh: "子代理默认模型" },
+  subagentDefaultModelDetail: {
+    en: "Model for subagents that do not name one themselves",
+    zh: "未自行指定模型的子代理使用它",
+  },
+  subagentInheritModel: { en: "Inherit the parent session's model", zh: "继承父会话的模型" },
+  subagentCustomModel: { en: "Enter provider/modelId...", zh: "手动输入 provider/modelId..." },
+  subagentModelInputTitle: { en: "Default subagent model", zh: "子代理默认模型" },
+  subagentModelInputPrompt: {
+    en: "provider/modelId, e.g. anthropic/claude-sonnet-4-5. Leave empty to inherit.",
+    zh: "provider/modelId，例如 anthropic/claude-sonnet-4-5。留空表示继承父会话。",
+  },
+  subagentClearOverride: { en: "Not set here (inherit)", zh: "本作用域不设置（继承）" },
+  subagentOpenSettingsUi: { en: "Open in the Settings editor", zh: "在设置界面中打开" },
+  subagentSectionValues: { en: "Values", zh: "配置项" },
   settingsSectionOptions: { en: "Options (shared with the pi CLI)", zh: "选项（与终端 pi 共用）" },
   settingsOpenFile: { en: "Open settings file", zh: "打开设置文件" },
   settingsOpenFileDetail: { en: "Edit ~/.pi/agent/settings.json directly", zh: "直接编辑 ~/.pi/agent/settings.json" },
@@ -226,6 +275,37 @@ export const sharedMessages = {
   deviceOpenPage: { en: "Open page & copy code", zh: "打开页面并复制验证码" },
   deviceCopyOnly: { en: "Copy code only", zh: "仅复制验证码" },
 
+  /* Custom providers (models.json) -------------------------------------- */
+
+  customProviderLabel: {
+    en: "$(edit) Custom provider (models.json)...",
+    zh: "$(edit) 自定义供应商（models.json）…",
+  },
+  customProviderDetail: {
+    en: "Add your own endpoint, models and API key by editing the shared models.json (a fresh template is inserted each time)",
+    zh: "编辑共享的 models.json，自定义接入地址、模型与 API key（每次都会插入一份新模板）",
+  },
+  customProviderOpened: {
+    en: "Edit models.json and save it - Pi Agent Chat reloads the file on save.",
+    zh: "编辑 models.json 并保存 — 保存后 Pi Agent Chat 会自动重新加载。",
+  },
+  /** A second (third, ...) provider template was inserted into an existing models.json. */
+  customProviderAppended: {
+    en: "A new provider template was inserted at the top of models.json (not saved yet - undo with Ctrl+Z). Edit it and save; Pi Agent Chat reloads the file on save.",
+    zh: "已在 models.json 顶部插入一份新的供应商模板（尚未保存，Ctrl+Z 可撤销）。改完保存即可 — 保存后 Pi Agent Chat 会自动重新加载。",
+  },
+  deleteCustomProvider: { en: "Remove from models.json", zh: "从 models.json 中删除" },
+  deleteCustomProviderAction: { en: "Remove", zh: "删除" },
+  deleteCustomProviderDetail: {
+    en: "Only this entry in ~/.pi/agent/models.json is removed. Credentials stored by signing in are kept; use logout for those.",
+    zh: "只删除 ~/.pi/agent/models.json 中的这一项配置。通过登录保存的凭据不受影响，那些请用登出移除。",
+  },
+  /** models.json held no configuration (empty, or `{}`), which pi rejects; an empty `providers` map was written. */
+  modelsConfigRepaired: {
+    en: 'models.json held no configuration (it was empty or just {}), which pi rejects, so { "providers": {} } was written back - the form pi reads as "nothing configured".',
+    zh: 'models.json 里没有任何配置（空文件或只有 {}），pi 不接受这种状态，已写入 { "providers": {} } — 这才是 pi 能读懂的「没有自定义配置」。',
+  },
+
   /* Session tree -------------------------------------------------------- */
 
   treeNavigateTitle: { en: "Pi Agent Chat: navigate session tree", zh: "Pi Agent Chat：浏览会话树" },
@@ -260,6 +340,30 @@ export const sharedMessages = {
   noAssistantMessage: { en: "no assistant message to copy", zh: "没有可复制的助手消息" },
   copiedLastMessage: { en: "last assistant message copied", zh: "已复制最后一条助手消息" },
 
+  /**
+   * A parallel-subagent setting changed.
+   *
+   * A session's tool set is fixed when the session is built, and `reload()`
+   * keeps the host's `customTools`, so the change cannot reach a conversation
+   * already in progress — and silently rebuilding the session would throw that
+   * conversation away.
+   */
+  parallelSubagentSettingChanged: {
+    en: "Parallel subagent settings changed. They apply to the next session.",
+    zh: "并行子代理设置已更改，将在下一个会话生效。",
+  },
+
+  /** Fills the source slot of `subagentModelFallback`. */
+  subagentModelSourceSetting: {
+    en: "the default subagent model setting",
+    zh: "子代理默认模型设置",
+  },
+  /** Fills the model slot of `subagentModelFallback` when nothing configured resolved. */
+  subagentModelFallbackParent: {
+    en: "the parent session's model",
+    zh: "父会话的模型",
+  },
+
   /* Extension UI hooks -------------------------------------------------- */
 
   confirmYes: { en: "Yes", zh: "确定" },
@@ -267,6 +371,114 @@ export const sharedMessages = {
   /* Resource listing --------------------------------------------------- */
 
 } satisfies Record<string, LocalizedText>;
+
+/**
+ * One provider entry for `~/.pi/agent/models.json`, indented for the
+ * `"providers"` object and carrying a comment per field.
+ *
+ * This is the unit the sidebar writes: it seeds the whole file when models.json
+ * is empty (`modelsConfigTemplate` below) and is inserted on its own when the
+ * file already defines providers. pi parses the file with `stripJsonComments`,
+ * so the comments are part of the supported format and carry the documentation
+ * this flow would otherwise need a wizard for.
+ *
+ * `apiKey` is a literal placeholder rather than `$MY_API_KEY`: pi only offers a
+ * provider's models once its credential resolves, so an unset variable would
+ * make the seeded example invisible in the picker. A literal value keeps the
+ * no-login case (local servers that ignore the key) working out of the box,
+ * which is what `docs/models.md` recommends for Ollama/vLLM/LM Studio.
+ */
+export const modelsConfigProviderEntry: LocalizedText = {
+  en: `    // Provider id: shown next to every model of this provider. Reusing a
+    // built-in id (anthropic, openai, ...) overrides that provider instead.
+    "my-provider": {
+      // Base URL of the endpoint, e.g. http://localhost:11434/v1 for Ollama.
+      "baseUrl": "https://api.example.com/v1",
+      // Request format spoken by the endpoint:
+      // openai-completions | openai-responses | anthropic-messages | google-generative-ai
+      "api": "openai-completions",
+      // Required for the models to be offered at all - pi hides the models of a
+      // provider without a credential. Your real key, any placeholder when the
+      // server ignores it, "$ENV_VAR", or "!shell command". No sign-in involved.
+      "apiKey": "not-needed",
+      // Compatibility switches. Servers that reject the "developer" role or
+      // "reasoning_effort" (Ollama, vLLM, SGLang, ...) need these two:
+      // "compat": { "supportsDeveloperRole": false, "supportsReasoningEffort": false },
+      "models": [
+        {
+          // Model id sent to the API - the only required field.
+          "id": "my-model",
+          // Human-readable label, used for matching and as detail text.
+          "name": "My Model",
+          // Whether the model supports extended thinking.
+          "reasoning": false,
+          // Accepted input: ["text"] or ["text", "image"].
+          "input": ["text"],
+          // Context window, in tokens.
+          "contextWindow": 128000,
+          // Upper bound on output tokens per response.
+          "maxTokens": 16384
+        }
+      ]
+    }`,
+  zh: `    // 供应商 id：会显示在该供应商的每个模型旁边。写成内置 id
+    // （anthropic、openai 等）则变成覆盖那个内置供应商的配置。
+    "my-provider": {
+      // 接入地址（base URL），例如 Ollama 是 http://localhost:11434/v1。
+      "baseUrl": "https://api.example.com/v1",
+      // 该接口使用的请求格式：
+      // openai-completions | openai-responses | anthropic-messages | google-generative-ai
+      "api": "openai-completions",
+      // 必须有，否则模型根本不会出现在选择器里 — pi 会隐藏没有凭据的供应商。
+      // 可填真实 key；服务端不校验时随便填个占位值即可。也支持 "$环境变量"
+      // 与 "!shell 命令"；整个过程不涉及登录流程。
+      "apiKey": "not-needed",
+      // 兼容性开关。不支持 "developer" 角色或 "reasoning_effort" 的服务
+      // （Ollama、vLLM、SGLang 等）需要这两项：
+      // "compat": { "supportsDeveloperRole": false, "supportsReasoningEffort": false },
+      "models": [
+        {
+          // 传给接口的模型 id — 唯一必填的字段。
+          "id": "my-model",
+          // 供人阅读的名称，用于模型匹配与详情行展示。
+          "name": "My Model",
+          // 该模型是否支持深度思考。
+          "reasoning": false,
+          // 接受的输入类型：["text"] 或 ["text", "image"]。
+          "input": ["text"],
+          // 上下文窗口大小（token 数）。
+          "contextWindow": 128000,
+          // 单次回复的最大输出 token 数。
+          "maxTokens": 16384
+        }
+      ]
+    }`,
+};
+
+/** Provider id used by `modelsConfigProviderEntry`; replaced when it is already taken. */
+export const modelsConfigTemplateProviderId = "my-provider";
+
+/** Whole-file seed for an empty `~/.pi/agent/models.json`. */
+export const modelsConfigTemplate: LocalizedText = {
+  en: `// Custom providers and models for pi - shared with the pi CLI.
+// Reference: https://github.com/earendil-works/pi/blob/main/docs/models.md
+// Replace the example below with your own endpoint, then save this file.
+{
+  "providers": {
+${modelsConfigProviderEntry.en}
+  }
+}
+`,
+  zh: `// pi 的自定义供应商与模型配置 - 与 pi CLI 共用这一份文件。
+// 完整说明：https://github.com/earendil-works/pi/blob/main/docs/models.md
+// 把下面的示例改成你自己的配置，然后保存该文件。
+{
+  "providers": {
+${modelsConfigProviderEntry.zh}
+  }
+}
+`,
+};
 
 /** Strings with interpolated values. Both languages must take the same arguments. */
 export const sharedTemplates = {
@@ -279,6 +491,23 @@ export const sharedTemplates = {
   diffEditorTitle: {
     en: (name: string) => `${name} (pi edit)`,
     zh: (name: string) => `${name}（pi 修改）`,
+  },
+  /** An extension handler threw; mirrors what the CLI prints via `onError`. */
+  extensionHandlerFailed: {
+    en: (name: string, event: string, reason: string) => `Extension ${name} failed on "${event}": ${reason}`,
+    zh: (name: string, event: string, reason: string) => `扩展 ${name} 在处理 "${event}" 事件时出错：${reason}`,
+  },
+  /**
+   * A model the user configured for a subagent could not be resolved.
+   *
+   * Shown to the user only: the parent agent neither chose that model nor can
+   * correct it, so its report says nothing about the substitution.
+   */
+  subagentModelFallback: {
+    en: (lane: string, requested: string, source: string, using: string) =>
+      `Subagent "${lane}": model "${requested}" from ${source} is not available; running on ${using} instead.`,
+    zh: (lane: string, requested: string, source: string, using: string) =>
+      `子代理“${lane}”：${source}中的模型“${requested}”不可用，改用 ${using} 运行。`,
   },
   configuredDetail: {
     en: (label: string) => `$(check) configured: ${label}`,
@@ -360,6 +589,14 @@ export const sharedTemplates = {
     en: (label: string, value: string) => `${label}: ${value}`,
     zh: (label: string, value: string) => `${label}：${value}`,
   },
+  subagentSettingWritten: {
+    en: (label: string, value: string, scope: string) => `${label}: ${value} — written to ${scope}`,
+    zh: (label: string, value: string, scope: string) => `${label}：${value} —— 已写入${scope}`,
+  },
+  subagentSettingSource: {
+    en: (scope: string) => `set in ${scope}`,
+    zh: (scope: string) => `已在${scope}设置`,
+  },
   importedSession: {
     en: (path: string) => `imported ${path}`,
     zh: (path: string) => `已导入 ${path}`,
@@ -383,5 +620,43 @@ export const sharedTemplates = {
   clonedInto: {
     en: (file: string) => `cloned into ${file}`,
     zh: (file: string) => `已复制到 ${file}`,
+  },
+  /** `~/.pi/agent/models.json` was saved and reloaded. */
+  modelsConfigReloaded: {
+    en: (count: number) => `models.json reloaded: ${count} model(s) available`,
+    zh: (count: number) => `models.json 已重新加载：当前有 ${count} 个可用模型`,
+  },
+  /** Models the edit added that can actually be selected. */
+  modelsConfigAdded: {
+    en: (references: string) => `new models available: ${references}`,
+    zh: (references: string) => `新增可用模型：${references}`,
+  },
+  /**
+   * Models the edit added that stay hidden: pi only offers a provider's models
+   * once its credential resolves, so even a keyless endpoint needs some
+   * `apiKey` value.
+   */
+  modelsConfigUnauthenticated: {
+    en: (provider: string, count: number) =>
+      `"${provider}": ${count} model(s) loaded but not offered - pi hides the models of a provider without a credential. Set any "apiKey" value on it in models.json (a placeholder is enough when the server ignores it; a "$VAR" must resolve in the VS Code process), or sign in to that provider.`,
+    zh: (provider: string, count: number) =>
+      `供应商 “${provider}” 的 ${count} 个模型已加载，但不会出现在模型选择器里 — pi 会隐藏没有凭据的供应商的模型。请在 models.json 里给它填一个 “apiKey”（服务端不校验时占位值即可；写 “$变量” 时它必须在 VS Code 进程中能解析），或登录该供应商。`,
+  },
+  /** `ModelRuntime.getError()`: models.json failed to parse/validate, or a provider could not be composed. */
+  modelsConfigError: {
+    en: (reason: string) => `models.json error: ${reason}`,
+    zh: (reason: string) => `models.json 错误：${reason}`,
+  },
+  deleteCustomProviderConfirm: {
+    en: (provider: string) => `Remove the models.json configuration for "${provider}"?`,
+    zh: (provider: string) => `删除 models.json 中 “${provider}” 的配置？`,
+  },
+  customProviderDeleted: {
+    en: (provider: string) => `Pi Agent Chat: removed "${provider}" from models.json.`,
+    zh: (provider: string) => `Pi Agent Chat：已从 models.json 中删除 “${provider}”。`,
+  },
+  deleteCustomProviderFailed: {
+    en: (provider: string, reason: string) => `Pi Agent Chat: could not remove "${provider}" from models.json - ${reason}`,
+    zh: (provider: string, reason: string) => `Pi Agent Chat：无法从 models.json 中删除 “${provider}” — ${reason}`,
   },
 };

@@ -11,6 +11,7 @@
  */
 
 import { isChinese, sharedMessages } from "../shared/messages.js";
+import type { ShadowedSubagentNotice } from "../shared/protocol.js";
 
 const en = {
   newSessionLabel: "New session",
@@ -59,18 +60,30 @@ const en = {
   sendIconTitle: "Send (Enter)",
   stopIconTitle: "Stop the current run",
   stopCompactionTitle: "Stop context compaction",
-  stopSubagentTitle: "Stop this subagent; the parent agent will resume",
-  stopTaskLineTitle: "Stop the entire task line, including the subagent",
-  subagentInputDisabled: "This subagent is running autonomously. You can watch or stop it.",
-  parentSteerTitle: "Send to the parent after the subagent returns",
+  stopSubagentTitle: "Stop this subagent; the others keep running",
+  stopTaskLineTitle: "Stop every subagent and the parent agent",
+  subagentInputDisabled: "This subagent runs on its own. You can watch it or stop it; talk to the parent agent to change direction.",
+  parentSteerTitle: "Send to the parent once the subagents return",
   parentFollowUpTitle: "Queue for after the parent finishes this task line",
   queueAfterCompactionTitle: "Queue for after context compaction",
-  parentWaitingFor: (title: string) => `Waiting for subagent: ${title}`,
-  subagentRunning: (title: string) => `Subagent running: ${title}`,
-  viewSubagent: "View subagent",
+  parentWaitingFor: (running: number, total: number) => `${running} of ${total} subagents running`,
+  subagentRunning: (title: string) => `Subagent: ${title}`,
+  backToParent: "Back to the parent agent",
+  backToParentNew: "Back to the parent agent (it has moved on)",
   viewParent: "View parent",
-  waitingForSubagent: "Waiting for subagent...",
+  waitingForSubagent: "Waiting for subagents...",
   subagentWorking: "Subagent working...",
+  laneView: "Open",
+  laneStop: "Stop",
+  laneWrote: (count: number) => (count === 1 ? "wrote 1 file" : `wrote ${count} files`),
+  laneWroteBeforeStopping: (count: number) =>
+    count === 1 ? "wrote 1 file before stopping" : `wrote ${count} files before stopping`,
+  laneScopeRefused: (count: number) =>
+    count === 1
+      ? "1 write refused for leaving its range"
+      : `${count} writes refused for leaving its range`,
+  laneRefusedFiles: "still unchanged, outside its range",
+  laneBashUntracked: "ran shell commands; files those wrote are not listed",
   sessionParentWaiting: "waiting",
   sessionSubagentRunning: "subagent",
   fileHintIgnoredHidden: "@ project files · Ctrl+→ to show gitignored files",
@@ -81,6 +94,9 @@ const en = {
   resourceOpenTitle: "Open in editor",
   openDiff: "Open diff",
   openFile: "Open file",
+  /** Header of the generic tree drawn from a tool's own `details` payload. */
+  toolDetails: "Details",
+  toolDetailsTitle: "Structured data returned by this tool",
   running: "running",
   done: "done",
   errorLabel: "error",
@@ -113,12 +129,25 @@ const en = {
   streaming: "Working...",
   compacting: "Compacting context...",
   queued: (n: number) => `${n} queued message(s)`,
-  emptySession: (systemPromptOverridden: boolean) =>
+  emptySession: (systemPromptOverridden: boolean, shadowedSubagent?: ShadowedSubagentNotice) =>
     [
       "No messages in this session yet.",
       "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.",
       ...(systemPromptOverridden
         ? ["The default system prompt has been overridden, so the model may not know where Pi's bundled docs are."]
+        : []),
+      ...(shadowedSubagent
+        ? [
+            `The "subagent" tool registered by the extension at ${shadowedSubagent.path} is disabled here. ` +
+              "Delegating to a subagent depends on the host, and this is not a terminal Pi process — an extension " +
+              "that delegates by launching Pi again cannot locate it from inside the VS Code extension host, and " +
+              "would return an empty result instead of failing. The same extension keeps working in the Pi CLI.",
+            shadowedSubagent.parallelSubagentEnabled
+              ? "This window delegates through its own parallel_subagent tool instead, which is enabled for this " +
+                "session. Each subagent is given its task and the paths it may write to; it has no role file behind it."
+              : "This window has its own parallel_subagent tool, but it is turned off, so this session has no " +
+                "delegation tool at all. Turn it on under Settings → Subagent (it applies to the next session).",
+          ]
         : []),
     ].join("\n\n"),
   loadingSession: "Loading session...",
@@ -145,7 +174,8 @@ const en = {
   resourceInactiveTitle: "Configured, but not in effect in this session",
   toolUsedTitle: "Called in this session",
   promptUsedTitle: "Invoked in this session",
-  extensionUsedTitle: "Used in this session (its command ran, or one of its tools was called)",
+  extensionUsedTitle: "Took effect in this session (a command, a tool or an event handler of it ran)",
+  contextUsedTitle: "Sent to the model with this session's system prompt",
   authTitle: "No model provider configured",
   authBody: "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI.",
   authLogin: "Sign in / configure provider",
@@ -199,18 +229,26 @@ const zh: Dict = {
   sendIconTitle: "发送（Enter）",
   stopIconTitle: "停止当前运行",
   stopCompactionTitle: "停止上下文压缩",
-  stopSubagentTitle: "停止这个子代理；主代理随后恢复",
-  stopTaskLineTitle: "停止整条任务线（包括子代理）",
-  subagentInputDisabled: "子代理正在自主运行；你可以查看过程或停止它。",
+  stopSubagentTitle: "停止这个子代理；其余子代理继续运行",
+  stopTaskLineTitle: "停止全部子代理与主代理",
+  subagentInputDisabled: "子代理正在自主运行；你可以查看或停止它。要调整方向，请与主代理沟通。",
   parentSteerTitle: "子代理返回后发送给主代理",
   parentFollowUpTitle: "主代理完成当前任务线后排队执行",
   queueAfterCompactionTitle: "等上下文压缩完成后执行",
-  parentWaitingFor: (title: string) => `正在等待子代理：${title}`,
-  subagentRunning: (title: string) => `子代理运行中：${title}`,
-  viewSubagent: "查看子代理",
+  parentWaitingFor: (running: number, total: number) => `${total} 个子代理中 ${running} 个运行中`,
+  subagentRunning: (title: string) => `子代理：${title}`,
+  backToParent: "返回主代理",
+  backToParentNew: "返回主代理（主代理已有新进展）",
   viewParent: "查看主代理",
   waitingForSubagent: "等待子代理中...",
   subagentWorking: "子代理工作中...",
+  laneView: "打开",
+  laneStop: "停止",
+  laneWrote: (count: number) => `写入 ${count} 个文件`,
+  laneWroteBeforeStopping: (count: number) => `停止前写入 ${count} 个文件`,
+  laneScopeRefused: (count: number) => `${count} 次越界写入被拒绝`,
+  laneRefusedFiles: "超出范围、仍未修改",
+  laneBashUntracked: "执行过 shell 命令；其写入的文件未被记录",
   sessionParentWaiting: "等待子代理",
   sessionSubagentRunning: "子代理运行中",
   fileHintIgnoredHidden: "@ 项目文件 · Ctrl+→ 显示被 gitignore 的文件",
@@ -221,6 +259,8 @@ const zh: Dict = {
   resourceOpenTitle: "在编辑器中打开",
   openDiff: "打开 diff",
   openFile: "打开文件",
+  toolDetails: "详细数据",
+  toolDetailsTitle: "该工具返回的结构化数据",
   running: "运行中",
   done: "完成",
   errorLabel: "出错",
@@ -252,11 +292,23 @@ const zh: Dict = {
   streaming: "工作中...",
   compacting: "正在压缩上下文……",
   queued: (n: number) => `${n} 条消息排队中`,
-  emptySession: (systemPromptOverridden: boolean) =>
+  emptySession: (systemPromptOverridden: boolean, shadowedSubagent?: ShadowedSubagentNotice) =>
     [
       "当前会话还没有消息。",
       "Pi 可以解释自身功能并查阅其文档。你可以询问如何使用或扩展 Pi。",
       ...(systemPromptOverridden ? ["默认 system prompt 已被覆盖，因此模型可能不知道 Pi 随附文档的位置。"] : []),
+      ...(shadowedSubagent
+        ? [
+            `扩展 ${shadowedSubagent.path} 注册的“subagent”工具在这里已被禁用。` +
+              "子代理委派依赖宿主能力，而这里并不是终端里的 Pi 进程——通过重新启动 Pi 来委派的扩展，" +
+              "在 VS Code 扩展宿主中无法定位到 Pi，且会返回空结果而不是报错。该扩展在 Pi CLI 中仍然正常工作。",
+            shadowedSubagent.parallelSubagentEnabled
+              ? "本窗口改用自带的 parallel_subagent 工具委派，它在本会话中已开启——" +
+                "每个子代理只拿到任务描述和可写入的路径范围，背后没有角色文件。"
+              : "本窗口自带 parallel_subagent 工具，但当前未开启，因此本会话没有任何委派工具。" +
+                "可在“设置 → 子代理”中开启（在下一个会话生效）。",
+          ]
+        : []),
     ].join("\n\n"),
   loadingSession: "正在加载会话...",
   sessionsHeader: "会话列表",
@@ -281,7 +333,8 @@ const zh: Dict = {
   resourceInactiveTitle: "已配置，但在本会话中未生效",
   toolUsedTitle: "本会话中调用过",
   promptUsedTitle: "本会话中使用过",
-  extensionUsedTitle: "本会话中使用过（执行了它的命令，或调用了它提供的工具）",
+  extensionUsedTitle: "本会话中生效过（它的命令、工具或事件钩子跑过）",
+  contextUsedTitle: "已随本会话的 system prompt 发送给模型",
   authTitle: "还没有配置模型供应商",
   authBody: "开始聊天前需要先登录一个供应商（OAuth 或 API key）。凭证保存在 ~/.pi/agent/auth.json，与 pi CLI 共用。",
   authLogin: "登录 / 配置供应商",

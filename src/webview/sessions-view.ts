@@ -1,11 +1,12 @@
 import type { SessionListItem } from "../shared/protocol.js";
+import { formatLocalTimestamp } from "../shared/time.js";
 import { button, el } from "./dom.js";
 import { MAX_SESSION_TITLE_CHARS, truncate } from "./format.js";
 import { post } from "./host.js";
 import { getDict } from "./i18n.js";
 import { sessionsEl } from "./shell.js";
 import { spinner } from "./spinner.js";
-import { state } from "./store.js";
+import { isDelegating, state } from "./store.js";
 import { showLoading } from "./transcript.js";
 
 /**
@@ -17,7 +18,6 @@ import { showLoading } from "./transcript.js";
 
 const t = getDict();
 
-const TIMESTAMP_CHARS = 16; // "YYYY-MM-DDTHH:MM"
 /** Rows rendered per batch; more are appended as the list scrolls near the bottom. */
 const PAGE_SIZE = 20;
 /** Distance from the bottom (px) at which the next batch is appended. */
@@ -134,7 +134,7 @@ function sessionRow(item: SessionListItem): HTMLElement {
   titleRow.appendChild(el("span", "session-title-text", truncate(item.title, MAX_SESSION_TITLE_CHARS)));
   main.append(
     titleRow,
-    el("span", "session-meta", item.timestamp?.slice(0, TIMESTAMP_CHARS).replace("T", " ") ?? ""),
+    el("span", "session-meta", formatLocalTimestamp(item.timestamp)),
   );
   row.appendChild(main);
 
@@ -146,8 +146,16 @@ function sessionRow(item: SessionListItem): HTMLElement {
 }
 
 function onRowClick(item: SessionListItem): void {
-  if (item.delegationRole) {
-    post({ type: "showDelegationSession", target: item.delegationRole });
+  if (item.delegationRole === "parent") {
+    post({ type: "showLane" });
+    hooks.close();
+    return;
+  }
+  if (item.delegationRole === "child") {
+    // Address the lane by id when the run still knows it, so it opens as a
+    // subagent rather than as an unrelated read-only session.
+    const lane = state.delegation?.lanes.find((entry) => entry.sessionFile === item.file);
+    post({ type: "showLane", laneId: lane?.id, sessionFile: item.file });
     hooks.close();
     return;
   }
@@ -161,7 +169,7 @@ function onRowClick(item: SessionListItem): void {
     // While a run or compaction is in progress, other sessions open read-only
     // instead of replacing the active session. Preview reports both activity
     // flags as false (the visible transcript is static), so check it too.
-    if (state.isStreaming || state.isCompacting || state.delegation || state.preview) {
+    if (state.isStreaming || state.isCompacting || isDelegating() || state.preview) {
       showLoading();
       post({ type: "previewSession", file: item.file });
       hooks.close();

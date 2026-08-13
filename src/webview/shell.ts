@@ -41,6 +41,7 @@ root.innerHTML = `
     <main id="messages" class="messages"></main>
     <button id="scroll-down" class="scroll-down hidden" title="${t.scrollDownTitle}">${CHEVRON_ICON}</button>
   </div>
+  <div id="widgets-above" class="widgets hidden"></div>
   <footer id="composer" class="composer">
     <div id="autocomplete" class="autocomplete hidden"></div>
     <div id="file-refs" class="file-refs hidden"></div>
@@ -58,6 +59,7 @@ root.innerHTML = `
       <div id="composer-menu" class="overflow-menu hidden"></div>
       <div id="picker" class="picker hidden" role="dialog" tabindex="-1"></div>
     </div>
+    <div id="widgets-below" class="widgets hidden"></div>
     <div id="statusline" class="statusline"></div>
   </footer>
 `;
@@ -87,6 +89,8 @@ export const autocompleteEl = byId("autocomplete");
 export const fileRefsEl = byId("file-refs");
 export const resizeHandleEl = byId("resize-handle");
 export const statusLineEl = byId("statusline");
+export const widgetsAboveEl = byId("widgets-above");
+export const widgetsBelowEl = byId("widgets-below");
 export const resourcesEl = byId("resources");
 export const authEl = byId("auth");
 export const delegationBarEl = byId("delegation-bar");

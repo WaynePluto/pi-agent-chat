@@ -32,11 +32,13 @@ const vscodeStub = {
     withProgress: (_options, task) => task(),
   },
   commands: { registerCommand: noop, executeCommand: noop },
+  languages: { setTextDocumentLanguage: async (document) => document },
   workspace: {
     workspaceFolders: [{ uri: { fsPath: root } }],
     openTextDocument: noop,
     getConfiguration: () => ({ get: () => undefined }),
     onDidChangeConfiguration: noop,
+    onDidSaveTextDocument: noop,
     registerTextDocumentContentProvider: noop,
     fs: { readFile: async () => new Uint8Array() },
   },
@@ -84,6 +86,9 @@ const {
   runSessionTreeTest,
   runSubagentToolTest,
   runProjectFilesTest,
+  runExtensionSdkImportTest,
+  runExtensionReloadTest,
+  runExtensionCommandContextTest,
   runResourceListingTest,
   runLiveToolCallTest,
   formatDiagnostics,
@@ -94,6 +99,15 @@ report(await runSlashCommandTest(root));
 report(await runSessionTreeTest(root));
 report(await runSubagentToolTest(root));
 report(await runProjectFilesTest(root));
+// Must run inside the bundle: it proves the rebuilt `import.meta.url` still
+// lets the SDK hand jiti working aliases (see sdkModuleUrlPlugin in esbuild.mjs).
+report(await runExtensionSdkImportTest(root));
+// Pins that reloading resources rebuilds the session's extension runner
+// instead of leaving it on the previously loaded instances.
+report(await runExtensionReloadTest(root));
+// Pins that extension command handlers can actually drive the session
+// (`ctx.newSession()` and friends are host-supplied, not SDK defaults).
+report(await runExtensionCommandContextTest(root));
 report(await runResourceListingTest(root));
 
 if (process.env.PI_SPIKE_LIVE === "1") {

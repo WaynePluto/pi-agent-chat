@@ -19,4 +19,6 @@ export const MAX_DIFF_LINES = 400;
 export const MAX_TOOL_ARGS_CHARS = 300;
 export const MAX_SESSION_TITLE_CHARS = 120;
 export const MAX_NOTICE_HEADER_CHARS = 80;
+/** One subagent row stays a glance, not a transcript of its own. */
+export const MAX_LANE_DETAIL_CHARS = 240;
 export const MAX_COMMAND_MATCHES = 50;

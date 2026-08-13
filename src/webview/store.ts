@@ -13,3 +13,26 @@ export let state: ChatState = { ready: false, isStreaming: false, isCompacting: 
 export function setState(next: ChatState): void {
   state = next;
 }
+
+/**
+ * Whether subagents are running right now.
+ *
+ * `state.delegation` outlives the run — the lane card keeps its final tally and
+ * a lane the user opened stays readable — so its mere presence must never be
+ * read as "busy". Everything that gates on activity asks this instead.
+ */
+export function isDelegating(): boolean {
+  return Boolean(state.delegation?.running);
+}
+
+/** Whether the displayed transcript is a subagent's (running or finished). */
+export function isInLane(): boolean {
+  return state.delegation?.role === "child";
+}
+
+/** The lane currently on screen, if any. */
+export function currentLane() {
+  const delegation = state.delegation;
+  if (delegation?.role !== "child") return undefined;
+  return delegation.lanes.find((lane) => lane.id === delegation.currentLaneId);
+}

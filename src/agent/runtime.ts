@@ -7,13 +7,17 @@ import {
   createAgentSessionFromServices,
   createAgentSessionRuntime,
   createAgentSessionServices,
+  type ExtensionError,
+  type ExtensionCommandContextActions,
   type ExtensionUIContext,
   getAgentDir,
   resolveModelScopeWithDiagnostics,
   type ScopedModel,
   SessionManager,
+  type WidgetPlacement,
 } from "@earendil-works/pi-coding-agent";
-import { SubagentCoordinator } from "./subagent.js";
+import { ParallelSubagentCoordinator } from "./parallel-subagent.js";
+import { readParallelSubagentConfig } from "./config.js";
 import { configureHttpDispatcher } from "./http.js";
 import { t } from "./i18n.js";
 
@@ -24,10 +28,122 @@ export interface PiRuntimeOptions {
   log: (message: string) => void;
 }
 
+/**
+ * How the current session's delegation tools were wired, written by the session
+ * factory on every (re)build.
+ *
+ * Both values only feed the new-session notice: they describe how the session
+ * on screen is set up, so they must come from the build that produced it rather
+ * than from a setting that may have changed since.
+ */
+interface ToolSetupRef {
+  /** Extension whose `subagent` tool was suppressed, if any. */
+  shadowedSubagent?: string;
+  /** Whether this window's own `parallel_subagent` tool was installed. */
+  parallelSubagent: boolean;
+}
+
+/** The CLI-ecosystem tool name this host cannot run; see below. */
+const SUBAGENT_TOOL_NAME = "subagent";
+
+/**
+ * Path of a loaded pi extension that registers a tool named `subagent`.
+ *
+ * Such a tool is always suppressed here, whether or not this window's own
+ * `parallel_subagent` is enabled, because in this host it cannot work: an
+ * extension can only start a subagent by re-launching pi, and it can only find
+ * pi by introspecting its own process (`process.argv[1]` / `process.execPath`).
+ * Inside the VS Code extension host that introspection points at VS Code's own
+ * bootstrap, which exists — so the check passes and the spawn exits 0 with no
+ * output. The model then reasons on an empty result. Suppressing it leaves the
+ * user with either no delegation tool or a working one, never a broken one.
+ *
+ * Only the tool *name* is matched. No extension is identified by name, path or
+ * capability, and nothing here inspects how an extension is implemented.
+ *
+ * Safe to call right after `createAgentSessionServices()`: it awaits
+ * `resourceLoader.reload()` internally, so extension tool names are known
+ * before the session (and its tool set) is built.
+ */
+export function findShadowedSubagentExtension(services: AgentSessionServices): string | undefined {
+  try {
+    const { extensions } = services.resourceLoader.getExtensions();
+    return extensions.find((extension) => extension.tools.has(SUBAGENT_TOOL_NAME))?.path;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Build the services one subagent child session runs on.
+ *
+ * The child must not reuse the parent's services, and parallel children must
+ * not reuse each other's. Extensions are loaded once
+ * per `ResourceLoader`, and *every* session built from that loader shares the
+ * resulting extension runtime: `core/agent-session.ts` builds its
+ * `ExtensionRunner` from `resourceLoader.getExtensions()` (a cached result),
+ * and `core/extensions/runner.ts` `bindCore()` copies the session's actions
+ * into that shared runtime ("all extension APIs reference this"). So with a
+ * shared loader a second live session silently retargets every extension's
+ * `pi.*` at itself, and its `dispose()` marks the shared runtime stale —
+ * after which every extension in the window throws "This extension ctx is
+ * stale after session replacement or reload" on its next `pi.*` call, with no
+ * way back short of rebuilding services. A private loader also *is* what an
+ * isolated child session means: own extension instances, own event bus.
+ *
+ * `modelRuntime` and `settingsManager` are shared on purpose. Neither is
+ * session-bound, and they carry the auth/model state and the project-trust
+ * decision the parent already resolved. Extension factories do run again
+ * against the shared `modelRuntime`; re-registering a provider is defined to
+ * merge over the previous registration (`core/model-runtime.ts`).
+ */
+export async function createSubagentServices(parent: AgentSessionServices): Promise<AgentSessionServices> {
+  return await createAgentSessionServices({
+    cwd: parent.cwd,
+    agentDir: parent.agentDir,
+    modelRuntime: parent.modelRuntime,
+    settingsManager: parent.settingsManager,
+  });
+}
+
 /** A `ctx.ui.notify` call from a pi extension, routed to the transcript. */
 export interface ExtensionNotice {
   level: "info" | "warning" | "error";
   text: string;
+}
+
+/**
+ * A `ctx.ui.setStatus` / `ctx.ui.setWidget` call from a pi extension.
+ *
+ * Both are host-agnostic members of the SDK's `ExtensionUIContext` (the CLI
+ * renders them in its footer and around its editor), so the sidebar owes them
+ * a rendering the same way it owes one to `notify`. `text` / `lines` are
+ * `undefined` when the extension clears its entry.
+ */
+export interface ExtensionStatusUpdate {
+  key: string;
+  text: string | undefined;
+}
+
+export interface ExtensionWidgetUpdate {
+  key: string;
+  lines: string[] | undefined;
+  placement: WidgetPlacement;
+}
+
+/**
+ * Host side of the extension command context (`ctx.*` in command handlers).
+ *
+ * `ctx.newSession()` / `ctx.fork()` / `ctx.switchSession()` /
+ * `ctx.navigateTree()` / `ctx.reload()` all change what the sidebar must
+ * display, and the SDK cannot do that half for us — the CLI wires the same
+ * pair of concerns in `modes/rpc/rpc-mode.ts`.
+ */
+export interface SessionLifecycleSink {
+  /** Rebuild the view: another session, or another branch of it, is current. */
+  reattach(): Promise<void>;
+  /** Reload resources, with the bookkeeping the sidebar does around it. */
+  reload(): Promise<void>;
 }
 
 /**
@@ -39,33 +155,99 @@ export interface ExtensionNotice {
 export class PiRuntime implements vscode.Disposable {
   private constructor(
     readonly runtime: AgentSessionRuntime,
-    readonly subagents: SubagentCoordinator,
+    readonly subagents: ParallelSubagentCoordinator,
     /** Aborted on dispose; cancels every auth/model call this runtime started. */
     private readonly lifetime: AbortController,
     private readonly log: (message: string) => void,
+    /** Written by the session factory on every (re)build; see `shadowedSubagentExtension`. */
+    private readonly toolSetupRef: ToolSetupRef,
   ) {}
+
+  /**
+   * Path of a pi extension whose `subagent` tool is suppressed in this host.
+   * Only drives the new-session notice — the tool set itself is decided in the
+   * session factory.
+   *
+   * Re-evaluated whenever services are rebuilt (i.e. per effective cwd), so a
+   * project-local extension is picked up too.
+   */
+  get shadowedSubagentExtension(): string | undefined {
+    return this.toolSetupRef.shadowedSubagent;
+  }
+
+  /**
+   * Whether `parallel_subagent` is part of *this* session's tool set.
+   *
+   * Read from the session factory rather than from the setting: the tool set is
+   * fixed when the session is built, so a setting flipped mid-conversation only
+   * lands on the next session, and the notice must describe the session the
+   * user is actually in.
+   */
+  get parallelSubagentEnabled(): boolean {
+    return this.toolSetupRef.parallelSubagent;
+  }
 
   /** Injected by `ChatBridge`; routes extension notifications to a transcript. */
   private extensionNotice?: (session: AgentSession, notice: ExtensionNotice) => void;
 
+  /** Injected by `ChatBridge`; routes extension runtime errors to a transcript. */
+  private extensionError?: (session: AgentSession, error: ExtensionError) => void;
+
+  /** Injected by `ChatBridge`; routes `ctx.ui.setStatus` to the status line. */
+  private extensionStatus?: (session: AgentSession, update: ExtensionStatusUpdate) => void;
+
+  /** Injected by `ChatBridge`; routes `ctx.ui.setWidget` to the composer edges. */
+  private extensionWidget?: (session: AgentSession, update: ExtensionWidgetUpdate) => void;
+
+  /** Injected by `ChatBridge`; see `SessionLifecycleSink`. */
+  private lifecycle?: SessionLifecycleSink;
+
+  /**
+   * True while this wrapper is driving a session replacement itself.
+   *
+   * Host-driven replacements re-attach the view on their own, so the rebind
+   * hook must stay out of the way; extension-driven ones (`ctx.newSession()`
+   * and friends) resolve entirely inside the SDK and have no other way in.
+   */
+  private replacingSession = false;
+
   static async create(options: PiRuntimeOptions): Promise<PiRuntime> {
     const { cwd, log } = options;
-    const subagents = new SubagentCoordinator(log);
+    const subagents = new ParallelSubagentCoordinator(log);
     const lifetime = new AbortController();
+
+    const toolSetup: ToolSetupRef = { parallelSubagent: false };
 
     const createRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd: effectiveCwd, sessionManager, sessionStartEvent }) => {
       // modelRuntimeSignal cancels the create-time credential restore and
       // availability probe when the view is closed mid-startup.
       const services = await createAgentSessionServices({ cwd: effectiveCwd, modelRuntimeSignal: lifetime.signal });
+      toolSetup.shadowedSubagent = findShadowedSubagentExtension(services);
+      if (toolSetup.shadowedSubagent) {
+        log(`suppressing the subagent tool registered by extension ${toolSetup.shadowedSubagent}: it cannot run in this host`);
+      }
+      // Read per session, not once at startup: the tool set is fixed when the
+      // session is built, so this is the point where a changed setting lands.
+      const parallelConfig = readParallelSubagentConfig(effectiveCwd);
+      toolSetup.parallelSubagent = parallelConfig.enabled;
+      log(
+        parallelConfig.enabled
+          ? `parallel_subagent enabled (max ${parallelConfig.maxParallel}${parallelConfig.defaultModel ? `, model ${parallelConfig.defaultModel}` : ""})`
+          : "parallel_subagent disabled",
+      );
       return {
         ...(await createAgentSessionFromServices({
           services,
           sessionManager,
           sessionStartEvent,
-          // The only tool this extension adds to pi's own set. Everything else
-          // the agent can call comes from pi or from a pi extension in
-          // `~/.pi/agent/extensions/`, shared with the CLI.
-          customTools: [subagents.tool],
+          // The only tool this extension adds to pi's own set, and only when the
+          // user asked for it. Everything else the agent can call comes from pi
+          // or from a pi extension in `~/.pi/agent/extensions/`, shared with the
+          // CLI.
+          customTools: parallelConfig.enabled ? [subagents.createTool(parallelConfig)] : [],
+          // Always dropped, independently of the setting above; see
+          // `findShadowedSubagentExtension`.
+          excludeTools: [SUBAGENT_TOOL_NAME],
           scopedModels: await resolveScopedModels(services, log, lifetime.signal),
         })),
         services,
@@ -93,11 +275,28 @@ export class PiRuntime implements vscode.Disposable {
     // creates its runtime.
     configureHttpDispatcher(runtime.services.settingsManager.getHttpIdleTimeoutMs());
 
-    const wrapper = new PiRuntime(runtime, subagents, lifetime, log);
+    const wrapper = new PiRuntime(runtime, subagents, lifetime, log, toolSetup);
+    // The only place the sidebar hears about a replacement it did not start.
+    // Runs once the new session exists and before the extension's `withSession`
+    // callback, which is exactly where re-attaching belongs.
+    runtime.setRebindSession(async () => {
+      if (wrapper.replacingSession) return;
+      await wrapper.lifecycle?.reattach();
+    });
     subagents.attachHost({
       getSession: () => wrapper.session,
       getCwd: () => wrapper.cwd,
-      getServices: () => wrapper.runtime.services,
+      getConfig: () => readParallelSubagentConfig(wrapper.cwd),
+      // Shared with every child: `createSubagentServices()` passes this exact
+      // instance on, so a model resolved here is the one a lane will run.
+      getModelRuntime: () => wrapper.runtime.services.modelRuntime,
+      createServices: async () => {
+        const services = await createSubagentServices(wrapper.runtime.services);
+        for (const diagnostic of services.diagnostics) {
+          log(`[${diagnostic.type}] ${diagnostic.message}`);
+        }
+        return services;
+      },
       bindExtensions: (session, abortHandler) => wrapper.bindSessionExtensions(session, abortHandler),
     });
     return wrapper;
@@ -213,7 +412,7 @@ export class PiRuntime implements vscode.Disposable {
   async bindExtensions(): Promise<void> {
     await this.bindSessionExtensions(this.runtime.session, () => {
       void this.runtime.session.abort();
-    });
+    }, { ownsSession: true });
   }
 
   /**
@@ -226,45 +425,153 @@ export class PiRuntime implements vscode.Disposable {
     this.extensionNotice = sink;
   }
 
-  /** Bind extension UI hooks for an SDK session owned by this application. */
-  async bindSessionExtensions(session: AgentSession, abortHandler: () => void): Promise<void> {
+  /**
+   * Report extension handler failures, the way every SDK mode does
+   * (`interactive-mode.ts`, `rpc-mode.ts`, `print-mode.ts` all pass `onError`).
+   * Same timing rule as the notice sink: set before the first
+   * `bindExtensions()`.
+   */
+  setExtensionErrorSink(sink: (session: AgentSession, error: ExtensionError) => void): void {
+    this.extensionError = sink;
+  }
+
+  /**
+   * Route the extension status line and widgets to the sidebar.
+   *
+   * Without these two the SDK surface still resolves (the UI context falls back
+   * to a no-op), so an extension that publishes a status would simply vanish in
+   * the sidebar while working in the CLI. Same timing rule as the sinks above.
+   */
+  setExtensionStatusSink(sink: (session: AgentSession, update: ExtensionStatusUpdate) => void): void {
+    this.extensionStatus = sink;
+  }
+
+  setExtensionWidgetSink(sink: (session: AgentSession, update: ExtensionWidgetUpdate) => void): void {
+    this.extensionWidget = sink;
+  }
+
+  /**
+   * Injected by `ChatBridge` before the first `bindExtensions()`, like the
+   * other sinks: it is captured by the command context created there.
+   */
+  setSessionLifecycleSink(sink: SessionLifecycleSink): void {
+    this.lifecycle = sink;
+  }
+
+  /**
+   * Actions behind `ctx.*` in extension *command* handlers.
+   *
+   * Session replacement is host work, so the SDK ships no default: every mode
+   * supplies its own (`modes/rpc/rpc-mode.ts` is the closest to this one).
+   * Without them `ctx.newSession()` and friends are silent no-ops.
+   *
+   * Only the session this application drives gets them — a subagent child must
+   * not be able to replace the window's session out from under its parent.
+   */
+  private commandContextActions(session: AgentSession): ExtensionCommandContextActions {
+    return {
+      waitForIdle: () => session.waitForIdle(),
+      newSession: (options) => this.runtime.newSession(options),
+      fork: async (entryId, options) => {
+        const { cancelled } = await this.runtime.fork(entryId, options);
+        return { cancelled };
+      },
+      navigateTree: async (targetId, options) => {
+        const result = await session.navigateTree(targetId, options);
+        // Tree navigation keeps the session object but changes the branch, so
+        // no rebind hook fires: the transcript has to be rebuilt here.
+        if (!result.cancelled) await this.lifecycle?.reattach();
+        return { cancelled: result.cancelled };
+      },
+      switchSession: (sessionPath, options) => this.runtime.switchSession(sessionPath, options),
+      reload: async () => {
+        if (this.lifecycle) await this.lifecycle.reload();
+        else await session.reload();
+      },
+    };
+  }
+
+  /**
+   * Bind extension UI hooks for an SDK session owned by this application.
+   *
+   * `ownsSession` marks the session shown in the sidebar; only it gets the
+   * command context actions.
+   */
+  async bindSessionExtensions(
+    session: AgentSession,
+    abortHandler: () => void,
+    options?: { ownsSession?: boolean },
+  ): Promise<void> {
     await session.bindExtensions({
       mode: "rpc",
-      uiContext: createVsCodeExtensionUiContext(
-        this.extensionNotice ? (notice) => this.extensionNotice?.(session, notice) : undefined,
-      ),
+      uiContext: createVsCodeExtensionUiContext({
+        notice: this.extensionNotice ? (notice) => this.extensionNotice?.(session, notice) : undefined,
+        status: this.extensionStatus ? (update) => this.extensionStatus?.(session, update) : undefined,
+        widget: this.extensionWidget ? (update) => this.extensionWidget?.(session, update) : undefined,
+      }),
       abortHandler,
+      ...(options?.ownsSession ? { commandContextActions: this.commandContextActions(session) } : {}),
+      ...(this.extensionError ? { onError: (error: ExtensionError) => this.extensionError?.(session, error) } : {}),
     });
   }
 
+  /** Run a host-initiated session replacement; the caller re-attaches after. */
+  private async replacing<T>(action: () => Promise<T>): Promise<T> {
+    this.replacingSession = true;
+    try {
+      return await action();
+    } finally {
+      this.replacingSession = false;
+    }
+  }
+
   async newSession(): Promise<void> {
-    await this.runtime.newSession();
+    await this.replacing(() => this.runtime.newSession());
     this.log(`new session: ${this.runtime.session.sessionFile ?? "(in-memory)"}`);
   }
 
   async switchSession(sessionFile: string): Promise<void> {
     const started = Date.now();
-    await this.runtime.switchSession(sessionFile);
+    await this.replacing(() => this.runtime.switchSession(sessionFile));
     this.log(`switched session: ${sessionFile} (load ${Date.now() - started}ms)`);
   }
 
   /** Import a session JSONL and make it the active session. */
   async importSession(path: string): Promise<void> {
-    await this.runtime.importFromJsonl(path);
+    await this.replacing(() => this.runtime.importFromJsonl(path));
     this.log(`imported session: ${path}`);
   }
 
   /** Fork (or clone, with `position: "at"`) the session from an entry. */
   async fork(entryId: string, options?: { position?: "before" | "at" }): Promise<{ cancelled: boolean; selectedText?: string }> {
-    const result = await this.runtime.fork(entryId, options);
+    const result = await this.replacing(() => this.runtime.fork(entryId, options));
     if (!result.cancelled) this.log(`forked session: ${this.runtime.session.sessionFile ?? "(in-memory)"}`);
     return result;
   }
 
-  /** Re-discover extensions, skills, prompts and context files for the cwd. */
-  async reloadResources(): Promise<void> {
-    await this.runtime.services.resourceLoader.reload();
-    await this.bindExtensions();
+  /**
+   * Re-discover extensions, skills, prompts and context files for the cwd.
+   *
+   * `AgentSession.reload()` is what every SDK mode runs for `/reload`
+   * (`modes/rpc/rpc-mode.ts`, `modes/print-mode.ts`,
+   * `modes/interactive/interactive-mode.ts`). Reloading the resource loader on
+   * its own is not enough, and is in fact worse than doing nothing: the session
+   * builds its `ExtensionRunner` once from `resourceLoader.getExtensions()`, so
+   * it keeps the *old* extension instances while the reloaded set sits unused
+   * in the loader, and a `bindExtensions()` after it would re-fire
+   * `session_start` into those old instances. `reload()` shuts the old runner
+   * down, reloads settings and resources, rebuilds the runner and the tool
+   * registry (host `customTools` and the active tool set are preserved) and
+   * re-emits `session_start` with reason "reload" through the UI bindings
+   * already attached — so no `bindExtensions()` call belongs after it.
+   *
+   * `beforeSessionStart` runs once the new runner exists but before it sees
+   * `session_start`: the point where host UI owned by the old instances has to
+   * be dropped, so the new ones can republish it (the CLI restores its chat
+   * there).
+   */
+  async reloadResources(options?: { beforeSessionStart?: () => void }): Promise<void> {
+    await this.runtime.session.reload(options);
     this.log("reloaded extensions, skills, prompts and context files");
   }
 
@@ -295,15 +602,25 @@ async function resolveScopedModels(
 /**
  * Maps the SDK's extension UI hooks onto native VS Code dialogs.
  *
- * `ExtensionUIContext` also contains many TUI-only members (widgets, custom
- * components, themes). Those are served by a no-op Proxy fallback so an
+ * `ExtensionUIContext` also contains many TUI-only members (custom components,
+ * themes, raw terminal input). Those are served by a no-op Proxy fallback so an
  * extension written for the terminal cannot crash the extension host.
  *
  * `notify` goes to the transcript when a sink is wired (notifications are
  * often multi-line reports that a notification toast truncates); the native
  * popup stays as the fallback so nothing is silently dropped.
+ *
+ * `setStatus` and `setWidget` are *not* TUI-only despite living next to the
+ * component-based members: their string forms describe content, not layout, so
+ * every host owes them a rendering. They used to fall through to the Proxy,
+ * which made extensions that publish a status silently do nothing here while
+ * working in the CLI.
  */
-function createVsCodeExtensionUiContext(notice?: (notice: ExtensionNotice) => void): ExtensionUIContext {
+function createVsCodeExtensionUiContext(sinks: {
+  notice?: (notice: ExtensionNotice) => void;
+  status?: (update: ExtensionStatusUpdate) => void;
+  widget?: (update: ExtensionWidgetUpdate) => void;
+}): ExtensionUIContext {
   const implemented: Record<string, unknown> = {
     async select(title: string, options: string[]): Promise<string | undefined> {
       return vscode.window.showQuickPick(options, { title, ignoreFocusOut: true });
@@ -320,13 +637,27 @@ function createVsCodeExtensionUiContext(notice?: (notice: ExtensionNotice) => vo
       return vscode.window.showInputBox({ title, value: prefill, ignoreFocusOut: true });
     },
     notify(message: string, type: "info" | "warning" | "error" = "info"): void {
-      if (notice) {
-        notice({ level: type, text: message });
+      if (sinks.notice) {
+        sinks.notice({ level: type, text: message });
         return;
       }
       if (type === "error") vscode.window.showErrorMessage(message);
       else if (type === "warning") vscode.window.showWarningMessage(message);
       else vscode.window.showInformationMessage(message);
+    },
+    setStatus(key: string, text: string | undefined): void {
+      sinks.status?.({ key, text: text === undefined ? undefined : String(text) });
+    },
+    /**
+     * Only the `string[]` overload is forwarded. The other one takes a
+     * `(tui, theme) => Component` factory built on pi-tui, which the webview
+     * cannot render; dropping it keeps the extension running with its widget
+     * missing instead of failing the call.
+     */
+    setWidget(key: string, content: unknown, options?: { placement?: WidgetPlacement }): void {
+      if (typeof content === "function") return;
+      const lines = content === undefined ? undefined : Array.isArray(content) ? content.map(String) : [String(content)];
+      sinks.widget?.({ key, lines, placement: options?.placement ?? "aboveEditor" });
     },
     onTerminalInput: () => () => {},
     getEditorText: () => "",

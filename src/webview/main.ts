@@ -4,6 +4,7 @@ import { post } from "./host.js";
 import { getDict } from "./i18n.js";
 import { SEND_ICON, STOP_ICON } from "./icons.js";
 import { hasResources, isResourcesShown, renderResources, toggleResources } from "./resources-view.js";
+import { renderExtensionWidgets } from "./widgets.js";
 import { initSessions, isSessionsOpen, renderSessions } from "./sessions-view.js";
 import { closePicker, openPicker, refreshPicker, setModelCatalog, togglePicker } from "./picker.js";
 import { createOverflowGroup } from "./overflow.js";
@@ -38,9 +39,9 @@ import {
   thinkingBtn,
   treeBtn,
 } from "./shell.js";
-import { renderStatusLine, updateStatusLineFit } from "./statusline.js";
-import { setState, state } from "./store.js";
-import { applyEvent, applyHistory, assignEntryIds, clearMessages, hasPendingBubbles, removePendingBubbles, setEntryActionsLocked, showLoading, updateWorkingIndicator } from "./transcript.js";
+import { renderExtensionStatus, renderStatusLine, updateStatusLineFit } from "./statusline.js";
+import { currentLane, isDelegating, isInLane, setState, state } from "./store.js";
+import { applyEvent, applyHistory, assignEntryIds, clearMessages, hasPendingBubbles, removePendingBubbles, setEntryActionsLocked, showNewSession, updateWorkingIndicator } from "./transcript.js";
 
 /**
  * Application shell: wires the view modules together, owns page layout
@@ -85,7 +86,7 @@ function closeSessions(): void {
  */
 function updateHeaderButtons(): void {
   const emptySession = (state.messageCount ?? 0) === 0;
-  const busy = state.isStreaming || state.isCompacting || Boolean(state.delegation) || Boolean(state.preview);
+  const busy = state.isStreaming || state.isCompacting || isDelegating() || Boolean(state.preview);
   // "New" is pointless on an already-empty chat page, but on the sessions
   // page it doubles as "back to a fresh session", so keep it clickable there.
   newBtn.disabled = (emptySession && !isSessionsOpen()) || busy;
@@ -113,7 +114,7 @@ function showChat(): void {
   messagesWrapEl.classList.remove("hidden");
   composerEl.classList.remove("hidden");
   applyResourcesVisibility();
-  delegationBarEl.classList.toggle("hidden", !state.delegation && !state.preview);
+  delegationBarEl.classList.toggle("hidden", !isInLane() && !state.preview);
   // The composer was unmeasurable while hidden; settle its layout now.
   updateResponsiveLayout();
 }
@@ -136,24 +137,36 @@ function applyAuthGate(): void {
   }
 }
 
+/**
+ * Banner above the transcript.
+ *
+ * Shown for a preview, and while the user is inside a subagent's transcript so
+ * there is always a way back. Not shown on the parent during a run: the lane
+ * card in the transcript already says everything, and duplicating it here would
+ * push the conversation down for no gain.
+ */
 function renderDelegationBar(): void {
-  const preview = state.preview;
-  if (preview) {
+  const delegation = state.delegation;
+  // Checked before the preview banner, not after: a subagent whose live session
+  // is gone is shown by replaying its session file, so both are true at once
+  // and the subagent framing is the more specific one. The generic banner would
+  // offer "back to the running session" with nothing running.
+  if (delegation && isInLane()) {
+    delegationBarEl.classList.remove("hidden");
+    const lane = currentLane();
+    delegationLabelEl.textContent = t.subagentRunning(lane?.title ?? "");
+    // The parent is never switched to automatically — that would yank the user
+    // out of what they chose to read — so say instead that it moved on.
+    delegationPeerBtn.textContent = delegation.parentHasNewActivity ? t.backToParentNew : t.backToParent;
+    return;
+  }
+  if (state.preview) {
     delegationBarEl.classList.remove("hidden");
     delegationLabelEl.textContent = t.previewBanner;
     delegationPeerBtn.textContent = t.previewBack;
     return;
   }
-  const delegation = state.delegation;
-  delegationBarEl.classList.toggle("hidden", !delegation);
-  if (!delegation) return;
-  if (delegation.role === "parent") {
-    delegationLabelEl.textContent = t.parentWaitingFor(delegation.title);
-    delegationPeerBtn.textContent = t.viewSubagent;
-  } else {
-    delegationLabelEl.textContent = t.subagentRunning(delegation.title);
-    delegationPeerBtn.textContent = t.viewParent;
-  }
+  delegationBarEl.classList.add("hidden");
 }
 
 /**
@@ -177,7 +190,7 @@ function applyState(next: ChatState): void {
   setState(next);
   renderHeaderTitle();
   const childReadOnly = Boolean(state.inputDisabled) && !state.preview;
-  const parentWaiting = state.delegation?.role === "parent";
+  const parentWaiting = state.delegation?.role === "parent" && isDelegating();
   const active = state.isStreaming || state.isCompacting;
   sendBtn.innerHTML = active ? STOP_ICON : SEND_ICON;
   sendBtn.title = active
@@ -225,8 +238,10 @@ function applyState(next: ChatState): void {
   // A brand-new empty session cannot be re-created or navigated, and
   // single-task-line mode forbids switching mid-run: shown disabled.
   updateHeaderButtons();
-  // Per-message tree actions need a settled, live transcript to act on.
-  setEntryActionsLocked(active || Boolean(state.delegation) || Boolean(state.preview));
+  // Per-message tree actions need a settled, live transcript to act on: not
+  // while subagents run, and not while a subagent's transcript is on screen
+  // (its entries are not the parent's to fork or relabel).
+  setEntryActionsLocked(active || isDelegating() || isInLane() || Boolean(state.preview));
   renderDelegationBar();
   applyAuthGate();
   renderStatusLine();
@@ -313,7 +328,9 @@ thinkingBtn.addEventListener("click", () => togglePicker("thinking"));
 newBtn.addEventListener("click", () => {
   closeSessions();
   clearFileRefs();
-  showLoading();
+  // A new session has no history to wait for: showing the loading spinner
+  // here would flash it for the duration of one round trip.
+  showNewSession();
   post({ type: "newSession" });
 });
 treeBtn.addEventListener("click", () => post({ type: "openSessionTree" }));
@@ -328,12 +345,13 @@ byId("btn-sessions").addEventListener("click", () => {
   if (!isSessionsOpen()) openSessions();
 });
 delegationPeerBtn.addEventListener("click", () => {
-  if (state.preview) {
-    post({ type: "closePreview" });
+  // Same precedence as the banner: leaving a subagent goes back to the parent,
+  // even when that subagent is being shown as a replay of its session file.
+  if (isInLane()) {
+    post({ type: "showLane" });
     return;
   }
-  const role = state.delegation?.role;
-  if (role) post({ type: "showDelegationSession", target: role === "parent" ? "child" : "parent" });
+  if (state.preview) post({ type: "closePreview" });
 });
 
 window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
@@ -342,7 +360,7 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   else if (message.type === "event") {
     applyEvent(message.event);
     updateRecallButton();
-  } else if (message.type === "history") applyHistory(message.events, message.live, message.systemPromptOverridden);
+  } else if (message.type === "history") applyHistory(message.events, message.live, message.systemPromptOverridden, message.shadowedSubagent, message.transcriptId);
   else if (message.type === "entryIds") assignEntryIds(message.ids, message.labels);
   else if (message.type === "sessions") renderSessions(message.items);
   else if (message.type === "models") setModelCatalog(message.catalog);
@@ -354,6 +372,8 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
     applyResourcesVisibility();
     updateHeaderButtons();
   } else if (message.type === "setInput") setInput(message.text);
+  else if (message.type === "extensionStatus") renderExtensionStatus(message.items);
+  else if (message.type === "extensionWidgets") renderExtensionWidgets(message.items);
   else if (message.type === "dequeued") {
     removePendingBubbles();
     prependToInput(message.texts);

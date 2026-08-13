@@ -8,6 +8,12 @@
 export type ThinkingLevelName = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
 /**
+ * Structured-clone-safe JSON, used for data the host forwards verbatim without
+ * understanding its shape (currently tool `details`).
+ */
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+/**
  * Upper bound for `@` file references attached to a single prompt. Lives here
  * because both ends enforce it: the composer stops adding chips, the host
  * rejects over-long reference lists.
@@ -28,12 +34,77 @@ export interface ChatStats {
   contextWindow?: number;
 }
 
-/** Active parent/child delegation as seen by the currently displayed session. */
-export interface DelegationState {
-  role: "parent" | "child";
+/**
+ * Name of the one tool this extension adds to pi's own set.
+ *
+ * Deliberately not `subagent`: that name is taken in the CLI ecosystem, and a
+ * same-named tool with different parameters would make sessions unreadable
+ * across the two hosts — resuming in the CLI, the model would copy the call
+ * shape it sees in the history and get an argument error.
+ */
+export const PARALLEL_SUBAGENT_TOOL = "parallel_subagent";
+
+/**
+ * Notice that an extension-registered `subagent` tool was suppressed.
+ *
+ * The two values travel together because the wording depends on both: what the
+ * user gets instead is `parallel_subagent`, which is off unless opted in, so
+ * saying "use this window's own subagent" would be wrong for most sessions.
+ */
+export interface ShadowedSubagentNotice {
+  /** Path of the pi extension that registered the suppressed tool. */
+  path: string;
+  /** Whether `parallel_subagent` is part of this session's tool set. */
+  parallelSubagentEnabled: boolean;
+}
+
+/** One subagent of a running `parallel_subagent` call. */
+export interface DelegationLane {
+  id: string;
   title: string;
-  peerSessionId: string;
-  peerSessionFile?: string;
+  /** Paths this subagent may write to, relative to the working directory. */
+  scope: string[];
+  status: "running" | "completed" | "failed" | "stopped";
+  /**
+   * What this subagent is doing right now, one line.
+   *
+   * The parent produces no output while it waits, so these lines carry the
+   * entire sense of progress in the UI.
+   */
+  progress?: string;
+  /** Files written through `edit`/`write` so far. */
+  writtenFiles: string[];
+  /** True once it ran a shell command, whose writes are not tracked. */
+  bashMayHaveWritten?: boolean;
+  /** Writes refused for leaving `scope`. */
+  scopeViolations?: number;
+  /** Which files were refused; the count alone cannot say what is left undone. */
+  deniedPaths?: string[];
+  sessionId?: string;
+  sessionFile?: string;
+  durationMs?: number;
+}
+
+/**
+ * Parallel delegation as seen by the currently displayed session.
+ *
+ * Present on the parent while a run is in progress, and on a lane whenever one
+ * is being viewed — including after the run finished, so the user is never
+ * yanked out of a transcript they were reading.
+ */
+export interface DelegationState {
+  /** Whether the displayed transcript is the parent's or one subagent's. */
+  role: "parent" | "child";
+  lanes: DelegationLane[];
+  /** Set when `role` is `child`: which lane is on screen. */
+  currentLaneId?: string;
+  /** True while the run is still going. */
+  running: boolean;
+  /**
+   * The parent moved on while the user was inside a lane. Drives the marker on
+   * the back action instead of switching the view for them.
+   */
+  parentHasNewActivity?: boolean;
 }
 
 /**
@@ -64,11 +135,11 @@ export interface ChatState {
   needsAuth?: boolean;
   /** Number of messages in the session (0 = brand-new empty session). */
   messageCount?: number;
-  /** Present while a visible SDK child session is running. */
+  /** Present while a parallel delegation is running or being viewed. */
   delegation?: DelegationState;
   /** Present while another session is opened read-only during a run. */
   preview?: { file: string; title: string };
-  /** Child sessions are read-only while delegated work is running. */
+  /** Subagent transcripts are read-only: the user only ever talks to the parent. */
   inputDisabled?: boolean;
   stats?: ChatStats;
   error?: string;
@@ -116,6 +187,8 @@ export interface SessionListItem {
  * [Prompts] / [Extensions] / [Tools]), rendered as a collapsible card at the
  * top of the transcript. The CLI's [Themes] section has no GUI counterpart:
  * the webview renders with VS Code theme variables and never loads a pi theme.
+ * Only pi's own resource kinds appear here; directory conventions belonging to
+ * a single extension do not.
  */
 export interface ResourceSection {
   name: string;
@@ -141,6 +214,14 @@ export interface ResourceItem {
   /** Extra tooltip text, e.g. a tool's description. */
   hint?: string;
   /**
+   * Took effect in this session, as seen by the host: context files that went
+   * out with a request, extensions whose handler ran or failed. The webview
+   * adds what it can see itself (skills loaded, tools called, prompt templates
+   * and extension commands invoked); a row is highlighted if either side says
+   * so. See `agent/activity.ts`.
+   */
+  used?: boolean;
+  /**
    * Known to the session but not in effect: a registered tool outside the
    * agent's active set, or an extension that failed to load. Rendered dimmed
    * instead of hidden, so the listing answers "is it off, or missing?". Every
@@ -159,6 +240,34 @@ export interface ResourceItem {
 export interface SkillRef {
   name: string;
   kind: "load" | "resource";
+}
+
+/**
+ * One entry an extension published through `ctx.ui.setStatus(key, text)`.
+ *
+ * The SDK's own host renders these in the CLI footer (`FooterDataProvider`
+ * calls them "extension statuses"); the sidebar's equivalent surface is the
+ * status line. `key` is the extension's own identifier, used only to replace
+ * or clear its previous entry — the plugin never interprets it.
+ */
+export interface ExtensionStatusItem {
+  key: string;
+  text: string;
+}
+
+/**
+ * A block of lines an extension published through `ctx.ui.setWidget()`.
+ *
+ * Only the SDK's `string[]` overload crosses this protocol. The other overload
+ * takes a `(tui, theme) => Component` factory, which is a TUI-only surface the
+ * sidebar deliberately does not implement (see AGENTS.md, category 1); those
+ * calls are dropped host-side rather than forwarded.
+ */
+export interface ExtensionWidget {
+  key: string;
+  lines: string[];
+  /** Mirrors the SDK's `WidgetPlacement`, relative to the composer. */
+  placement: "aboveEditor" | "belowEditor";
 }
 
 /** One entry of the `/` autocomplete list. */
@@ -187,7 +296,14 @@ export type ChatEvent =
   | { kind: "thinking_message"; text: string }
   | { kind: "assistant_end" }
   | { kind: "tool_start"; id: string; name: string; args: unknown; skill?: SkillRef }
-  | { kind: "tool_update"; id: string; text: string }
+  /**
+   * Partial result of a still-running tool.
+   *
+   * `details` carries the tool's own live payload; the parallel subagent card is
+   * built from it, which is what lets its per-subagent rows move while the call
+   * is in progress.
+   */
+  | { kind: "tool_update"; id: string; text: string; details?: JsonValue }
   | {
       kind: "tool_end";
       id: string;
@@ -199,6 +315,12 @@ export type ChatEvent =
       /** Unified patch from the `edit` tool, used to open a native diff view. */
       patch?: string;
       path?: string;
+      /**
+       * Tool-defined structured result (`AgentToolResult.details`), rendered as
+       * a generic collapsed tree. Only carried for tools without a dedicated
+       * card, and sanitized host-side (see `agent/tool-details.ts`).
+       */
+      details?: JsonValue;
       /** Set when this call reads or runs part of a skill. */
       skill?: SkillRef;
     }
@@ -221,8 +343,22 @@ export type HostMessage =
       type: "history";
       events: ChatEvent[];
       live?: boolean;
+      /**
+       * Identity of the transcript being shown (session id, or file for a
+       * preview). The webview restores per-transcript view state — which work
+       * blocks were expanded — when the same one is rebuilt, which happens
+       * every time the user steps into a subagent and back out.
+       */
+      transcriptId?: string;
       /** True when SYSTEM.md replaces Pi's default prompt and its bundled-docs guidance. */
       systemPromptOverridden?: boolean;
+      /**
+       * Set when a pi extension registers a `subagent` tool, which is always
+       * dropped in this host. Part of the new-session notice rather than a
+       * transcript event: it describes how this session is set up, not
+       * something that happened in it.
+       */
+      shadowedSubagent?: ShadowedSubagentNotice;
     }
   | { type: "sessions"; items: SessionListItem[] }
   /** Answer to `listModels`, also pushed after credentials or markers change. */
@@ -242,6 +378,14 @@ export type HostMessage =
    * subagent view).
    */
   | { type: "entryIds"; ids: string[]; labels: (string | undefined)[] }
+  /**
+   * Full replacement of the extension-owned status entries and widgets of the
+   * session on screen. These are live UI state rather than transcript history,
+   * so they travel outside `history`/`event` and are re-sent whenever the
+   * displayed session changes.
+   */
+  | { type: "extensionStatus"; items: ExtensionStatusItem[] }
+  | { type: "extensionWidgets"; items: ExtensionWidget[] }
   /** Prefill the composer, e.g. with the message a fork branched away from. */
   | { type: "setInput"; text: string }
   /** Queued messages were recalled: remove their bubbles, return texts to the composer. */
@@ -265,8 +409,17 @@ export type WebviewMessage =
   | { type: "previewSession"; file: string }
   /** Return from a read-only preview to the live transcript. */
   | { type: "closePreview" }
-  /** During delegation, switch only the displayed transcript (not the runtime). */
-  | { type: "showDelegationSession"; target: "parent" | "child" }
+  /**
+   * Switch the displayed transcript between the parent and one subagent.
+   *
+   * `sessionFile` and `title` let the host keep the subagent framing even when
+   * the child session object is gone (after a window reload, say): it replays
+   * the session file instead, still presented as that subagent rather than as
+   * an unrelated read-only preview.
+   */
+  | { type: "showLane"; laneId?: string; sessionFile?: string; title?: string }
+  /** Stop one subagent; the others keep running and the parent still gets a report. */
+  | { type: "stopLane"; laneId: string }
   /** Delete a persisted session file (asks for confirmation host-side). */
   | { type: "deleteSession"; file: string }
   /** Rename a session (host shows an input box; writes a session_info entry). */

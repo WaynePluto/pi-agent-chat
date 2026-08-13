@@ -1,8 +1,10 @@
-import type { ChatEvent, SkillRef } from "../shared/protocol.js";
+import type { ChatEvent, JsonValue, ShadowedSubagentNotice, SkillRef } from "../shared/protocol.js";
+import { PARALLEL_SUBAGENT_TOOL } from "../shared/protocol.js";
 import { CARD_CLASSES, WORK_CLASSES, createCollapsible, type Collapsible } from "./collapsible.js";
 import { button, el, icon } from "./dom.js";
 import {
   MAX_DIFF_LINES,
+  MAX_LANE_DETAIL_CHARS,
   MAX_NOTICE_HEADER_CHARS,
   MAX_TOOL_ARGS_CHARS,
   MAX_TOOL_OUTPUT_CHARS,
@@ -16,8 +18,7 @@ import { renderMarkdown } from "./markdown.js";
 import { clearResourceHighlights, markExtensionUsed, markPromptUsed, markSkillActive, markToolUsed } from "./resources-view.js";
 import { messagesEl, scrollDownBtn } from "./shell.js";
 import { spinner } from "./spinner.js";
-import { state } from "./store.js";
-
+import { currentLane, isDelegating, state } from "./store.js";
 /**
  * The transcript: chat bubbles, the grouped "work block" of non-formal output
  * (thinking + tool cards), status/error notices and the working indicator.
@@ -55,10 +56,14 @@ interface WorkBlock {
 let activeWorkBlock: WorkBlock | undefined;
 
 interface ToolCard extends Collapsible {
+  /** Tool name, so cards with a purpose-built body can recognise themselves. */
+  toolName: string;
   argsText: string;
   bodyText: string;
   patch?: string;
   path?: string;
+  /** Tool-defined structured result; see `renderDetailsBlock`. */
+  details?: JsonValue;
 }
 const toolCards = new Map<string, ToolCard>();
 
@@ -67,6 +72,107 @@ let renderScheduled = false;
 /** Working indicator row shown at the end of the message list while streaming. */
 let workingEl: HTMLElement | undefined;
 let workingLabelEl: HTMLElement | undefined;
+/**
+ * Everything about how a transcript is being looked at, kept per transcript.
+ *
+ * Switching away and back rebuilds the DOM from scratch, so without this the
+ * user loses their place every time they glance at a subagent — which this
+ * feature invites them to do constantly. Bounded and in LRU order: view state
+ * is not worth leaking a session's worth of memory over.
+ */
+interface TranscriptViewState {
+  /** Per work block, by position: open, and how far into it the user had read. */
+  work: Map<number, { expanded: boolean; scrollTop?: number }>;
+  /** Message list offset. Undefined means this transcript was never left. */
+  scrollTop?: number;
+  /** Whether the user was following new output when they left. */
+  followBottom: boolean;
+  /** Offsets inside tool card bodies, by tool call id. */
+  toolScroll: Map<string, number>;
+}
+
+function emptyViewState(): TranscriptViewState {
+  return { work: new Map(), followBottom: true, toolScroll: new Map() };
+}
+
+const transcriptViews = new Map<string, TranscriptViewState>();
+const MAX_REMEMBERED_TRANSCRIPTS = 8;
+let currentView: TranscriptViewState = emptyViewState();
+/**
+ * Work blocks of the transcript on screen, by position.
+ *
+ * Position is a stable identity: the same event sequence always groups into the
+ * same blocks, whether replayed at once or appended live.
+ */
+const workBlocks = new Map<number, Collapsible>();
+let workBlockIndex = -1;
+
+function selectTranscript(id: string | undefined): void {
+  const key = id ?? "";
+  const existing = transcriptViews.get(key);
+  if (existing) {
+    // Re-insert to refresh its LRU position.
+    transcriptViews.delete(key);
+    transcriptViews.set(key, existing);
+    currentView = existing;
+    return;
+  }
+  currentView = emptyViewState();
+  transcriptViews.set(key, currentView);
+  for (const oldest of transcriptViews.keys()) {
+    if (transcriptViews.size <= MAX_REMEMBERED_TRANSCRIPTS) break;
+    transcriptViews.delete(oldest);
+  }
+}
+
+/**
+ * Record where the user was, just before the DOM holding that information is
+ * torn down. Called from `clearMessages()` because every teardown path goes
+ * through it, and there it still sees the outgoing transcript.
+ */
+function captureViewState(): void {
+  currentView.scrollTop = messagesEl.scrollTop;
+  currentView.followBottom = followBottom;
+  for (const [index, block] of workBlocks) {
+    currentView.work.set(index, { expanded: block.expanded, scrollTop: block.body.scrollTop || undefined });
+  }
+  for (const [id, card] of toolCards) {
+    const scroller = card.body.querySelector(".tool-body");
+    if (scroller instanceof HTMLElement && scroller.scrollTop > 0) currentView.toolScroll.set(id, scroller.scrollTop);
+  }
+}
+
+/** Put the reading position back, once the rebuilt transcript is in the DOM. */
+function restoreViewState(): void {
+  for (const [index, block] of workBlocks) {
+    const saved = currentView.work.get(index)?.scrollTop;
+    if (saved !== undefined) block.body.scrollTop = saved;
+  }
+  for (const [id, card] of toolCards) restoreToolScroll(id, card.body);
+  const saved = currentView.scrollTop;
+  if (saved === undefined) {
+    // First visit to this transcript: show the newest content, as always.
+    followBottom = true;
+    scrollToEnd();
+    return;
+  }
+  followBottom = currentView.followBottom;
+  messagesEl.scrollTop = saved;
+  // Markdown, code blocks and images can settle a frame later and shift the
+  // content out from under the offset just applied.
+  requestAnimationFrame(() => {
+    if (currentView.scrollTop === saved) messagesEl.scrollTop = saved;
+    updateScrollDownButton(false);
+  });
+}
+
+/** Card bodies render lazily, so one expanded after the replay restores here. */
+function restoreToolScroll(id: string, body: HTMLElement): void {
+  const saved = currentView.toolScroll.get(id);
+  if (saved === undefined) return;
+  const scroller = body.querySelector(".tool-body");
+  if (scroller instanceof HTMLElement) scroller.scrollTop = saved;
+}
 
 /* ---------------------------------------------------------------- */
 /* Batched history replay                                            */
@@ -84,6 +190,9 @@ let replaying = false;
 
 /** The "no messages yet" / "loading" placeholder, tracked instead of queried. */
 let placeholderEl: HTMLElement | undefined;
+/** Last flags seen with a history, reused by the new-session placeholder. */
+let systemPromptOverridden = false;
+let shadowedSubagent: ShadowedSubagentNotice | undefined;
 
 /* ---------------------------------------------------------------- */
 /* Sticky auto-scroll                                                */
@@ -192,8 +301,11 @@ export function applyEvent(event: ChatEvent): void {
       break;
     case "tool_update": {
       const card = toolCards.get(event.id);
-      if (card && event.text) {
-        card.bodyText = event.text;
+      if (card) {
+        if (event.text) card.bodyText = event.text;
+        // Live payload of a still-running tool. The delegation card is built
+        // from it, so this is what makes its per-subagent rows move.
+        if (event.details !== undefined) card.details = event.details;
         card.invalidate();
         if (card.expanded) scheduleRender();
       }
@@ -250,11 +362,20 @@ export function applyEvent(event: ChatEvent): void {
  * fragment and attached in one go, so a long session costs one layout pass
  * instead of one per event.
  */
-export function applyHistory(events: ChatEvent[], live = false, systemPromptOverridden = false): void {
+export function applyHistory(
+  events: ChatEvent[],
+  live = false,
+  systemPromptOverriddenNow = false,
+  shadowedSubagentNow?: ShadowedSubagentNotice,
+  transcriptId?: string,
+): void {
   const started = performance.now();
+  systemPromptOverridden = systemPromptOverriddenNow;
+  shadowedSubagent = shadowedSubagentNow;
+  // Order matters: `clearMessages()` captures where the user was in the
+  // transcript being replaced, so the switch to the new one comes after it.
   clearMessages();
-  followBottom = true;
-
+  selectTranscript(transcriptId);
   const fragment = document.createDocumentFragment();
   sink = fragment;
   replaying = true;
@@ -267,20 +388,19 @@ export function applyHistory(events: ChatEvent[], live = false, systemPromptOver
   const built = performance.now();
   messagesEl.appendChild(fragment);
 
-  if (events.length === 0) {
-    placeholderEl = appendBubble("status", t.emptySession(systemPromptOverridden));
-    placeholderEl.classList.add("empty-session");
-  }
+  if (events.length === 0) appendEmptySessionPlaceholder();
   // Persisted history has no agent lifecycle events. Its final non-formal
   // cards belong to a completed historical execution process, not a live one —
   // unless the session is still streaming (e.g. returning from a preview),
   // where closing the block would split one execution process in two.
   if (!live) finishWorkBlock();
-  scrollToEnd();
+  restoreViewState();
   // One line per session switch: the cheapest way to spot replay regressions
-  // on a real (large) session from the webview devtools.
+  // on a real (large) session from the webview devtools. The transcript id and
+  // restored-state count are here because view state surviving a round trip
+  // (parent -> subagent -> parent) is invisible in the DOM until it breaks.
   console.log(
-    `[pi-agent-chat] history replay: ${events.length} events, build ${Math.round(built - started)}ms, total ${Math.round(performance.now() - started)}ms`,
+    `[pi-agent-chat] history replay: ${events.length} events, transcript ${transcriptId ?? "(none)"}, ${currentView.work.size} remembered work block(s), build ${Math.round(built - started)}ms, total ${Math.round(performance.now() - started)}ms`,
   );
 }
 
@@ -298,13 +418,36 @@ export function showLoading(): void {
   followBottom = true;
 }
 
+/**
+ * Placeholder for "start a new session": nothing has to be loaded, so the
+ * spinner of `showLoading()` would only flash. Render the empty-session
+ * message right away — the empty history that follows renders the same bubble,
+ * so nothing changes on screen when it arrives.
+ */
+export function showNewSession(): void {
+  clearMessages();
+  appendEmptySessionPlaceholder();
+  followBottom = true;
+}
+
+function appendEmptySessionPlaceholder(): void {
+  placeholderEl = appendBubble("status", t.emptySession(systemPromptOverridden, shadowedSubagent));
+  placeholderEl.classList.add("empty-session");
+}
+
 export function clearMessages(): void {
+  // Before the DOM goes: this is the last moment the reading position exists.
+  captureViewState();
   messagesEl.innerHTML = "";
   toolCards.clear();
   pendingUserBubbles.length = 0;
   assistantBubble = undefined;
   thinkingCard = undefined;
   activeWorkBlock = undefined;
+  // Blocks are numbered per rendered transcript; the state they index into is
+  // only swapped when the transcript itself changes.
+  workBlocks.clear();
+  workBlockIndex = -1;
   placeholderEl = undefined;
   // Skill marks describe the displayed transcript, so they go with it.
   clearResourceHighlights();
@@ -551,12 +694,16 @@ function appendCompactionBoundary(summary: string, tokensBefore: number, estimat
 function ensureWorkBlock(): WorkBlock {
   if (activeWorkBlock) return activeWorkBlock;
 
+  // Position is a stable identity here: the same event sequence always groups
+  // into the same blocks, whether replayed at once or appended live.
+  const index = ++workBlockIndex;
   const work: WorkBlock = {
     collapsible: createCollapsible({
       classes: WORK_CLASSES,
       rootClass: "work-block running",
       tag: "section",
       label: t.workHeader,
+      expanded: currentView.work.get(index)?.expanded ?? false,
       parent: sink,
     }),
     thinkingCount: 0,
@@ -566,6 +713,7 @@ function ensureWorkBlock(): WorkBlock {
   };
   updateWorkStatus(work);
   activeWorkBlock = work;
+  workBlocks.set(index, work.collapsible);
   return work;
 }
 
@@ -632,13 +780,22 @@ function startToolCard(id: string, name: string, args: unknown, skill?: SkillRef
     label: name,
     status: t.running,
     parent: work.collapsible.body,
-    render: (body) => renderToolBody(toolCards.get(id) ?? entry, body),
+    render: (body) => {
+      renderToolBody(toolCards.get(id) ?? entry, body);
+      restoreToolScroll(id, body);
+    },
   }) as ToolCard;
   entry.root.classList.add("running", "streaming");
   if (skill) markToolCardSkill(entry, skill);
+  entry.toolName = name;
   entry.argsText = summarizeArgs(args);
   entry.bodyText = "";
   toolCards.set(id, entry);
+  // Expanded after the entry exists, because expanding renders the body and the
+  // body reads back from `entry`. The delegation card is the only view of what
+  // the subagents are doing, and the parent produces no output while it waits:
+  // collapsed by default it would look like the window had frozen.
+  if (name === PARALLEL_SUBAGENT_TOOL) entry.setExpanded(true);
 }
 
 /**
@@ -667,6 +824,7 @@ function endToolCard(event: Extract<ChatEvent, { kind: "tool_end" }>): void {
   entry.bodyText = event.text;
   entry.patch = event.patch;
   entry.path = event.path;
+  entry.details = event.details;
   entry.invalidate();
   entry.refresh();
 
@@ -683,6 +841,11 @@ function endToolCard(event: Extract<ChatEvent, { kind: "tool_end" }>): void {
 /** Full body of a tool card: args summary + output text or diff + actions. */
 function renderToolBody(entry: ToolCard, body: HTMLElement): void {
   body.replaceChildren();
+  // The parallel subagent card is built from `details` rather than from the
+  // result text: while the call runs that payload is the only live view of what
+  // each subagent is doing, and the parent produces no output of its own
+  // meanwhile.
+  if (entry.toolName === PARALLEL_SUBAGENT_TOOL && renderLanes(entry, body)) return;
   if (entry.argsText) body.appendChild(el("div", "tool-args", entry.argsText));
   if (entry.patch) {
     const diff = el("div");
@@ -699,6 +862,167 @@ function renderToolBody(entry: ToolCard, body: HTMLElement): void {
   } else if (entry.bodyText) {
     body.appendChild(el("pre", "tool-body", truncate(entry.bodyText, MAX_TOOL_OUTPUT_CHARS)));
   }
+  if (entry.details !== undefined) renderDetailsBlock(entry.details, body);
+}
+
+/**
+ * Per-subagent rows of a `parallel_subagent` call.
+ *
+ * Returns false when the payload is not the expected shape, so the card falls
+ * back to the generic rendering rather than showing nothing.
+ *
+ * Each row carries what the user needs to decide whether to intervene: what it
+ * is doing right now, what it may write, what it has written, and — once it is
+ * over — how it ended. Rows are clickable (open that subagent's transcript,
+ * read-only) and running ones can be stopped individually; the rest of the run
+ * continues and the parent still receives a full report.
+ */
+function renderLanes(entry: ToolCard, body: HTMLElement): boolean {
+  const details = entry.details;
+  if (details === null || typeof details !== "object" || Array.isArray(details)) return false;
+  const raw = (details as Record<string, JsonValue>).lanes;
+  if (!Array.isArray(raw) || raw.length === 0) return false;
+
+  const list = el("div", "lane-list");
+  for (const item of raw) {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) continue;
+    const lane = item as Record<string, JsonValue>;
+    const status = typeof lane.status === "string" ? lane.status : "running";
+    const row = el("div", `lane-row lane-${status}`);
+
+    const head = el("div", "lane-head");
+    head.appendChild(el("span", "lane-mark", laneMark(status)));
+    const title = typeof lane.title === "string" ? lane.title : "subagent";
+    head.appendChild(el("span", "lane-title", title));
+    const scope = Array.isArray(lane.scope) ? lane.scope.filter((s): s is string => typeof s === "string") : [];
+    if (scope.length > 0) head.appendChild(el("span", "lane-scope", scope.join(", ") || "."));
+    row.appendChild(head);
+
+    // While running the progress line is the whole point; afterwards the
+    // outcome takes its place.
+    const progress = typeof lane.progress === "string" ? lane.progress : undefined;
+    const summary = typeof lane.summary === "string" ? lane.summary : undefined;
+    const detail = status === "running" ? progress : summary;
+    if (detail) row.appendChild(el("div", "lane-detail", truncate(detail, MAX_LANE_DETAIL_CHARS)));
+
+    const written = Array.isArray(lane.writtenFiles)
+      ? lane.writtenFiles.filter((f): f is string => typeof f === "string")
+      : [];
+    if (written.length > 0) {
+      const label = status === "completed" ? t.laneWrote(written.length) : t.laneWroteBeforeStopping(written.length);
+      row.appendChild(el("div", "lane-files", `${label}: ${written.join(", ")}`));
+    }
+    const violations = typeof lane.scopeViolations === "number" ? lane.scopeViolations : 0;
+    if (violations > 0) row.appendChild(el("div", "lane-warning", t.laneScopeRefused(violations)));
+    // Which files, not just how many: this is the list the parent has to finish
+    // by hand, so it is worth a line of its own.
+    const denied = Array.isArray(lane.deniedPaths)
+      ? lane.deniedPaths.filter((p): p is string => typeof p === "string")
+      : [];
+    if (denied.length > 0) {
+      row.appendChild(el("div", "lane-files", `${t.laneRefusedFiles}: ${denied.join(", ")}`));
+    }
+    if (lane.bashMayHaveWritten === true) row.appendChild(el("div", "lane-warning", t.laneBashUntracked));
+
+    const actions = el("div", "lane-actions");
+    const laneId = typeof lane.id === "string" ? lane.id : undefined;
+    const sessionFile = typeof lane.sessionFile === "string" ? lane.sessionFile : undefined;
+    if (laneId || sessionFile) {
+      // Always opened as a subagent. The host uses the live child session when
+      // it still has one and replays the session file otherwise (after a window
+      // reload), but either way the title keeps the framing — falling back to a
+      // plain preview would offer "back to the running session" with nothing
+      // running.
+      actions.append(
+        button("secondary", t.laneView, () => post({ type: "showLane", laneId, sessionFile, title })),
+      );
+    }
+    if (status === "running" && laneId) {
+      actions.append(button("secondary", t.laneStop, () => post({ type: "stopLane", laneId })));
+    }
+    if (actions.childElementCount > 0) row.appendChild(actions);
+    list.appendChild(row);
+  }
+
+  if (list.childElementCount === 0) return false;
+  body.appendChild(list);
+  return true;
+}
+
+function laneMark(status: string): string {
+  switch (status) {
+    case "completed":
+      return "\u2713";
+    case "failed":
+      return "\u2717";
+    case "stopped":
+      return "\u25a0";
+    default:
+      return "\u25cf";
+  }
+}
+
+/**
+ * Generic, collapsed-by-default view of a tool's own `details` payload.
+ *
+ * A tool's `renderCall`/`renderResult` only ever produce pi-tui components
+ * (ANSI lines), so their *presentation* cannot be reused here — but the data
+ * behind them can. This draws that data in the webview's own idiom.
+ *
+ * Deliberately schema-free: every payload is rendered the same way, and no
+ * extension gets special treatment. The host already bounded the size and
+ * stripped anything unclonable (`agent/tool-details.ts`).
+ */
+function renderDetailsBlock(details: JsonValue, parent: HTMLElement): void {
+  const block = createCollapsible({
+    classes: CARD_CLASSES,
+    rootClass: "tool-details-block",
+    label: t.toolDetails,
+    parent,
+    render: (target) => appendDetailValue(target, details),
+  });
+  block.root.title = t.toolDetailsTitle;
+}
+
+function appendDetailValue(parent: HTMLElement, value: JsonValue): void {
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      parent.appendChild(el("div", "detail-empty", "[]"));
+      return;
+    }
+    value.forEach((item, index) => appendDetailRow(parent, String(index), item));
+    return;
+  }
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value);
+    if (entries.length === 0) {
+      parent.appendChild(el("div", "detail-empty", "{}"));
+      return;
+    }
+    for (const [key, item] of entries) appendDetailRow(parent, key, item);
+    return;
+  }
+  // A bare scalar at the root: no key to pair it with.
+  parent.appendChild(el("div", "detail-value", formatDetailScalar(value)));
+}
+
+function appendDetailRow(parent: HTMLElement, key: string, value: JsonValue): void {
+  const row = el("div", "detail-row");
+  row.appendChild(el("span", "detail-key", key));
+  if (value !== null && typeof value === "object") {
+    const children = el("div", "detail-children");
+    appendDetailValue(children, value);
+    row.appendChild(children);
+    row.classList.add("nested");
+  } else {
+    row.appendChild(el("span", "detail-value", formatDetailScalar(value)));
+  }
+  parent.appendChild(row);
+}
+
+/** Strings are shown unquoted; the key/value split already carries the shape. */
+function formatDetailScalar(value: JsonValue): string {
+  return value === null ? "null" : String(value);
 }
 
 /** Re-render streaming content at most once per frame while deltas arrive. */
@@ -762,11 +1086,12 @@ export function updateWorkingIndicator(): void {
       workingEl.append(spinner(), workingLabelEl);
     }
     if (workingLabelEl) {
+      const lane = currentLane();
       workingLabelEl.textContent = state.isCompacting
         ? ` ${t.compacting}`
-        : state.delegation?.role === "parent"
+        : state.delegation?.role === "parent" && isDelegating()
           ? ` ${t.waitingForSubagent}`
-          : state.delegation?.role === "child"
+          : lane?.status === "running"
             ? ` ${t.subagentWorking}`
             : ` ${t.streaming}`;
     }

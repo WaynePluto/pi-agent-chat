@@ -1,9 +1,10 @@
 import { createRequire } from "node:module";
-import { cp, mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, rm, readFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import esbuild from "esbuild";
+import { copyRuntimePackages, runtimePackages } from "./scripts/runtime-packages.mjs";
 
 const require = createRequire(import.meta.url);
 const root = dirname(fileURLToPath(import.meta.url));
@@ -32,10 +33,23 @@ function packageVersion(packageName) {
 const external = ["vscode", "@silvia-odwyer/photon-node", "@mariozechner/clipboard"];
 
 /**
- * The SDK anchors package-relative paths (docs, examples, themes, templates) on
- * `import.meta.url`. Bundling to CJS erases that, so we redirect it to the real
- * on-disk SDK entry point: `dist/node_modules/...` in a packaged VSIX, or the
- * repository's own `node_modules/...` during development.
+ * The SDK anchors paths on `import.meta.url`. Bundling to CJS erases that, so
+ * `define` rewrites every occurrence to `__piSdkEntryUrl`, pointing at the real
+ * on-disk SDK: `dist/node_modules/...` in a packaged VSIX, or the repository's
+ * own `node_modules/...` during development.
+ *
+ * One constant is not enough, though. Most SDK modules only want the package
+ * root (docs, examples, themes, templates), but `core/extensions/loader.js`
+ * derives its *own* directory from it to build the jiti aliases handed to pi
+ * extensions:
+ *
+ *   const packageIndex = path.resolve(__dirname, "../..", "index.js");
+ *
+ * With every module reporting the entry's URL that lands two levels too high
+ * (`@earendil-works/index.js`), and any extension importing
+ * `@earendil-works/pi-coding-agent` fails to load. So `sdkModuleUrlPlugin`
+ * below gives each SDK module its own URL through `__piSdkModuleUrl`, which is
+ * both correct for the loader and strictly more accurate for everyone else.
  */
 const sdkEntryUrlBanner = `const __piSdkEntryUrl = (() => {
   const nodePath = require("node:path");
@@ -97,71 +111,54 @@ const __piSdkResolve = (specifier) => {
     if (!target) throw new Error("Cannot resolve " + specifier + " from " + pkgDir);
     return nodeUrl.pathToFileURL(nodePath.join(pkgDir, target)).href;
   }
+};
+const __piSdkModuleUrl = (relative) => {
+  const nodePath = require("node:path");
+  const nodeUrl = require("node:url");
+  const distDir = nodePath.dirname(nodeUrl.fileURLToPath(__piSdkEntryUrl));
+  return nodeUrl.pathToFileURL(nodePath.join(distDir, relative)).href;
 };`;
 
 /**
- * Packages that stay outside the bundle and are resolved from disk at runtime.
- * They are copied into `dist/node_modules/` for production builds so a VSIX is
- * self-contained (vsce only strips `node_modules` at the repository root).
+ * Give every bundled SDK module the URL of its own file on disk, shadowing the
+ * single `__piSdkEntryUrl` the banner defines.
+ *
+ * `define` turns `import.meta.url` into a bare `__piSdkEntryUrl` reference, so
+ * a module-scoped constant of that name is enough to redirect it: esbuild's
+ * scope analysis binds the reference to the nearest declaration.
+ *
+ * Without this, `core/extensions/loader.js` mis-resolves the jiti alias for
+ * `@earendil-works/pi-coding-agent`, and every extension importing it dies
+ * with "Cannot find module .../@earendil-works/index.js".
  */
-const runtimePackages = [
-  "@earendil-works/pi-coding-agent",
-  // Resolved from disk by the SDK's extension loader (jiti aliases anchored on
-  // the SDK entry's import.meta.url): extensions import these at runtime.
-  "@earendil-works/pi-agent-core",
-  "@earendil-works/pi-tui",
-  "@earendil-works/pi-ai",
-  "typebox",
-  "jiti",
-  "@silvia-odwyer/photon-node",
-  "@mariozechner/clipboard",
-];
+const sdkModuleUrlPlugin = {
+  name: "pi-sdk-module-url",
+  setup(build) {
+    const sdkDist = resolve(root, "node_modules", "@earendil-works", "pi-coding-agent", "dist");
+    build.onLoad({ filter: /\.js$/ }, async (args) => {
+      if (!args.path.startsWith(sdkDist + sep)) return undefined;
+      const source = await readFile(args.path, "utf8");
+      if (!source.includes("import.meta.url")) return undefined;
+      const relativePath = relative(sdkDist, args.path).split(sep).join("/");
+      return {
+        contents: `const __piSdkEntryUrl = __piSdkModuleUrl(${JSON.stringify(relativePath)});\n${source}`,
+        loader: "js",
+      };
+    });
+  },
+};
 
-/** Copy runtime packages into dist/, skipping nested deps, sources and maps. */
-async function copyRuntimePackages() {
-  const target = resolve(root, "dist", "node_modules");
-  await rm(target, { recursive: true, force: true });
-  for (const name of runtimePackages) {
-    const source = resolve(root, "node_modules", name);
-    try {
-      await mkdir(dirname(join(target, name)), { recursive: true });
-      await cp(source, join(target, name), {
-        recursive: true,
-        // Nested deps are already bundled; type declarations and maps are dead weight.
-        filter: (path) => {
-          const rel = path.slice(source.length);
-          if (/[\\/]node_modules[\\/]|\.map$|\.d\.ts$|\.d\.mts$|\.d\.cts$/.test(rel)) return false;
-          // The clipboard npm wrapper ships Rust sources and build files that
-          // are never needed at runtime; keep only the JS loader and manifest.
-          if (source === resolve(root, "node_modules", "@mariozechner", "clipboard")) {
-            if (/[\\/]src[\\/]|Cargo\.toml$|build\.rs$|exp\.ts$|\.yarnrc\.yml$/.test(rel)) return false;
-          }
-          return true;
-        },
-      });
-    } catch (error) {
-      console.warn(`[esbuild] skipped runtime package ${name}: ${error.message}`);
-    }
-  }
-  // Native clipboard bindings live in platform-specific sibling packages.
-  for (const name of platformClipboardPackages()) {
-    const source = resolve(root, "node_modules", name);
-    try {
-      await cp(source, join(target, name), { recursive: true });
-    } catch {
-      // Optional dependency for other platforms; ignore when absent.
-    }
-  }
-  console.log(`[esbuild] copied runtime packages into dist/node_modules`);
-}
-
-function platformClipboardPackages() {
-  const manifest = resolve(root, "node_modules", "@mariozechner", "clipboard", "package.json");
-  try {
-    return Object.keys(JSON.parse(readFileSync(manifest, "utf8")).optionalDependencies ?? {});
-  } catch {
-    return [];
-  }
+/**
+ * Packages that ship unbundled under `dist/node_modules/` so a VSIX is
+ * self-contained (vsce only strips `node_modules` at the repository root).
+ * The list and the copying rules live in `scripts/runtime-packages.mjs`,
+ * shared with the check that proves the list is complete.
+ */
+async function copyRuntimePackagesIntoDist() {
+  const { skipped } = await copyRuntimePackages(resolve(root, "dist", "node_modules"), {
+    log: (message) => console.warn(`[esbuild] ${message}`),
+  });
+  console.log(`[esbuild] copied ${runtimePackages.length - skipped.length} runtime packages into dist/node_modules`);
 }
 
 /** @type {import("esbuild").BuildOptions} */
@@ -183,8 +180,14 @@ const extensionConfig = {
   // the proxy absolute-form forwarding fix).
   alias: {
     undici: resolve(root, "node_modules", "undici"),
+    // jsonc-parser has no "exports" map, so platform:node picks its UMD build,
+    // whose internal `require("./impl/format")` esbuild cannot follow: the
+    // bundle then fails to load with "Cannot find module ./impl/format".
+    // Point at the ESM build, which uses static imports.
+    "jsonc-parser": resolve(root, "node_modules", "jsonc-parser", "lib", "esm", "main.js"),
   },
   logOverride: { "require-resolve-not-external": "silent" },
+  plugins: [sdkModuleUrlPlugin],
   banner: { js: sdkEntryUrlBanner },
   define: {
     "process.env.NODE_ENV": production ? '"production"' : '"development"',
@@ -216,6 +219,6 @@ if (watch) {
 } else {
   if (production) await rm(resolve(root, "dist"), { recursive: true, force: true });
   await Promise.all([esbuild.build(extensionConfig), esbuild.build(webviewConfig)]);
-  if (production) await copyRuntimePackages();
+  if (production) await copyRuntimePackagesIntoDist();
   console.log("[esbuild] build complete");
 }

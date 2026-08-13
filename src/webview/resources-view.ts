@@ -14,16 +14,22 @@ import { resourcesEl } from "./shell.js";
  * shows the sections; each section can further expand to full file paths.
  *
  * Two highlights answer "what actually happened in this session?": resources
- * the transcript saw being used — skills loaded, tools called, prompt templates
- * invoked, extensions whose command or tool ran — are coloured, while rows that
- * are configured but not in effect (a tool outside the active set, an extension
- * that failed to load) are dimmed. Everything else is plain foreground text:
- * loaded and in effect, just not exercised here.
+ * that took effect here are coloured, while rows that are configured but not in
+ * effect (a tool outside the active set, an extension that failed to load) are
+ * dimmed. Everything else is plain foreground text: loaded and in effect, just
+ * not exercised here.
+ *
+ * The colour has two sources. What the transcript can see is tracked here:
+ * skills loaded, tools called, prompt templates and extension commands
+ * invoked. What only the host can see arrives as `item.used` (context files
+ * that went out with a request, extensions whose handler ran or failed — see
+ * `agent/activity.ts`); the two are simply OR-ed.
  */
 
 const t = getDict();
 
 /** Sections whose rows can be highlighted from the displayed transcript. */
+const CONTEXT_SECTION = "Context";
 const SKILLS_SECTION = "Skills";
 const TOOLS_SECTION = "Tools";
 const PROMPTS_SECTION = "Prompts";
@@ -166,6 +172,8 @@ export function hasResources(): boolean {
 }
 
 function isUsed(sectionName: string, item: ResourceItem): boolean {
+  // The host already resolved what the transcript cannot show.
+  if (item.used) return true;
   if (sectionName === SKILLS_SECTION) return usedSkills.has(item.label);
   if (sectionName === TOOLS_SECTION) return usedTools.has(item.label);
   // Prompt rows carry the `/name` form the user types.
@@ -187,6 +195,7 @@ function isExtensionUsed(path: string): boolean {
 
 /** Why this row is highlighted, in the words of its own section. */
 function usedTitle(sectionName: string, label: string): string {
+  if (sectionName === CONTEXT_SECTION) return t.contextUsedTitle;
   if (sectionName === SKILLS_SECTION) return t.skillActiveTitle(label);
   if (sectionName === PROMPTS_SECTION) return t.promptUsedTitle;
   if (sectionName === EXTENSIONS_SECTION) return t.extensionUsedTitle;

@@ -4,8 +4,11 @@ import * as vscode from "vscode";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { sessionEntryToContextMessages, SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import type { ChatEvent, ChatState, ChatStats, HostMessage, ResourceItem, ResourceScope, ResourceSection, SessionListItem, WebviewMessage } from "../shared/protocol.js";
+import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, HostMessage, ResourceItem, ResourceScope, ResourceSection, SessionListItem, WebviewMessage } from "../shared/protocol.js";
+import { formatLocalTimestamp } from "../shared/time.js";
 import { loginFlow, logoutFlow } from "./auth.js";
+import { ActivityTracker, type ResourceActivity } from "./activity.js";
+import { affectsParallelSubagentConfig } from "./config.js";
 import { collectSlashCommands, formatHelp, runBuiltinCommand } from "./commands.js";
 import { describe } from "./errors.js";
 import { t, tf } from "./i18n.js";
@@ -15,10 +18,13 @@ import type { OriginalContentProvider } from "./diff-view.js";
 import { openEditDiff } from "./diff-view.js";
 import { ProjectFileIndex } from "./project-files.js";
 import { buildModelCatalog, manageScopedModels, pickModel } from "./model-picker.js";
+import { isModelsConfigPath, repairEmptyModelsConfig } from "./model-config.js";
 import type { PiRuntime } from "./runtime.js";
 import { EMPTY_PROMPT_INDEX, buildPromptIndex, expandedPrompt, resolveInvocation, type PromptIndex } from "./invocations.js";
 import { EMPTY_SKILL_INDEX, buildSkillIndex, collapseSkillInvocation, invokedSkill, matchSkill, readSkillInvocation, type SkillIndex } from "./skills.js";
-import type { SubagentObserver, SubagentOutcome, SubagentRun } from "./subagent.js";
+import { contentText, firstUserLine, sessionTitle } from "./session-title.js";
+import { sanitizeToolDetails } from "./tool-details.js";
+import type { LaneNotice, LaneState, ParallelObserver, ParallelRun } from "./parallel-subagent.js";
 
 export interface BridgeHost {
   post(message: HostMessage): void;
@@ -31,19 +37,64 @@ interface CompactionQueuedPrompt {
 }
 
 /**
+ * Lane id used when a subagent is shown by replaying its session file, with no
+ * live lane behind it. It only has to be stable within one state snapshot: the
+ * banner names the subagent, and the only action offered is going back.
+ */
+const REPLAYED_LANE_ID = "replayed";
+
+/**
+ * What the webview is currently showing.
+ *
+ * One value rather than three independent fields (`displayedSession`,
+ * `displayedLaneId`, `preview`), because the legal combinations used to be
+ * implicit: a replay and a lane are both "not the live parent transcript" and
+ * must never both be set, yet nothing enforced it. Every bug in this area came
+ * from updating one of the three and forgetting another — which the compiler
+ * had no way to catch. Now each variant carries exactly what its derived values
+ * need, and switching views means assigning one value.
+ */
+type View =
+  /** The runtime's own session, live and writable. */
+  | { kind: "live" }
+  /** A subagent with a live child session: real-time progress, stoppable. */
+  | { kind: "lane"; laneId: string; session: AgentSession }
+  /**
+   * A session replayed read-only from its file.
+   *
+   * `laneTitle` marks it as a subagent whose child session is gone (the window
+   * was reloaded since the run). It still gets the subagent framing: to the
+   * user that is what it is, and the generic preview banner would offer "back
+   * to the running session" with nothing running.
+   */
+  | { kind: "replay"; file: string; title: string; events: ChatEvent[]; laneTitle?: string };
+
+/**
  * Translates `AgentSession` events into webview messages and applies inbound
  * webview commands to the runtime.
  *
  * Re-subscribes and re-binds extensions on every session replacement, as the
  * SDK requires (`vscode-pi-design.md` §4).
  */
-export class ChatBridge implements vscode.Disposable, SubagentObserver {
+export class ChatBridge implements vscode.Disposable, ParallelObserver {
   private unsubscribe?: () => void;
   private disposed = false;
-  private displayedSession?: AgentSession;
-  private activeDelegation?: SubagentRun;
-  /** Read-only preview of another session while a run is in progress. */
-  private preview?: { file: string; title: string; events: ChatEvent[] };
+  /** What the webview is showing; see `View`. The only source of truth for it. */
+  private view: View = { kind: "live" };
+  private activeRun?: ParallelRun;
+  /**
+   * Live child sessions by lane id, for switching the displayed transcript.
+   *
+   * Accumulates across runs and is only cleared when the displayed session is
+   * replaced. A finished lane stays here so that reopening it from its (still
+   * visible) tool card lands in the subagent view rather than degrading to a
+   * generic read-only replay — which is all that survives a window reload.
+   */
+  private readonly laneSessions = new Map<string, AgentSession>();
+  /** Lane snapshots from every run of this session, newest last. */
+  private lanes: LaneState[] = [];
+  /** The parent moved on while the user was inside a lane. */
+  private parentActivityWhileAway = false;
   /** Whether the webview's sessions page is on screen. */
   private sessionsVisible = false;
   /** Trailing debounce so bursts of session events cause one file scan. */
@@ -54,6 +105,13 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private availabilityProbe?: AbortController;
   /** Replay buffers keep parent and child transcripts intact while viewing either. */
   private readonly histories = new Map<string, ChatEvent[]>();
+  /**
+   * Extension-owned status entries and widgets per session (`ctx.ui.setStatus`,
+   * `ctx.ui.setWidget`). Cleared on attach: rebinding extensions re-runs their
+   * handlers, which republish whatever is still true, exactly as in the CLI.
+   */
+  private readonly extensionStatuses = new Map<string, Map<string, string>>();
+  private readonly extensionWidgets = new Map<string, Map<string, ExtensionWidget>>();
   /** Application-level queue used while the SDK is compacting. */
   private readonly compactionQueues = new Map<string, CompactionQueuedPrompt[]>();
   /** Arguments of in-flight tool calls, used to resolve the edited file path. */
@@ -63,8 +121,15 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   /** Loaded prompt templates, used to attribute user messages to a `/command`. */
   private promptIndex: PromptIndex = EMPTY_PROMPT_INDEX;
   private readonly projectFiles: ProjectFileIndex;
+  /** What actually took effect in this session, for the resources panel. */
+  private readonly activity = new ActivityTracker();
   /** >0 while an extension `/command` handler is running (nestable in theory). */
   private extensionCommandDepth = 0;
+  /** Watches saves of the shared `~/.pi/agent/models.json`. */
+  private modelsConfigWatcher?: vscode.Disposable;
+  private settingsWatcher?: vscode.Disposable;
+  /** Last reported models.json problem, so the same one is not repeated on every attach. */
+  private modelsConfigError?: string;
 
   constructor(
     private readonly runtime: PiRuntime,
@@ -73,7 +138,12 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   ) {
     this.projectFiles = new ProjectFileIndex((message) => host.log(message));
     runtime.subagents.setObserver(this);
-    // Must be wired before the first bindExtensions() in attach().
+    // Must be wired before the first bindExtensions() in attach(): all three
+    // sinks below are captured by the contexts created there.
+    runtime.setSessionLifecycleSink({
+      reattach: () => this.attach(),
+      reload: () => this.reloadResources(),
+    });
     runtime.setExtensionNoticeSink((session, notice) => {
       this.emit(session, {
         kind: notice.level === "error" ? "error" : "status",
@@ -83,6 +153,143 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         scope: this.extensionCommandDepth > 0 ? "command" : undefined,
       });
     });
+    // Same timing rule, same reason: without this the SDK drops extension
+    // handler failures silently, where every CLI mode reports them.
+    runtime.setExtensionErrorSink((session, error) => {
+      this.host.log(`extension error (${error.extensionPath}) on ${error.event}: ${error.error}`);
+      this.emit(session, {
+        kind: "error",
+        text: tf("extensionHandlerFailed", basename(error.extensionPath), error.event, error.error),
+        scope: this.extensionCommandDepth > 0 ? "command" : undefined,
+      });
+      // A handler that threw is a handler that ran.
+      if (this.activity.markExtension(error.extensionPath)) this.postResourceListing();
+    });
+    // Live UI state rather than transcript history, so these two stay out of
+    // `histories` and are re-sent whenever the displayed session changes.
+    runtime.setExtensionStatusSink((session, update) => {
+      const entries = this.extensionStatuses.get(session.sessionId) ?? new Map<string, string>();
+      if (update.text === undefined) entries.delete(update.key);
+      else entries.set(update.key, update.text);
+      this.extensionStatuses.set(session.sessionId, entries);
+      if (this.isDisplayed(session)) this.postExtensionStatus();
+    });
+    runtime.setExtensionWidgetSink((session, update) => {
+      const entries = this.extensionWidgets.get(session.sessionId) ?? new Map<string, ExtensionWidget>();
+      if (update.lines === undefined) entries.delete(update.key);
+      else entries.set(update.key, { key: update.key, lines: update.lines, placement: update.placement });
+      this.extensionWidgets.set(session.sessionId, entries);
+      if (this.isDisplayed(session)) this.postExtensionWidgets();
+    });
+    // Custom providers are configured by hand in models.json (see
+    // `model-config.ts`). Saving that file is its only "apply" gesture, so a
+    // save reloads it, the way the CLI reloads it when `/model` opens.
+    this.modelsConfigWatcher = vscode.workspace.onDidSaveTextDocument((document) => {
+      if (isModelsConfigPath(document.uri.fsPath)) void this.reloadModelsConfig();
+    });
+    // The delegation tool is built into the session's tool set at construction
+    // time, and `reload()` keeps the host's `customTools`, so a changed setting
+    // cannot reach the running conversation. Say so rather than rebuilding the
+    // session behind the user's back.
+    this.settingsWatcher = vscode.workspace.onDidChangeConfiguration((event) => {
+      if (!affectsParallelSubagentConfig(event, this.runtime.cwd)) return;
+      this.emit(this.runtime.session, { kind: "status", text: t("parallelSubagentSettingChanged") });
+    });
+  }
+
+  /**
+   * Re-read `~/.pi/agent/models.json` and report the outcome in the transcript.
+   *
+   * No network: only the local file changed, and remote catalogues are already
+   * refreshed on login/logout, as in the CLI.
+   */
+  private async reloadModelsConfig(): Promise<void> {
+    const session = this.runtime.session;
+    const before = { loaded: this.loadedModelIds(), available: new Set(this.availableModelRefs()) };
+    try {
+      await this.runtime.modelRuntime.refresh({ allowNetwork: false, signal: this.runtime.signal });
+      const failed = await this.reportModelsConfigError(session);
+      await this.postModels();
+      await this.postState();
+      if (failed) return;
+      const available = await this.runtime.getAvailableModels();
+      const lines = [tf("modelsConfigReloaded", available.length)];
+      lines.push(...this.describeModelChanges(before, available));
+      this.emit(session, { kind: "status", text: lines.join("\n"), scope: "command" });
+    } catch (error) {
+      if (this.disposed) return;
+      this.reportError(session, "models.json reload failed", error);
+    }
+  }
+
+  /** Every loaded model, auth aside, as `provider` -> model ids. */
+  private loadedModelIds(): Map<string, Set<string>> {
+    const byProvider = new Map<string, Set<string>>();
+    for (const model of this.runtime.modelRuntime.getModels()) {
+      const ids = byProvider.get(model.provider) ?? new Set<string>();
+      ids.add(model.id);
+      byProvider.set(model.provider, ids);
+    }
+    return byProvider;
+  }
+
+  /** `provider/modelId` of everything the picker would currently offer. */
+  private availableModelRefs(): string[] {
+    return this.runtime.modelRuntime.getAvailableSnapshot().map((model) => `${model.provider}/${model.id}`);
+  }
+
+  /**
+   * Explain what the edit actually produced.
+   *
+   * pi loads a provider's models regardless of auth but only offers the
+   * authenticated ones, so models added behind a credential that does not
+   * resolve (a placeholder, or a `$VAR` the VS Code process cannot see) are
+   * nowhere to be found. Nothing else reports that: `getError()` stays empty
+   * because the file itself is perfectly valid.
+   */
+  private describeModelChanges(
+    before: { loaded: Map<string, Set<string>>; available: Set<string> },
+    available: readonly { provider: string; id: string }[],
+  ): string[] {
+    const lines: string[] = [];
+    const added = available
+      .map((model) => `${model.provider}/${model.id}`)
+      .filter((reference) => !before.available.has(reference));
+    if (added.length > 0) lines.push(tf("modelsConfigAdded", added.join(", ")));
+    const availableIds = new Set(available.map((model) => `${model.provider}/${model.id}`));
+    for (const [provider, ids] of this.loadedModelIds()) {
+      if (this.runtime.modelRuntime.getProviderAuthStatus(provider).configured) continue;
+      // Only providers this save changed; the rest would repeat on every edit.
+      const hidden = [...ids].filter(
+        (id) => !before.loaded.get(provider)?.has(id) && !availableIds.has(`${provider}/${id}`),
+      );
+      if (hidden.length > 0) lines.push(tf("modelsConfigUnauthenticated", provider, hidden.length));
+    }
+    return lines;
+  }
+
+  /**
+   * Surface a broken models.json the way every CLI mode does. Without this a
+   * typo silently drops the custom providers that file defines.
+   *
+   * Returns whether an error is currently configured.
+   */
+  private async reportModelsConfigError(session: AgentSession): Promise<boolean> {
+    const error = this.runtime.modelRuntime.getError();
+    // A file with no configuration at all is the one "error" with an obvious,
+    // lossless repair: pi rejects both an empty file and `{}`, while an empty
+    // `providers` map says the same thing in a form it accepts. Saving the
+    // repair re-runs this reload, which then reports the real state.
+    if (error && (await repairEmptyModelsConfig())) {
+      this.emit(session, { kind: "status", text: t("modelsConfigRepaired"), scope: "command" });
+      this.modelsConfigError = undefined;
+      return true;
+    }
+    if (error && error !== this.modelsConfigError) {
+      this.emit(session, { kind: "error", text: tf("modelsConfigError", error), scope: "command" });
+    }
+    this.modelsConfigError = error;
+    return Boolean(error);
   }
 
   /** Subscribe to the current session and push the initial state. */
@@ -90,13 +297,23 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     const started = Date.now();
     this.unsubscribe?.();
     const session = this.runtime.session;
-    this.displayedSession = session;
-    this.preview = undefined;
+    // A new session is always entered live, and its lanes start empty: lanes
+    // belong to the session that spawned them.
+    this.view = { kind: "live" };
+    this.lanes = [];
+    this.laneSessions.clear();
+    this.parentActivityWhileAway = false;
     this.histories.clear();
+    this.extensionStatuses.clear();
+    this.extensionWidgets.clear();
     this.compactionQueues.clear();
+    this.activity.reset();
     this.skillIndex = buildSkillIndex(session);
     this.promptIndex = buildPromptIndex(session);
     const events = this.buildHistory(session);
+    // Replayed assistant output proves the system prompt — context files
+    // included — already went to the model in this session.
+    this.activity.noteHistory(events);
     this.histories.set(session.sessionId, events);
     this.unsubscribe = session.subscribe((event) => this.onSessionEvent(session, event));
     const built = Date.now();
@@ -106,6 +323,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.postHistory();
     const posted = Date.now();
     await this.runtime.bindExtensions();
+    // session_start (and resources_discover) have fired by now.
+    this.activity.noteBind(session);
     const bound = Date.now();
     this.postCommands();
     this.postResources();
@@ -116,6 +335,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     );
     // Only the sessions page needs this; never make the transcript wait for it.
     this.refreshSessions();
+    // A models.json broken outside the sidebar must not stay invisible.
+    await this.reportModelsConfigError(session);
   }
 
   /**
@@ -128,7 +349,19 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       // Extensions and skills are (re)loaded by now, so refresh the matchers too.
       this.skillIndex = buildSkillIndex(this.runtime.session);
       this.promptIndex = buildPromptIndex(this.runtime.session);
-      this.host.post({ type: "resources", sections: collectResourceSections(this.runtime) });
+    } catch (error) {
+      this.host.log(`failed to refresh resource matchers: ${describe(error)}`);
+    }
+    this.postResourceListing();
+  }
+
+  /**
+   * Re-send the listing alone, for the cheap case: only the "took effect here"
+   * marks changed, so the matchers behind them are still current.
+   */
+  private postResourceListing(): void {
+    try {
+      this.host.post({ type: "resources", sections: collectResourceSections(this.runtime, this.activity) });
     } catch (error) {
       this.host.log(`failed to collect resources: ${describe(error)}`);
     }
@@ -158,12 +391,25 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
   /** Replay the persisted transcript so a resumed session is not shown empty. */
   postHistory(): void {
-    const session = this.displayedSession ?? this.runtime.session;
+    const session = this.displayedSession;
     // SYSTEM.md replaces the SDK's default prompt, including the absolute paths
     // that teach the model where Pi's bundled docs and examples live.
     const systemPromptOverridden = Boolean(session.resourceLoader.getSystemPromptSource());
-    if (this.preview) {
-      this.host.post({ type: "history", events: [...this.preview.events], systemPromptOverridden });
+    // Part of the new-session notice rather than a transcript event: it says
+    // how this session is wired, not that something happened in it. Sent as an
+    // event it would also evict the very placeholder it belongs to.
+    const shadowedPath = this.runtime.shadowedSubagentExtension;
+    const shadowedSubagent = shadowedPath
+      ? { path: shadowedPath, parallelSubagentEnabled: this.runtime.parallelSubagentEnabled }
+      : undefined;
+    if (this.view.kind === "replay") {
+      this.host.post({
+        type: "history",
+        events: [...this.view.events],
+        transcriptId: this.view.file,
+        systemPromptOverridden,
+        shadowedSubagent,
+      });
       this.postEntryIds();
       return;
     }
@@ -171,9 +417,74 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.histories.set(session.sessionId, events);
     // A replay of a still-streaming session must not close its open work
     // block in the webview; live events keep appending to the same card.
-    this.host.post({ type: "history", events: [...events], live: session.isStreaming, systemPromptOverridden });
+    this.host.post({
+      type: "history",
+      events: [...events],
+      live: session.isStreaming,
+      transcriptId: session.sessionId,
+      systemPromptOverridden,
+      shadowedSubagent,
+    });
     // Every replay rebuilds the bubbles, so their entry bindings must follow.
     this.postEntryIds();
+    // Extension-owned surfaces belong to the session now on screen.
+    this.postExtensionStatus();
+    this.postExtensionWidgets();
+  }
+
+  /** True while `session` is the one the webview is currently showing. */
+  private isDisplayed(session: AgentSession): boolean {
+    return this.view.kind !== "replay" && this.displayedSession === session;
+  }
+
+  /**
+   * The session whose live state the UI reflects.
+   *
+   * A replay shows a static transcript but still reports the runtime session's
+   * model, stats and name: those describe where the user *is*, and a replay is
+   * a detour, not a move.
+   */
+  private get displayedSession(): AgentSession {
+    return this.view.kind === "lane" ? this.view.session : this.runtime.session;
+  }
+
+  /**
+   * Push the extension status entries and widgets of the displayed session.
+   *
+   * A preview shows a transcript the extensions are not bound to, so it gets an
+   * empty set rather than the live session's, matching what the transcript does.
+   */
+  private postExtensionStatus(): void {
+    if (this.disposed) return;
+    const session = this.displayedSession;
+    const entries = this.view.kind === "replay" ? undefined : this.extensionStatuses.get(session.sessionId);
+    this.host.post({
+      type: "extensionStatus",
+      items: [...(entries?.entries() ?? [])].map(([key, text]) => ({ key, text })),
+    });
+  }
+
+  private postExtensionWidgets(): void {
+    if (this.disposed) return;
+    const session = this.displayedSession;
+    const entries = this.view.kind === "replay" ? undefined : this.extensionWidgets.get(session.sessionId);
+    this.host.post({ type: "extensionWidgets", items: [...(entries?.values() ?? [])] });
+  }
+
+  /**
+   * Drop one session's extension-owned status entries and widgets.
+   *
+   * Used on reload, between the old extension instances being torn down and
+   * `session_start` reaching the new ones: those entries belong to the old
+   * instances, and the new ones republish whatever is still true — the same
+   * contract `attach()` relies on.
+   */
+  private clearExtensionUiState(session: AgentSession): void {
+    this.extensionStatuses.delete(session.sessionId);
+    this.extensionWidgets.delete(session.sessionId);
+    if (!this.isDisplayed(session)) return;
+    this.postExtensionStatus();
+    this.postExtensionWidgets();
   }
 
   /**
@@ -185,7 +496,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    */
   postEntryIds(): void {
     const session = this.runtime.session;
-    const actionable = !this.preview && !this.activeDelegation && (this.displayedSession ?? session) === session;
+    // Only the live parent transcript is actionable. A run in progress blocks it
+    // too: rewriting history under a running delegation would strand its lanes.
+    const actionable = this.view.kind === "live" && !this.activeRun;
     if (!actionable) {
       this.host.post({ type: "entryIds", ids: [], labels: [] });
       return;
@@ -208,7 +521,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.availabilityProbe?.abort();
     const probe = new AbortController();
     this.availabilityProbe = probe;
-    const session = this.displayedSession ?? this.runtime.session;
+    const session = this.displayedSession;
     const model = session.model as { id?: string; provider?: string } | undefined;
     let needsAuth = false;
     try {
@@ -217,7 +530,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       // Availability check failing (or being cancelled) must not block the chat UI.
     }
     if (postVersion !== this.statePostVersion || this.disposed) return;
-    const preview = this.preview;
+    const replay = this.view.kind === "replay" ? this.view : undefined;
     const state: ChatState = {
       ready: true,
       cwd: this.runtime.cwd,
@@ -230,15 +543,21 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       // The composer picker offers exactly these; a model with one fixed level
       // hides the selector instead of opening a dead end.
       thinkingLevels: session.getAvailableThinkingLevels(),
-      // In preview the live run keeps going, but the transcript on screen is
+      // In a replay the live run keeps going, but the transcript on screen is
       // static history: no stop button, no working indicator.
-      isStreaming: preview ? false : session.isStreaming,
-      isCompacting: preview ? false : session.isCompacting,
+      isStreaming: replay ? false : session.isStreaming,
+      isCompacting: replay ? false : session.isCompacting,
       needsAuth,
       messageCount: session.messages.length,
-      delegation: preview ? undefined : this.delegationState(session),
-      preview: preview ? { file: preview.file, title: preview.title } : undefined,
-      inputDisabled: Boolean(preview) || Boolean(this.activeDelegation && session === this.activeDelegation.child),
+      // Delegation survives a replay: a subagent whose live session is gone is
+      // *shown* as a replay of its session file, and dropping the delegation
+      // here would strip exactly the framing that makes it readable as a
+      // subagent. What a replay means is decided in `delegationState`, once.
+      delegation: this.delegationState(session),
+      preview: replay ? { file: replay.file, title: replay.title } : undefined,
+      // Only the live parent transcript takes input. Both other views are
+      // read-only, which is the whole point of `View` having three cases.
+      inputDisabled: this.view.kind !== "live",
       stats: this.collectStats(session),
     };
     this.host.post({ type: "state", state });
@@ -246,14 +565,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
   /** Header title: user-set name, else the first user message, else empty. */
   private sessionDisplayName(session: AgentSession): string | undefined {
-    const name = session.sessionManager.getSessionName();
-    if (name) return name;
-    for (const raw of session.messages as Array<{ role?: string; content?: unknown }>) {
-      if (raw.role !== "user") continue;
-      const text = collapseSkillInvocation(contentText(raw.content)).trim();
-      if (text) return text.split("\n")[0];
-    }
-    return undefined;
+    return session.sessionManager.getSessionName()
+      ?? firstUserLine(session.messages as Array<{ role?: string; content?: unknown }>);
   }
 
   /** Numbers for the CLI-style footer status line. */
@@ -287,7 +600,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     const history = this.histories.get(session.sessionId) ?? this.buildHistory(session);
     history.push(event);
     this.histories.set(session.sessionId, history);
-    if (!this.preview && (this.displayedSession ?? this.runtime.session) === session) {
+    if (this.isDisplayed(session)) {
       this.host.post({ type: "event", event });
     }
   }
@@ -398,6 +711,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
   private onSessionEvent(session: AgentSession, event: AgentSessionEvent): void {
     const toolKey = (id: string) => `${session.sessionId}:${id}`;
+    // Extensions subscribed to this event have just run, and a starting run
+    // means the context files went out with the system prompt.
+    if (this.activity.noteSessionEvent(session, event.type)) this.postResourceListing();
     switch (event.type) {
       case "agent_start":
         this.emit(session, { kind: "agent_start" });
@@ -420,8 +736,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         this.emit(session, { kind: "agent_settled" });
         // A preview left open after the run finishes would trap the user in a
         // read-only view; the previewed session can now be resumed for real.
-        if (this.preview && !this.activeDelegation && session === this.runtime.session && !session.isStreaming) {
-          const file = this.preview.file;
+        if (this.view.kind === "replay" && !this.activeRun && session === this.runtime.session && !session.isStreaming) {
+          const file = this.view.file;
           void (async () => {
             await this.runtime.switchSession(file);
             await this.attach();
@@ -474,7 +790,14 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         });
         break;
       case "tool_execution_update":
-        this.emit(session, { kind: "tool_update", id: event.toolCallId, text: resultText(event.partialResult) });
+        this.emit(session, {
+          kind: "tool_update",
+          id: event.toolCallId,
+          text: resultText(event.partialResult),
+          // Live payload of a tool that has not finished. Sanitized on the same
+          // terms as a final result: it crosses `postMessage` too.
+          details: sanitizeToolDetails(event.toolName, event.partialResult?.details),
+        });
         break;
       case "tool_execution_end": {
         const details = (event.result?.details ?? {}) as { patch?: string };
@@ -489,6 +812,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
           text: resultText(event.result),
           patch: typeof details.patch === "string" ? details.patch : undefined,
           path: toolFilePath(args, this.runtime.cwd),
+          details: sanitizeToolDetails(event.toolName, event.result?.details),
           skill: matchSkill(this.skillIndex, event.toolName, args, this.runtime.cwd),
         });
         break;
@@ -539,62 +863,176 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     }
   }
 
-  onSubagentStarted(run: SubagentRun): void {
-    this.activeDelegation = run;
-    this.histories.set(run.child.sessionId, [{ kind: "user_message", text: run.task }]);
-    this.displayedSession = run.child;
-    if (!this.preview) this.postHistory();
+  onRunStarted(run: ParallelRun): void {
+    this.activeRun = run;
+    this.mergeLanes(run.lanes);
+    // The view is never moved for the user: not into a lane when a run starts,
+    // not back out when one ends. Switching between agent transcripts is the
+    // user's action alone, so a run starting while the user is away from the
+    // parent only marks it as having moved on. "Away" covers a replayed
+    // subagent too, which is what a lane becomes once its session is gone.
+    if (this.view.kind !== "live") this.parentActivityWhileAway = true;
     void this.postState();
     this.refreshSessions();
   }
 
-  onSubagentEvent(run: SubagentRun, event: AgentSessionEvent): void {
-    if (this.activeDelegation !== run) return;
-    this.onSessionEvent(run.child, event);
-  }
-
-  onSubagentFinished(run: SubagentRun, outcome: SubagentOutcome): void {
-    if (this.activeDelegation !== run) return;
-    const childStatus = outcome.status === "completed"
-      ? "Subagent completed."
-      : outcome.status === "stopped"
-        ? "Subagent stopped."
-        : outcome.text;
-    this.emit(run.child, { kind: outcome.status === "failed" ? "error" : "status", text: childStatus });
-    this.activeDelegation = undefined;
-    this.displayedSession = run.parent;
-    if (!this.preview) this.postHistory();
-    void this.postState();
-    this.refreshSessions();
-  }
-
-  private delegationState(session: AgentSession): ChatState["delegation"] {
-    const run = this.activeDelegation;
-    if (!run) return undefined;
-    if (session === run.parent) {
-      return {
-        role: "parent",
-        title: run.title,
-        peerSessionId: run.child.sessionId,
-        peerSessionFile: run.child.sessionFile,
-      };
+  /** Add or refresh lane snapshots, keeping earlier runs' lanes reachable. */
+  private mergeLanes(lanes: readonly LaneState[]): void {
+    for (const lane of lanes) {
+      const index = this.lanes.findIndex((known) => known.id === lane.id);
+      if (index >= 0) this.lanes[index] = lane;
+      else this.lanes.push(lane);
     }
-    if (session === run.child) {
+  }
+
+  onLaneStarted(run: ParallelRun, lane: LaneState, session: AgentSession): void {
+    if (this.activeRun !== run) return;
+    this.laneSessions.set(lane.id, session);
+    // Seed the lane transcript with its task, the way the parent's transcript
+    // starts from a user message.
+    this.histories.set(session.sessionId, [{ kind: "user_message", text: lane.task }]);
+    this.mergeLanes(run.lanes);
+    void this.postState();
+    this.refreshSessions();
+  }
+
+  onLaneChanged(run: ParallelRun, _lane: LaneState): void {
+    if (this.activeRun !== run) return;
+    this.mergeLanes(run.lanes);
+    void this.postState();
+  }
+
+  onLaneEvent(run: ParallelRun, lane: LaneState, event: AgentSessionEvent): void {
+    if (this.activeRun !== run) return;
+    const session = this.laneSessions.get(lane.id);
+    if (session) this.onSessionEvent(session, event);
+  }
+
+  /**
+   * A lane could not use a model the user configured for it.
+   *
+   * Lands in the parent's transcript, where the user is, and nowhere in the
+   * report the parent agent receives: it did not pick that model and cannot fix
+   * the spelling or the missing credentials, so telling it would only invite it
+   * to "correct" arguments it never sent.
+   */
+  onLaneNotice(run: ParallelRun, lane: LaneState, notice: LaneNotice): void {
+    if (this.activeRun !== run) return;
+    const source = t("subagentModelSourceSetting");
+    const using = notice.using ?? t("subagentModelFallbackParent");
+    this.emit(run.parent, {
+      kind: "status",
+      text: tf("subagentModelFallback", lane.title, notice.requested, source, using),
+    });
+  }
+
+  onRunFinished(run: ParallelRun): void {
+    if (this.activeRun !== run) return;
+    for (const lane of run.lanes) {
+      const session = this.laneSessions.get(lane.id);
+      if (!session) continue;
+      this.emit(session, {
+        kind: lane.status === "completed" ? "status" : "error",
+        text: lane.summary ?? lane.status,
+      });
+    }
+    this.activeRun = undefined;
+    this.mergeLanes(run.lanes);
+    // Deliberately not switching back: a user reading a lane keeps reading it,
+    // and the back action grows a "parent moved on" marker instead.
+    if (this.view.kind !== "live") this.parentActivityWhileAway = true;
+    void this.postState();
+    this.refreshSessions();
+  }
+
+  /**
+   * Delegation as the displayed session sees it.
+   *
+   * Survives the end of the run so a lane opened by the user stays readable,
+   * and so the parent's card keeps its final tally instead of vanishing.
+   */
+  private delegationState(session: AgentSession): ChatState["delegation"] {
+    // A subagent shown by replaying its session file — all that is left of it
+    // after a window reload — is still a subagent as far as the user is
+    // concerned, so it keeps the lane framing.
+    if (this.view.kind === "replay" && this.view.laneTitle !== undefined) {
+      const file = this.view.file;
+      const known = this.lanes.find((lane) => lane.sessionFile === file);
+      const lane: DelegationLane = known
+        ? this.toDelegationLane(known)
+        : { id: REPLAYED_LANE_ID, title: this.view.laneTitle, scope: [], status: "completed", writtenFiles: [] };
       return {
         role: "child",
-        title: run.title,
-        peerSessionId: run.parent.sessionId,
-        peerSessionFile: run.parent.sessionFile,
+        lanes: [lane],
+        currentLaneId: lane.id,
+        running: Boolean(this.activeRun),
+        parentHasNewActivity: this.parentActivityWhileAway,
       };
     }
+    if (this.lanes.length === 0) return undefined;
+    const lanes = this.lanes.map((lane) => this.toDelegationLane(lane));
+    const running = Boolean(this.activeRun);
+    if (this.view.kind === "lane") {
+      // A lane id that no longer matches any known lane would render a banner
+      // with no lane to name; fall through to the parent's view instead.
+      const laneId = this.view.laneId;
+      if (this.lanes.some((lane) => lane.id === laneId)) {
+        return { role: "child", lanes, currentLaneId: laneId, running, parentHasNewActivity: this.parentActivityWhileAway };
+      }
+    }
+    if (session === this.runtime.session) return { role: "parent", lanes, running };
     return undefined;
   }
 
-  private showDelegationSession(target: "parent" | "child"): void {
-    const run = this.activeDelegation;
-    if (!run) return;
-    this.preview = undefined;
-    this.displayedSession = target === "parent" ? run.parent : run.child;
+  private toDelegationLane(lane: LaneState): DelegationLane {
+    return {
+      id: lane.id,
+      title: lane.title,
+      scope: [...lane.scope],
+      status: lane.status,
+      progress: lane.progress,
+      writtenFiles: [...lane.writtenFiles],
+      bashMayHaveWritten: lane.bashMayHaveWritten || undefined,
+      scopeViolations: lane.scopeViolations || undefined,
+      sessionId: lane.sessionId,
+      sessionFile: lane.sessionFile,
+      durationMs: lane.endedAt ? lane.endedAt - lane.startedAt : undefined,
+    };
+  }
+
+  /**
+   * Switch the displayed transcript to one lane, or back to the parent.
+   *
+   * A lane stays viewable as a lane after it finishes — its child session is
+   * kept until the next run — so this is the path for both a running and a
+   * completed subagent. Only once the session is gone (a transcript replayed in
+   * a later session, say) does it fall back to an ordinary read-only preview,
+   * which is also the only case where the subagent framing is genuinely lost.
+   */
+  private showLane(laneId?: string, fallbackFile?: string, laneTitle?: string): void {
+    if (!laneId) {
+      this.setView({ kind: "live" });
+      return;
+    }
+    const session = this.laneSessions.get(laneId);
+    if (!session) {
+      // The child session is gone (an earlier window, or a session switch), but
+      // its transcript is on disk. Replay it *as that subagent*.
+      if (fallbackFile) void this.previewSession(fallbackFile, laneTitle ?? "");
+      return;
+    }
+    this.setView({ kind: "lane", laneId, session });
+  }
+
+  /**
+   * Switch what the webview shows and push everything derived from it.
+   *
+   * The single place a view change happens, so no caller can update part of the
+   * UI and forget the rest.
+   */
+  private setView(view: View): void {
+    this.view = view;
+    if (view.kind === "live") this.parentActivityWhileAway = false;
     this.postHistory();
     this.postCommands();
     this.postResources();
@@ -662,8 +1100,11 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       case "closePreview":
         this.closePreview();
         break;
-      case "showDelegationSession":
-        this.showDelegationSession(message.target);
+      case "showLane":
+        this.showLane(message.laneId, message.sessionFile, message.title);
+        break;
+      case "stopLane":
+        await this.runtime.subagents.stopLane(message.laneId);
         break;
       case "deleteSession":
         await this.deleteSession(message.file);
@@ -725,25 +1166,26 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   }
 
   private async abortDisplayedSession(): Promise<void> {
-    const run = this.activeDelegation;
-    if (this.preview) return; // preview shows a static transcript; nothing to stop
-    const displayed = this.displayedSession ?? this.runtime.session;
+    if (this.view.kind === "replay") return; // static transcript; nothing to stop
+    const displayed = this.displayedSession;
     if (displayed.isCompacting) {
       displayed.abortCompaction();
       return;
     }
-    if (!run) {
+    // Inside a lane the stop button stops that lane only; the rest of the run
+    // continues and the parent still receives a full report.
+    if (this.view.kind === "lane") {
+      await this.runtime.subagents.stopLane(this.view.laneId);
+      return;
+    }
+    if (!this.activeRun) {
       await this.runtime.session.abort();
       return;
     }
-    if (this.displayedSession === run.child) {
-      await this.runtime.subagents.stopChild();
-      return;
-    }
-    // Stopping from the parent means stopping the entire serial task line.
-    await this.runtime.subagents.stopForParent();
-    run.parent.clearQueue();
-    await run.parent.abort();
+    // From the parent it means the whole run: every lane, then the parent.
+    await this.runtime.subagents.stopAll();
+    this.runtime.session.clearQueue();
+    await this.runtime.session.abort();
   }
 
   /**
@@ -764,7 +1206,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    * the id/label mapping.
    */
   private async runEntryAction(action: "switch" | "fork" | "label", entryId: string): Promise<void> {
-    if (this.preview || this.activeDelegation) return;
+    if (this.view.kind !== "live" || this.activeRun) return;
     if (action !== "label" && this.guardStreaming()) return;
     const ui = this.builtinActions();
     try {
@@ -784,26 +1226,30 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    * session: the JSONL file is replayed into events. Used while a run is in
    * progress, when switching the active session is not allowed.
    */
-  private async previewSession(file: string): Promise<void> {
+  private async previewSession(file: string, laneTitle?: string): Promise<void> {
+    // Asking to replay the live session means "take me back to it" — what the
+    // sessions list sends when the user picks the parent while a lane is on
+    // screen. Replaying it for real would swap a live transcript for a static
+    // copy of itself.
+    if (file === this.runtime.session.sessionFile) {
+      this.setView({ kind: "live" });
+      return;
+    }
     try {
       const manager = SessionManager.open(file);
       const events = buildHistoryEntryEvents(manager.getBranch(), this.runtime.cwd, this.skillIndex, this.promptIndex);
       const firstUser = events.find((event) => event.kind === "user_message") as { text?: string } | undefined;
-      this.preview = { file, title: (firstUser?.text ?? "").split("\n")[0] ?? "", events };
-      this.postHistory();
-      await this.postState();
+      this.setView({ kind: "replay", file, title: (firstUser?.text ?? "").split("\n")[0] ?? "", events, laneTitle });
       this.refreshSessions();
     } catch (error) {
       this.reportError(this.runtime.session, "session preview failed", error);
     }
   }
 
-  /** Return from a read-only preview to the live transcript. */
+  /** Return from a read-only replay to the live transcript. */
   private closePreview(): void {
-    if (!this.preview) return;
-    this.preview = undefined;
-    this.postHistory();
-    void this.postState();
+    if (this.view.kind !== "replay") return;
+    this.setView({ kind: "live" });
     this.refreshSessions();
   }
 
@@ -827,8 +1273,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   }
 
   private async sendPrompt(text: string, streamingBehavior?: "steer" | "followUp", references?: string[]): Promise<void> {
-    if (this.preview) return;
-    if (this.activeDelegation && this.displayedSession === this.activeDelegation.child) return;
+    // Only the parent takes input, and only when it is the live view. Both other
+    // views are read-only; a queued prompt from them would land in a session the
+    // user is not looking at.
+    if (this.view.kind !== "live") return;
     let trimmed = text.trim();
 
     // Validate untrusted webview paths and fold them into the prompt as plain
@@ -915,6 +1363,25 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     return changed;
   }
 
+  /**
+   * `/reload`, including the sidebar bookkeeping around it. Shared with
+   * `ctx.reload()` from an extension command, which must behave identically.
+   */
+  private async reloadResources(): Promise<void> {
+    // reload() replaces the extension instances in place; the session object
+    // itself stays, so subscriptions and histories survive.
+    const session = this.runtime.session;
+    await this.runtime.reloadResources({
+      beforeSessionStart: () => this.clearExtensionUiState(session),
+    });
+    // The reloaded extension set has just received session_start.
+    this.activity.noteBind(session);
+    this.skillIndex = buildSkillIndex(session);
+    this.promptIndex = buildPromptIndex(session);
+    this.postCommands();
+    this.postResources();
+  }
+
   private builtinActions() {
     return {
       newSession: async () => {
@@ -926,7 +1393,11 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         if (this.guardStreaming()) return;
         const items = await this.listSessions();
         const picked = await vscode.window.showQuickPick(
-          items.map((item) => ({ label: item.title, description: item.timestamp, file: item.file })),
+          items.map((item) => ({
+            label: item.title,
+            description: formatLocalTimestamp(item.timestamp),
+            file: item.file,
+          })),
           { title: t("resumeSessionTitle") },
         );
         if (!picked) return;
@@ -954,9 +1425,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         await this.logout();
       },
       reload: async () => {
-        await this.runtime.reloadResources();
-        this.postCommands();
-        this.postResources();
+        await this.reloadResources();
       },
       reattach: async () => this.attach(),
       status: (text: string) => this.emit(this.runtime.session, { kind: "status", text, scope: "command" }),
@@ -1013,11 +1482,18 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
   private async listSessions(): Promise<SessionListItem[]> {
     const sessions = await SessionManager.list(this.runtime.cwd);
-    const displayedFile = this.preview?.file ?? (this.displayedSession ?? this.runtime.session).sessionFile;
+    const displayedFile = this.view.kind === "replay" ? this.view.file : this.displayedSession.sessionFile;
     const runningFile = this.runtime.session.isStreaming || this.runtime.session.isCompacting
       ? this.runtime.session.sessionFile
       : undefined;
-    const run = this.activeDelegation;
+    // The badge spins and means "busy right now", so only lanes of a run still
+    // in progress may carry it. Finished subagents are ordinary sessions.
+    const runningLanes = new Set(
+      (this.activeRun
+        ? this.lanes.filter((lane) => lane.status === "running").map((lane) => lane.sessionFile)
+        : []
+      ).filter(Boolean) as string[],
+    );
     const items: SessionListItem[] = sessions.map((info) => ({
       file: info.path,
       // The SDK stores an expanded <skill> block as the first user message.
@@ -1027,10 +1503,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       timestamp: info.modified?.toISOString(),
       current: Boolean(displayedFile) && info.path === displayedFile,
       running: Boolean(runningFile) && info.path === runningFile,
-      delegationRole: run && info.path === run.parent.sessionFile
-        ? "parent"
-        : run && info.path === run.child.sessionFile
-          ? "child"
+      delegationRole: runningLanes.has(info.path)
+        ? "child"
+        : this.activeRun && info.path === this.runtime.session.sessionFile
+          ? "parent"
           : undefined,
     }));
     // The SDK defers writing a brand-new session to disk until its first
@@ -1070,10 +1546,12 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.host.post({ type: "sessions", items: await this.listSessions() });
   }
 
-  /** Delete a session file after confirmation; active task-line sessions cannot be deleted. */
+  /** Delete a session file after confirmation; sessions of the active run cannot be deleted. */
   private async deleteSession(file: string): Promise<void> {
-    const run = this.activeDelegation;
-    if (file === this.runtime.session.sessionFile || file === run?.child.sessionFile) {
+    const runningLaneFiles = this.activeRun
+      ? new Set(this.lanes.map((lane) => lane.sessionFile).filter(Boolean) as string[])
+      : new Set<string>();
+    if (file === this.runtime.session.sessionFile || runningLaneFiles.has(file)) {
       vscode.window.showWarningMessage(t("deleteActiveSession"));
       return;
     }
@@ -1092,23 +1570,28 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    * Rename a session (the `/name` flow, reachable from the sessions list).
    * The active session goes through `setSessionName()` so the SDK emits its
    * change event; any other session file gets a `session_info` entry appended
-   * via a short-lived SessionManager. Running delegation children are skipped
-   * (their JSONL is being appended to by the run).
+   * via a short-lived SessionManager. Subagent sessions of a running call are
+   * skipped (their JSONL is being appended to by the run).
    */
   private async renameSession(file: string): Promise<void> {
-    const run = this.activeDelegation;
-    if (file === run?.child.sessionFile && this.runtime.session !== run.child) {
+    const runningLaneFiles = this.activeRun
+      ? new Set(this.lanes.map((lane) => lane.sessionFile).filter(Boolean) as string[])
+      : new Set<string>();
+    if (runningLaneFiles.has(file)) {
       vscode.window.showWarningMessage(t("renameRunningSession"));
       return;
     }
     const isActive = file === this.runtime.session.sessionFile;
-    // Prefill the input with the existing name so a rename edits it instead of
-    // starting from scratch; inactive sessions read it off their own file.
+    // Prefill the input with the title the list shows so a rename always edits
+    // it instead of starting from scratch: an unnamed session is titled by its
+    // first user message, so `getSessionName()` alone would leave the box empty
+    // next to a row that clearly has a title. Inactive sessions read it off
+    // their own file.
     let manager: SessionManager | undefined;
     let currentName: string | undefined;
     try {
       manager = isActive ? this.runtime.session.sessionManager : SessionManager.open(file);
-      currentName = manager.getSessionName();
+      currentName = sessionTitle(manager);
     } catch (error) {
       this.reportError(this.runtime.session, "rename session failed", error);
       return;
@@ -1133,6 +1616,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   dispose(): void {
     this.disposed = true;
     this.statePostVersion++;
+    this.modelsConfigWatcher?.dispose();
+    this.modelsConfigWatcher = undefined;
+    this.settingsWatcher?.dispose();
+    this.settingsWatcher = undefined;
     this.availabilityProbe?.abort();
     this.availabilityProbe = undefined;
     if (this.sessionsRefreshTimer) {
@@ -1161,8 +1648,17 @@ export interface ResourceHost {
  * Empty sections are omitted, and the CLI's [Themes] section is dropped
  * entirely: the webview renders with VS Code theme variables, so a pi theme
  * would be listed as loaded while having no effect here.
+ *
+ * Only pi's own resource kinds are listed. Directory conventions invented by a
+ * single extension (`~/.pi/agent/agents/`, for one) are deliberately absent:
+ * pi has no loader for them, so listing them here would present one
+ * extension's private layout as a first-class concept of this host.
+ *
+ * `activity` marks the rows that took effect in this session (see
+ * `agent/activity.ts`); the diagnostics command omits it and gets a listing
+ * without any "used here" marks.
  */
-export function collectResourceSections(runtime: ResourceHost): ResourceSection[] {
+export function collectResourceSections(runtime: ResourceHost, activity?: ResourceActivity): ResourceSection[] {
   const loader = runtime.session.resourceLoader;
   const sections: ResourceSection[] = [];
   // Every row can be opened in the editor, so it shows just the name (the path
@@ -1176,7 +1672,14 @@ export function collectResourceSections(runtime: ResourceHost): ResourceSection[
     ...loader.getAgentsFiles().agentsFiles,
   ];
   if (contextFiles.length > 0) {
-    sections.push(sortedSection("Context", contextFiles.map((file) => entry(basename(file.path), file.path))));
+    // Context files are inlined into the system prompt on every request, so
+    // they are all in effect together, from the first request onwards.
+    sections.push(
+      sortedSection(
+        "Context",
+        contextFiles.map((file) => ({ ...entry(basename(file.path), file.path), ...(activity?.contextUsed ? { used: true } : {}) })),
+      ),
+    );
   }
 
   const skills = loader.getSkills().skills;
@@ -1194,7 +1697,10 @@ export function collectResourceSections(runtime: ResourceHost): ResourceSection[
   if (extensions.length > 0 || extensionErrors.length > 0) {
     sections.push(
       sortedSection("Extensions", [
-        ...extensions.map((extension) => entry(basename(extension.path), extension.path, (extension as { sourceInfo?: { origin?: string } }).sourceInfo)),
+        ...extensions.map((extension) => ({
+          ...entry(basename(extension.path), extension.path, (extension as { sourceInfo?: { origin?: string } }).sourceInfo),
+          ...(activity?.isExtensionUsed(extension.path) ? { used: true } : {}),
+        })),
         // A failed extension has no loaded file to open, so it keeps the error
         // as its row text, and is dimmed: it is configured but not in effect.
         ...extensionErrors.map((failure) => ({
@@ -1394,6 +1900,7 @@ function appendHistoryMessage(
       args,
       patch: typeof message.details?.patch === "string" ? message.details.patch : undefined,
       path: toolFilePath(args, cwd),
+      details: sanitizeToolDetails(message.toolName ?? "", message.details),
       skill: matchSkill(skills, message.toolName ?? "", args, cwd),
     });
   }
@@ -1427,12 +1934,3 @@ function toolFilePath(args: unknown, cwd: string): string | undefined {
   return isAbsolute(path) ? path : resolvePath(cwd, path);
 }
 
-/** Message content is either a plain string or a content-part array. */
-function contentText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .filter((part) => (part as { type?: string })?.type === "text")
-    .map((part) => (part as { text?: string }).text ?? "")
-    .join("\n");
-}
