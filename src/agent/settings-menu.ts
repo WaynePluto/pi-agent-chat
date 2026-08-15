@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { PiRuntime } from "./runtime.js";
 import { configureHttpDispatcher } from "./http.js";
-import { openSubagentSettings } from "./subagent-settings.js";
+import { subagentSettingId } from "./config.js";
 import { t, tf } from "./i18n.js";
 
 /**
@@ -227,12 +227,14 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
     if (picked.id === "providers") return void (await ui.login());
     if (picked.id === "scopedModels") return void (await ui.manageScopedModels());
     if (picked.id === "shellPath") return void (await pickShellPath(runtime, ui));
-    // The subagent form is a submenu of its own, so returning here would close
-    // two levels at once; fall through to redraw this menu instead — unless it
-    // sent the user to the Settings editor, which this menu would cover.
+    // The subagent switches are this host's own VS Code settings, so the
+    // Settings editor is where they belong: it already renders their
+    // descriptions, the workspace/user tabs and the "modified elsewhere"
+    // markers that a QuickPick form can only re-implement badly. Return rather
+    // than redraw — this menu would cover what the user just asked to see.
     if (picked.id === "subagent") {
-      if ((await openSubagentSettings(runtime, ui)) === "navigated") return;
-      continue;
+      await vscode.commands.executeCommand("workbench.action.openSettings", subagentSettingId());
+      return;
     }
     if (picked.id === "help") return ui.help();
     if (picked.id === "openFile") return void (await openSettingsFile());

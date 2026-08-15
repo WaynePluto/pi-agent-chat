@@ -149,8 +149,8 @@ const en = {
             shadowedSubagent.subagentEnabled
               ? "Delegation in this session goes through this window's subagent tool, which is enabled here. " +
                 "Each subagent is given its task and the paths it may write to; it has no role file behind it."
-              : "It is currently turned off, so this session has no delegation tool at all. Turn it on under " +
-                "Settings → Subagent (it applies to the next session).",
+              : "This window's own subagent tool is currently turned off, so this session has no delegation tool at all. " +
+                "Turn it on under Settings → Subagent (this session is still empty, so it takes effect right away).",
           ]
         : []),
     ].join("\n\n"),
@@ -314,7 +314,8 @@ const zh: Dict = {
             shadowedSubagent.subagentEnabled
               ? "本会话经本窗口的 subagent 工具委派（已开启）。每个子代理只拿到任务描述和可写入的路径范围，" +
                 "背后没有角色文件。"
-              : "它当前未开启，因此本会话没有任何委派工具。可在“设置 → 子代理”中开启（在下一个会话生效）。",
+              : "本窗口内置的 subagent 工具当前未开启，因此本会话没有任何委派工具。" +
+                "可在“设置 → 子代理”中开启（本会话还是空的，开启后立即生效）。",
           ]
         : []),
     ].join("\n\n"),

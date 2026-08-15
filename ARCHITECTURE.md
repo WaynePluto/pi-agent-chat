@@ -18,8 +18,7 @@
 | tool-details | `src/agent/tool-details.ts` | 工具 `AgentToolResult.details` 跨界前的清洗：排除有专用卡片的工具（仅 pi 自带七个；`subagent` 虽有卡片但**不在列中**，它的卡片正是用 `details` 画的），其余按深度/条目/字符预算截断并剔除不可结构化克隆的值。不认任何扩展的 schema | protocol |
 | activity | `src/agent/activity.ts` | `ActivityTracker`：宿主侧「本会话中真正生效过」的判定，供资源面板点亮 Context / Extensions 两栏。上下文文件按「已发出过请求」判定；扩展按 `Extension.handlers` 订阅的事件 + 已观察到的会话事件（含 bind 时的 `session_start`）推断，另加 `onError` 直证 | pi-coding-agent, protocol |
 | session-tree | `src/agent/session-tree.ts` | `/tree` `/fork` `/clone`：用原生 QuickPick 驱动 session 条目树导航与分支操作 | vscode, pi-coding-agent, runtime |
-| settings-menu | `src/agent/settings-menu.ts` | header “设置”菜单：供应商/常用模型/shell 路径/子代理入口 + 11 项 CLI `/settings` 选项（auto-compact、默认思考等级、steering/follow-up、信任、skill 命令、重试、transport、超时、图片、警告）+ 打开设置文件；除子代理一项外全部写 `~/.pi/agent/settings.json`（与 CLI 互通） | vscode, pi-coding-agent, runtime, subagent-settings, host i18n |
-| subagent-settings | `src/agent/subagent-settings.ts` | “子代理”表单（插件独有能力，不入共享设置）：先选写入作用域（工作区 / 用户），再编辑开关 / 最大并行数 / 子代理默认模型，经 `workspace.getConfiguration().update()` 落盘到 VS Code 设置 | vscode, config, runtime, host i18n |
+| settings-menu | `src/agent/settings-menu.ts` | header “设置”菜单：供应商/常用模型/shell 路径/子代理入口 + 11 项 CLI `/settings` 选项（auto-compact、默认思考等级、steering/follow-up、信任、skill 命令、重试、transport、超时、图片、警告）+ 打开设置文件；选项全部写 `~/.pi/agent/settings.json`（与 CLI 互通），“子代理”一项不自己收值，只把 VS Code 设置界面定位到 `piAgentChat.subagent` | vscode, pi-coding-agent, runtime, config, host i18n |
 | model-picker | `src/agent/model-picker.ts` | 两层模型选择：`buildModelCatalog()` 为 composer 快捷菜单提供常用模型，`pickModel()` 是完整原生 QuickPick（搜索 / 能力详情 / ⭐常用 / 📌默认），`/scoped-models` 批量管理；常用模型以 `provider/modelId` 写入共享设置 `enabledModels`（语义对齐 CLI） | vscode, runtime, protocol, host i18n |
 | model-config | `src/agent/model-config.ts` | 自定义供应商：定位 / 打开共享的 `~/.pi/agent/models.json`，空文件写入带注释的整份模板、已有内容则向 `providers` 顶部插入一条新模板（文本插入以保留每个字段的注释，id 自动错开，不自动保存），列出文件中定义的 provider，并用 `jsonc-parser` + `WorkspaceEdit` 删除单个 provider；不做表单向导（schema 太大且 CLI 无对等物） | vscode, jsonc-parser, pi-coding-agent, host i18n |
 | auth | `src/agent/auth.ts` | 登录/登出流程：把 SDK `AuthInteraction` / `AuthPrompt` 映射到 VS Code 原生对话框；供应商列表首行提供「自定义供应商（models.json）」入口，models.json 定义的供应商行带 🗑 删除按钮 | vscode, pi-ai, runtime, model-config |
@@ -72,7 +71,6 @@ graph TD
     sessiontree[agent/session-tree]
     sessiontitle[agent/session-title]
     settingsmenu[agent/settings-menu]
-    subagentsettings[agent/subagent-settings]
     modelpicker[agent/model-picker]
     modelconfig[agent/model-config]
     auth[agent/auth]
@@ -134,10 +132,7 @@ graph TD
   commands --> settingsmenu
   settingsmenu --> runtime
   settingsmenu --> hosti18n
-  settingsmenu --> subagentsettings
-  subagentsettings --> pluginconfig
-  subagentsettings --> runtime
-  subagentsettings --> hosti18n
+  settingsmenu --> pluginconfig
   bridge --> sessiontree
   bridge --> sessiontitle
   sessiontitle --> skills

@@ -18,7 +18,7 @@ import {
   type WidgetPlacement,
 } from "@earendil-works/pi-coding-agent";
 import { SubagentCoordinator, SUBAGENT_TOOL } from "./subagent.js";
-import { readSubagentConfig } from "./config.js";
+import { readSubagentConfig, type SubagentConfig } from "./config.js";
 import { describe } from "./errors.js";
 import { configureHttpDispatcher } from "./http.js";
 import { t } from "./i18n.js";
@@ -83,8 +83,8 @@ function createSessionManager(
 interface ToolSetupRef {
   /** Extension whose `subagent` tool was suppressed, if any. */
   shadowedSubagent?: string;
-  /** Whether this window's own `subagent` tool was installed. */
-  subagent: boolean;
+  /** The configuration this session's tool set was actually built from. */
+  subagent: SubagentConfig;
 }
 
 /**
@@ -227,6 +227,17 @@ export class PiRuntime implements vscode.Disposable {
    * user is actually in.
    */
   get subagentEnabled(): boolean {
+    return this.toolSetupRef.subagent.enabled;
+  }
+
+  /**
+   * The subagent configuration this session's tool set was built from.
+   *
+   * The comparison target for a settings change: what matters is not what the
+   * setting says now, but whether it still says what the session on screen was
+   * assembled from.
+   */
+  get builtSubagentConfig(): SubagentConfig {
     return this.toolSetupRef.subagent;
   }
 
@@ -259,7 +270,7 @@ export class PiRuntime implements vscode.Disposable {
     const subagents = new SubagentCoordinator(log);
     const lifetime = new AbortController();
 
-    const toolSetup: ToolSetupRef = { subagent: false };
+    const toolSetup: ToolSetupRef = { subagent: readSubagentConfig(cwd) };
 
     const createRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd: effectiveCwd, sessionManager, sessionStartEvent }) => {
       // modelRuntimeSignal cancels the create-time credential restore and
@@ -272,7 +283,7 @@ export class PiRuntime implements vscode.Disposable {
       // Read per session, not once at startup: the tool set is fixed when the
       // session is built, so this is the point where a changed setting lands.
       const subagentConfig = readSubagentConfig(effectiveCwd);
-      toolSetup.subagent = subagentConfig.enabled;
+      toolSetup.subagent = subagentConfig;
       log(
         subagentConfig.enabled
           ? `subagent enabled (max ${subagentConfig.maxSubagents}${subagentConfig.defaultModel ? `, model ${subagentConfig.defaultModel}` : ""})`

@@ -105,53 +105,9 @@ export const sharedMessages = {
   settingsHelp: { en: "Command help", zh: "命令帮助" },
   settingsSubagent: { en: "Subagent", zh: "子代理" },
   settingsSubagentDetail: {
-    en: "Configure the subagent tool (this window only, not shared with the pi CLI)",
-    zh: "配置 subagent 工具（仅本插件，不与终端 pi 共用）",
+    en: "Open the VS Code settings for the subagent tool (this window only, not shared with the pi CLI)",
+    zh: "打开 subagent 工具的 VS Code 设置（仅本插件，不与终端 pi 共用）",
   },
-
-  /* Subagent settings form ---------------------------------------------- */
-
-  subagentSettingsTitle: { en: "Subagent settings", zh: "子代理设置" },
-  subagentSettingsHint: {
-    en: "Stored in VS Code settings; changes apply to the next session",
-    zh: "保存在 VS Code 设置中，更改在下一个会话生效",
-  },
-  subagentScope: { en: "Save to", zh: "写入位置" },
-  subagentScopeDetail: {
-    en: "Which settings file the values below are written to",
-    zh: "下面的设置写入哪个设置文件",
-  },
-  subagentScopeWorkspace: { en: "Workspace (.vscode/settings.json)", zh: "工作区（.vscode/settings.json）" },
-  subagentScopeUser: { en: "User (global settings.json)", zh: "用户（全局 settings.json）" },
-  subagentScopeNoWorkspace: {
-    en: "No folder is open, so values can only be written to user settings.",
-    zh: "当前没有打开文件夹，只能写入用户设置。",
-  },
-  subagentEnabled: { en: "Subagent", zh: "子代理" },
-  subagentEnabledDetail: {
-    en: "Let the agent delegate several tasks at once to child sessions that write to your working tree directly",
-    zh: "允许主代理一次派出多路子会话，它们会直接修改你的工作区",
-  },
-  subagentMaxSubagents: { en: "Max subagents per call", zh: "单次调用子代理上限" },
-  subagentMaxSubagentsDetail: {
-    en: "Upper bound for one call; also published to the model as the schema limit",
-    zh: "单次调用的上限，同时作为 schema 限制告知模型",
-  },
-  subagentDefaultModel: { en: "Default subagent model", zh: "子代理默认模型" },
-  subagentDefaultModelDetail: {
-    en: "Model for subagents that do not name one themselves",
-    zh: "未自行指定模型的子代理使用它",
-  },
-  subagentInheritModel: { en: "Inherit the parent session's model", zh: "继承父会话的模型" },
-  subagentCustomModel: { en: "Enter provider/modelId...", zh: "手动输入 provider/modelId..." },
-  subagentModelInputTitle: { en: "Default subagent model", zh: "子代理默认模型" },
-  subagentModelInputPrompt: {
-    en: "provider/modelId, e.g. anthropic/claude-sonnet-4-5. Leave empty to inherit.",
-    zh: "provider/modelId，例如 anthropic/claude-sonnet-4-5。留空表示继承父会话。",
-  },
-  subagentClearOverride: { en: "Not set here (inherit)", zh: "本作用域不设置（继承）" },
-  subagentOpenSettingsUi: { en: "Open in the Settings editor", zh: "在设置界面中打开" },
-  subagentSectionValues: { en: "Values", zh: "配置项" },
   settingsSectionOptions: { en: "Options (shared with the pi CLI)", zh: "选项（与终端 pi 共用）" },
   settingsOpenFile: { en: "Open settings file", zh: "打开设置文件" },
   settingsOpenFileDetail: { en: "Edit ~/.pi/agent/settings.json directly", zh: "直接编辑 ~/.pi/agent/settings.json" },
@@ -341,16 +297,29 @@ export const sharedMessages = {
   copiedLastMessage: { en: "last assistant message copied", zh: "已复制最后一条助手消息" },
 
   /**
-   * A subagent setting changed.
+   * A subagent setting changed, and the session on screen keeps its tool set.
    *
    * A session's tool set is fixed when the session is built, and `reload()`
    * keeps the host's `customTools`, so the change cannot reach a conversation
-   * already in progress — and silently rebuilding the session would throw that
-   * conversation away.
+   * already in progress — and silently rebuilding it would throw that
+   * conversation away. Every session *replacement* does rebuild the tool set,
+   * though, so the way out is not limited to starting a new conversation.
    */
   subagentSettingChanged: {
-    en: "Subagent settings changed. They apply to the next session.",
-    zh: "子代理设置已更改，将在下一个会话生效。",
+    en: "Subagent settings changed. This session keeps its current tools; the new values take effect after you start or switch to another session (its history is kept), or reload the window.",
+    zh: "子代理设置已更改。当前会话仍沿用原有工具；新建会话、切换到其他会话（历史不丢）或重载窗口后生效。",
+  },
+
+  /**
+   * The same change, applied at once because the session was still empty.
+   *
+   * Rebuilding an empty session costs nothing, and it is the one state with no
+   * other way out: the "new session" button is disabled on an already-empty
+   * session, so the alternative would be reloading the window.
+   */
+  subagentSettingApplied: {
+    en: "Subagent settings changed. This session was still empty, so it was rebuilt and the new values are already in effect.",
+    zh: "子代理设置已更改。当前会话还是空的，已重建并立即生效。",
   },
 
   /** Fills the source slot of `subagentModelFallback`. */
@@ -588,14 +557,6 @@ export const sharedTemplates = {
   settingChanged: {
     en: (label: string, value: string) => `${label}: ${value}`,
     zh: (label: string, value: string) => `${label}：${value}`,
-  },
-  subagentSettingWritten: {
-    en: (label: string, value: string, scope: string) => `${label}: ${value} — written to ${scope}`,
-    zh: (label: string, value: string, scope: string) => `${label}：${value} —— 已写入${scope}`,
-  },
-  subagentSettingSource: {
-    en: (scope: string) => `set in ${scope}`,
-    zh: (scope: string) => `已在${scope}设置`,
   },
   importedSession: {
     en: (path: string) => `imported ${path}`,

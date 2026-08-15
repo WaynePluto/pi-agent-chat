@@ -58,7 +58,7 @@ Overall, this extension bets on simplicity and on the continued progress of the 
 
 One `subagent` call starts several isolated child sessions at once. Each is given a task and a **write range**, works on its own with a fresh context, and reports back; the parent waits for all of them and receives one report. The gain is throughput.
 
-It is **off by default** because it is genuinely aggressive: children write to your real working tree, and nothing is rolled back. Turn it on from the header **Settings → Subagent** form — which asks first whether to save to the workspace or to your user settings, and then writes the three values below — or edit them yourself:
+It is **off by default** because it is genuinely aggressive: children write to your real working tree, and nothing is rolled back. Turn it on from the header **Settings → Subagent**, which opens the VS Code settings for the three values below — or edit them yourself:
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -66,7 +66,7 @@ It is **off by default** because it is genuinely aggressive: children write to y
 | `piAgentChat.subagent.maxSubagents` | `3` | Ceiling for one call (hard maximum 8); also published to the model as the schema limit. Set it to `1` for plain serial delegation — write ranges are still enforced |
 | `piAgentChat.subagent.defaultModel` | *(empty)* | `provider/modelId` for children that do not name one; empty inherits the parent's |
 
-All three are `resource`-scoped, so a `.vscode/settings.json` can enable it in a playground and leave it off in a production repository. Changing them applies to the **next** session: a session's tool set is fixed when the session is built, and rebuilding it silently would throw away the conversation.
+All three are `resource`-scoped, so a `.vscode/settings.json` can enable it in a playground and leave it off in a production repository. A session's tool set is fixed when the session is built, so a change reaches the **next session the window builds** — starting one, switching to another (its history is loaded from disk, so nothing is lost), forking, or reloading the window. The exception is an **empty** session: there is nothing to throw away, so it is rebuilt on the spot and the change takes effect immediately, which also keeps you from being stuck on a session whose "new session" button is disabled for being empty already.
 
 **Write ranges are enforced.** Every subagent must declare the paths it may write to, as directory or file prefixes (globs are not accepted — overlap has to be *provable* before anything starts). The call is rejected outright if two ranges could refer to the same file, and at runtime an out-of-range `edit`/`write` is refused at the file-operation layer. Reads are unrestricted: a subagent has to understand code it may not change.
 

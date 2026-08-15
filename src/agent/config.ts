@@ -63,59 +63,17 @@ export function affectsSubagentConfig(event: vscode.ConfigurationChangeEvent, cw
   return event.affectsConfiguration(SECTION, vscode.Uri.file(cwd));
 }
 
-/* -- Writing ------------------------------------------------------------- */
+/* -- Deep link ----------------------------------------------------------- */
 
 /**
- * Where a write lands.
+ * Fully qualified section id, for opening the Settings editor on it.
  *
- * Only the two scopes a user can reason about are offered: the repository's
- * own settings file and the personal one. Whether a repository tolerates
- * parallel writing agents is a property of the repository, which is why
- * workspace is the more interesting of the two.
+ * The sidebar has no form of its own for these: they are ordinary VS Code
+ * settings, and the Settings editor already gives them their descriptions, the
+ * user/workspace tabs and the "also set elsewhere" markers. A QuickPick form
+ * can only re-implement that, worse and behind extra clicks.
  */
-export type SettingsScope = "workspace" | "user";
-
-/** The settings this form can write, keyed as in `package.json`. */
-export type SubagentKey = "enabled" | "maxSubagents" | "defaultModel";
-
-/** True when a workspace target exists at all; otherwise only "user" works. */
-export function hasWorkspaceScope(): boolean {
-  return (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
+export function subagentSettingId(): string {
+  return SECTION;
 }
 
-/**
- * The value explicitly stored at `scope`, or undefined when nothing is set
- * there and the value is inherited.
- *
- * Folder-level settings win over workspace-level ones, matching how VS Code
- * resolves a resource-scoped setting for this cwd.
- */
-export function readSubagentOverride<T>(cwd: string, scope: SettingsScope, key: SubagentKey): T | undefined {
-  const info = vscode.workspace.getConfiguration(SECTION, vscode.Uri.file(cwd)).inspect<T>(key);
-  if (!info) return undefined;
-  return scope === "workspace" ? (info.workspaceFolderValue ?? info.workspaceValue) : info.globalValue;
-}
-
-/**
- * Persist one setting, or clear it when `value` is undefined.
- *
- * Writing through the configuration API rather than editing JSON keeps the
- * comment-free VS Code settings files formatted the way VS Code formats them,
- * and makes the change observable through `onDidChangeConfiguration` — which is
- * how the chat view learns to say that it applies to the next session.
- */
-export async function writeSubagentSetting(
-  cwd: string,
-  scope: SettingsScope,
-  key: SubagentKey,
-  value: boolean | number | string | undefined,
-): Promise<void> {
-  const target = scope === "workspace" ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
-  const resource = scope === "workspace" ? vscode.Uri.file(cwd) : undefined;
-  await vscode.workspace.getConfiguration(SECTION, resource).update(key, value, target);
-}
-
-/** Fully qualified id, for deep-linking into the Settings editor. */
-export function subagentSettingId(key?: SubagentKey): string {
-  return key ? `${SECTION}.${key}` : SECTION;
-}

@@ -9,7 +9,7 @@ import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, 
 import { formatLocalTimestamp } from "../shared/time.js";
 import { loginFlow, logoutFlow } from "./auth.js";
 import { ActivityTracker, type ResourceActivity } from "./activity.js";
-import { affectsSubagentConfig } from "./config.js";
+import { affectsSubagentConfig, readSubagentConfig } from "./config.js";
 import { collectSlashCommands, formatHelp, runBuiltinCommand } from "./commands.js";
 import { describe } from "./errors.js";
 import { t, tf } from "./i18n.js";
@@ -51,6 +51,15 @@ interface CompactionQueuedPrompt {
  * banner names the subagent, and the only action offered is going back.
  */
 const REPLAYED_LANE_ID = "replayed";
+
+/**
+ * How long to wait after a subagent setting changes before acting on it.
+ *
+ * The Settings editor writes one key per edit, so filling in the section fires
+ * several events in a row; without this, changing three values on an empty
+ * session would rebuild it three times.
+ */
+const SUBAGENT_SETTING_DEBOUNCE_MS = 300;
 
 /**
  * What the webview is currently showing.
@@ -139,6 +148,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   /** Watches saves of the shared `~/.pi/agent/models.json`. */
   private modelsConfigWatcher?: vscode.Disposable;
   private settingsWatcher?: vscode.Disposable;
+  /** Pending debounced reaction to a subagent settings change. */
+  private subagentConfigTimer?: ReturnType<typeof setTimeout>;
   /** Last reported models.json problem, so the same one is not repeated on every attach. */
   private modelsConfigError?: string;
 
@@ -200,12 +211,69 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     });
     // The delegation tool is built into the session's tool set at construction
     // time, and `reload()` keeps the host's `customTools`, so a changed setting
-    // cannot reach the running conversation. Say so rather than rebuilding the
-    // session behind the user's back.
+    // cannot reach a conversation already under way. Debounced because the
+    // Settings editor fires per edited key, and three edits must not mean three
+    // session rebuilds.
     this.settingsWatcher = vscode.workspace.onDidChangeConfiguration((event) => {
       if (!affectsSubagentConfig(event, this.runtime.cwd)) return;
-      this.emit(this.runtime.session, { kind: "status", text: t("subagentSettingChanged") });
+      if (this.subagentConfigTimer) clearTimeout(this.subagentConfigTimer);
+      this.subagentConfigTimer = setTimeout(() => {
+        this.subagentConfigTimer = undefined;
+        void this.applySubagentConfigChange();
+      }, SUBAGENT_SETTING_DEBOUNCE_MS);
     });
+  }
+
+  /**
+   * React to a changed subagent setting.
+   *
+   * The session's tool set is fixed at construction, so new values can only
+   * land when the runtime builds its next session — which is any session
+   * replacement (new, switch, fork, import) and the next window start, not just
+   * a brand new conversation.
+   *
+   * An *empty* session is the one case this host can simply rebuild: there is
+   * no conversation to throw away, so the objection that made this a notice in
+   * the first place does not apply. It is also the case with no way out — "new
+   * session" is disabled on an already-empty one, leaving only a window reload.
+   * Nothing is lost: an unwritten session never existed on disk (the SDK
+   * persists at the first assistant message), and a named-but-empty one keeps
+   * its file and stays in the session list.
+   */
+  private async applySubagentConfigChange(): Promise<void> {
+    if (this.disposed) return;
+    const before = this.runtime.builtSubagentConfig;
+    const now = readSubagentConfig(this.runtime.cwd);
+    // Re-saving the same values, or touching another key of the same section,
+    // must cost neither a rebuild nor a notice.
+    if (now.enabled === before.enabled && now.maxSubagents === before.maxSubagents && now.defaultModel === before.defaultModel) {
+      return;
+    }
+    if (!this.canRebuildForSubagentConfig()) {
+      this.emitCommandStatus(t("subagentSettingChanged"));
+      return;
+    }
+    try {
+      await this.runtime.newSession();
+      await this.attach();
+    } catch (error) {
+      this.reportError(this.runtime.session, "subagent settings rebuild failed", error, "command");
+      return;
+    }
+    // After `attach()`, so it lands in the transcript of the session that was
+    // built, not the one that was just replaced.
+    this.emitCommandStatus(t("subagentSettingApplied"));
+  }
+
+  /** Whether the displayed session can be rebuilt without losing anything. */
+  private canRebuildForSubagentConfig(): boolean {
+    if (this.view.kind !== "live") return false;
+    const session = this.runtime.session;
+    if (session.messages.length > 0) return false;
+    if (session.isStreaming || session.isCompacting) return false;
+    // A delegation run outlives the parent's turn; rebuilding under it would
+    // leave lanes writing on behalf of a session that is gone.
+    return !this.runtime.subagents.isRunning;
   }
 
   /**
@@ -1679,6 +1747,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.modelsConfigWatcher = undefined;
     this.settingsWatcher?.dispose();
     this.settingsWatcher = undefined;
+    if (this.subagentConfigTimer) {
+      clearTimeout(this.subagentConfigTimer);
+      this.subagentConfigTimer = undefined;
+    }
     this.availabilityProbe?.abort();
     this.availabilityProbe = undefined;
     if (this.sessionsRefreshTimer) {
