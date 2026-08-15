@@ -229,7 +229,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       this.emit(session, { kind: "status", text: lines.join("\n"), scope: "command" });
     } catch (error) {
       if (this.disposed) return;
-      this.reportError(session, "models.json reload failed", error);
+      this.reportError(session, "models.json reload failed", error, "command");
     }
   }
 
@@ -628,12 +628,34 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
   private emit(session: AgentSession, event: ChatEvent): void {
     if (this.disposed) return;
+    const placed = this.placeNotice(session, event);
     const history = this.histories.get(session.sessionId) ?? this.buildHistory(session);
-    history.push(event);
+    history.push(placed);
     this.histories.set(session.sessionId, history);
     if (this.isDisplayed(session)) {
-      this.host.post({ type: "event", event });
+      this.host.post({ type: "event", event: placed });
     }
+  }
+
+  /**
+   * Decide where a notice renders when the emitter did not say.
+   *
+   * Run-scoped notices (retry, compaction, background extension hints) are
+   * folded into the work block of the execution process they belong to. While
+   * nothing is running there is no such process, and the webview would *open* a
+   * work block just to hold the notice — one that then shows as "running" until
+   * some later turn happens to close it, and that hides a message the user has
+   * no reason to look for inside an execution process. So an idle notice is
+   * placed at the top level, where notices the user asked for go.
+   *
+   * Emitters that are a direct answer to a user action still say "command"
+   * explicitly: those must stay at the top level even when a run is in flight.
+   */
+  private placeNotice(session: AgentSession, event: ChatEvent): ChatEvent {
+    if (event.kind !== "status" && event.kind !== "error") return event;
+    if (event.scope !== undefined) return event;
+    if (session.isStreaming || session.isCompacting) return event;
+    return { ...event, scope: "command" };
   }
 
   /** Merge the host-owned compaction queue with the SDK's normal queues. */
@@ -1251,7 +1273,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       else if (action === "fork") await forkFromEntry(this.runtime, entryId, ui);
       else await editEntryLabel(this.runtime, entryId, ui);
     } catch (error) {
-      this.reportError(this.runtime.session, `${action} failed`, error);
+      this.reportError(this.runtime.session, `${action} failed`, error, "command");
       return;
     }
     if (action === "label") this.postEntryIds();
@@ -1279,7 +1301,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       this.setView({ kind: "replay", file, title: (firstUser?.text ?? "").split("\n")[0] ?? "", events, laneTitle });
       this.refreshSessions();
     } catch (error) {
-      this.reportError(this.runtime.session, "session preview failed", error);
+      this.reportError(this.runtime.session, "session preview failed", error, "command");
     }
   }
 
@@ -1331,7 +1353,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
           trimmed = `${trimmed ? `${trimmed}\n\n` : ""}${tf("referencedFilesHeader", lines.join("\n"))}`;
         }
       } catch (error) {
-        this.reportError(this.runtime.session, "file reference rejected", error);
+        this.reportError(this.runtime.session, "file reference rejected", error, "command");
         return;
       }
     }
@@ -1630,7 +1652,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       manager = isActive ? this.runtime.session.sessionManager : SessionManager.open(file);
       currentName = sessionTitle(manager);
     } catch (error) {
-      this.reportError(this.runtime.session, "rename session failed", error);
+      this.reportError(this.runtime.session, "rename session failed", error, "command");
       return;
     }
     const value = (
@@ -1644,7 +1666,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         manager.appendSessionInfo(value);
       }
     } catch (error) {
-      this.reportError(this.runtime.session, "rename session failed", error);
+      this.reportError(this.runtime.session, "rename session failed", error, "command");
       return;
     }
     await this.pushSessions();
