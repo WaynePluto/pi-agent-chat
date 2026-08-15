@@ -288,6 +288,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     try {
       await this.runtime.modelRuntime.refresh({ allowNetwork: false, signal: this.runtime.signal });
       const failed = await this.reportModelsConfigError(session);
+      await this.rescopeModels();
       await this.postModels();
       await this.postState();
       if (failed) return;
@@ -1475,6 +1476,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   async login(): Promise<boolean> {
     const changed = await loginFlow(this.runtime, (message) => this.host.log(message));
     if (changed) {
+      await this.rescopeModels();
       await this.postModels();
       await this.postState();
     }
@@ -1484,10 +1486,28 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   async logout(): Promise<boolean> {
     const changed = await logoutFlow(this.runtime, (message) => this.host.log(message));
     if (changed) {
+      await this.rescopeModels();
       await this.postModels();
       await this.postState();
     }
     return changed;
+  }
+
+  /**
+   * Re-resolve the session's frequently used models after availability changed.
+   *
+   * `session.scopedModels` — the composer quick menu's source — is resolved at
+   * session build and when the list itself is edited, so an auth change leaves
+   * it stale: a logged-out provider stays in the quick menu (and a newly
+   * authenticated one stays out) until the next session. Failures are logged,
+   * not fatal: only the quick menu's contents lag, the chat is unaffected.
+   */
+  private async rescopeModels(): Promise<void> {
+    try {
+      await this.runtime.rescopeSessionModels();
+    } catch (error) {
+      this.host.log(`scoped models refresh failed: ${describe(error)}`);
+    }
   }
 
   /**

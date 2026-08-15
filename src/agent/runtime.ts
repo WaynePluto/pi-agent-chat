@@ -403,6 +403,21 @@ export class PiRuntime implements vscode.Disposable {
     return this.runtime.services.modelRuntime;
   }
 
+  /**
+   * Re-resolve the frequently used models against current availability and
+   * apply them to the running session.
+   *
+   * `session.scopedModels` is resolved when the session is built (and when the
+   * list itself is edited), so it goes stale whenever auth changes: logging out
+   * leaves the provider's models in the composer's quick menu, logging in or
+   * editing models.json does not add newly available ones. Availability is the
+   * only input that changed, which is exactly what this re-reads.
+   */
+  async rescopeSessionModels(): Promise<void> {
+    const scoped = await resolveScopedModels(this.runtime.services, this.log, this.lifetime.signal);
+    this.runtime.session.setScopedModels([...scoped]);
+  }
+
   /** Shared settings store (`~/.pi/agent/settings.json`), also read by the CLI. */
   get settingsManager() {
     return this.runtime.services.settingsManager;
