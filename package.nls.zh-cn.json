@@ -1,6 +1,6 @@
 {
   "//": "简体中文的清单文案（应用商店介绍、设置界面、命令面板）。侧边栏内部的 UI 文案在 src/shared/messages.ts 与 src/webview/i18n.ts 中本地化。",
-  "extension.description": "VS Code 侧边栏中的 Pi Coding Agent 聊天界面，直接内置官方 SDK（0.84.1），无需安装 Pi CLI。非官方社区项目。",
+  "extension.description": "VS Code 侧边栏中的 Pi Coding Agent 聊天界面，直接内置官方 SDK（0.84.2），无需安装 Pi CLI。非官方社区项目。",
   "configuration.title": "Pi Agent Chat",
   "configuration.subagent.enabled": "提供 `subagent` 工具：允许主代理一次把多个任务委派给多路子会话，它们会**直接写入你的工作区**。每个任务都必须声明可写路径范围，越界写入会被拒绝。失败的任务只汇报、不回滚——请在 git 仓库中使用，以便检查并丢弃半成品。默认关闭。",
   "configuration.subagent.maxSubagents": "单次 `subagent` 调用最多启动的子代理数量。该值会作为 schema 上限告知模型，因此同时限制了模型能请求的路数。值越大成本按比例增加，也越难跟得过来。",
