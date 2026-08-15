@@ -257,6 +257,16 @@ function scrollToEnd(): void {
 export function applyEvent(event: ChatEvent): void {
   switch (event.kind) {
     case "user_message":
+      // A user message ends the execution process that precedes it, exactly as
+      // formal assistant text does — otherwise everything the agent does next
+      // keeps landing in the block above the bubble. Queued/steering messages
+      // are the exception: they are still floating at the bottom and the run on
+      // screen is not theirs yet, so they split the transcript only once the
+      // agent consumes them (see `reconcilePendingBubbles`).
+      if (!event.mode) {
+        finishThinkingCard();
+        finishWorkBlock();
+      }
       appendUserBubble(event.text, event.mode, event.skill, event.prompt, event.extension);
       break;
     case "assistant_start":
@@ -595,7 +605,11 @@ function reconcilePendingBubbles(steering: string[], followUp: string[]): void {
     if (queue.includes(pending.text)) continue;
     normalizeUserBubble(pending.element);
     // Anchor it at the current end of the transcript: subsequent output
-    // belongs to this message, so it must no longer float.
+    // belongs to this message, so it must no longer float. That also makes it
+    // a boundary — the work block above it is the run the user interrupted, so
+    // close it and let what follows open a fresh one.
+    finishThinkingCard();
+    finishWorkBlock();
     messagesEl.appendChild(pending.element);
     pendingUserBubbles.splice(i, 1);
   }

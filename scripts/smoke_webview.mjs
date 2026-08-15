@@ -655,6 +655,26 @@ const SCRIPT = [
       if (problems.length > 0) throw new Error(`scroll position not restored: ${problems.join("; ")}`);
     },
   },
+  // Near the end, because it replaces the transcript: steering splits the
+  // execution process. The bubble floats while it is queued (the block above
+  // still belongs to the interrupted run), and the moment the agent consumes it
+  // that block must close, so the tool that follows opens a second block
+  // *below* the bubble instead of being back-filled into the first one.
+  {
+    label: "steering: the consumed message ends the execution process",
+    messages: [
+      { type: "history", transcriptId: "steering-session", events: [] },
+      { type: "state", state: { ...baseState, isStreaming: true } },
+      { type: "event", event: { kind: "user_message", text: "list the files" } },
+      { type: "event", event: { kind: "tool_start", id: "steer-1", name: "bash", args: { command: "ls" } } },
+      { type: "event", event: { kind: "tool_end", id: "steer-1", name: "bash", isError: false, text: "a.ts" } },
+      { type: "event", event: { kind: "user_message", text: "actually, only the tests", mode: "steer" } },
+      { type: "event", event: { kind: "queue_update", steering: ["actually, only the tests"], followUp: [] } },
+      { type: "event", event: { kind: "queue_update", steering: [], followUp: [] } },
+      { type: "event", event: { kind: "tool_start", id: "steer-2", name: "bash", args: { command: "ls test" } } },
+      { type: "event", event: { kind: "tool_end", id: "steer-2", name: "bash", isError: false, text: "a.test.ts" } },
+    ],
+  },
   // Last, because it wipes the transcript: "new session" has nothing to load,
   // so it must show the empty-session bubble straight away rather than flash
   // the loading spinner for one round trip.
