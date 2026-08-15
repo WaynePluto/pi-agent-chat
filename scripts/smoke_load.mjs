@@ -90,6 +90,7 @@ const {
   runExtensionReloadTest,
   runExtensionCommandContextTest,
   runResourceListingTest,
+  runStartupSessionTest,
   runLiveToolCallTest,
   formatDiagnostics,
 } = extension.__spike;
@@ -109,6 +110,9 @@ report(await runExtensionReloadTest(root));
 // (`ctx.newSession()` and friends are host-supplied, not SDK defaults).
 report(await runExtensionCommandContextTest(root));
 report(await runResourceListingTest(root));
+// Pins which session a window opens with: the remembered one, including the
+// new-and-still-empty state that leaves no file on disk.
+report(await runStartupSessionTest(root));
 
 if (process.env.PI_SPIKE_LIVE === "1") {
   console.log("\n# Live prompt + tool call");

@@ -1,4 +1,5 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAgentSession, createAgentSessionFromServices, createAgentSessionServices, getAgentDir, getPackageDir, SessionManager, type AgentSession, type ToolDefinition } from "@earendil-works/pi-coding-agent";
@@ -6,7 +7,7 @@ import { buildHistoryEntryEvents, ChatBridge, collectResourceSections } from "./
 import { collectSlashCommands } from "./commands.js";
 import { OriginalContentProvider } from "./diff-view.js";
 import { describe } from "./errors.js";
-import { createSubagentServices, findShadowedSubagentExtension, PiRuntime } from "./runtime.js";
+import { createSubagentServices, findShadowedSubagentExtension, PiRuntime, type StartupSession } from "./runtime.js";
 import { buildTreeChoices } from "./session-tree.js";
 import { SubagentCoordinator, SUBAGENT_TOOL, planModel, type LaneState, type SubagentRun } from "./subagent.js";
 import { findScopeConflict, normalizeScopes, ScopeGuard } from "./scope.js";
@@ -870,6 +871,85 @@ export async function runViewStateTest(cwd: string): Promise<DiagnosticResult[]>
   } finally {
     child?.dispose();
     runtime?.dispose();
+  }
+}
+
+/**
+ * Offline check on which session a window opens with.
+ *
+ * Guarded because every wrong branch still lands the user in *a* session, just
+ * not the right one — the failure is silent. The case that motivated it: a
+ * brand new session writes no file until its first append, so "the user was
+ * sitting in an empty new session" exists only in the host's memory, and
+ * without it the next start resumed the previous conversation.
+ */
+export async function runStartupSessionTest(cwd: string): Promise<DiagnosticResult[]> {
+  const runtimes: PiRuntime[] = [];
+  const remembered: (string | undefined)[] = [];
+  const failures: string[] = [];
+  const expect = (label: string, ok: boolean) => {
+    if (!ok) failures.push(label);
+  };
+  const lastRemembered = () => remembered[remembered.length - 1];
+  try {
+    // Drives the real startup path, then the real `attach()`, so what the host
+    // would store is read from the callback rather than assumed.
+    const start = async (startup: StartupSession): Promise<string | undefined> => {
+      const runtime = await PiRuntime.create({ cwd, startup, log: () => {} });
+      runtimes.push(runtime);
+      const bridge = new ChatBridge(
+        runtime,
+        { post: () => {}, log: () => {}, rememberSession: (file) => remembered.push(file) },
+        new OriginalContentProvider(),
+      );
+      await bridge.attach();
+      bridge.dispose();
+      return runtime.session.sessionFile;
+    };
+
+    const fresh = await start({ mode: "new" });
+    // The path is assigned up front, but the file behind it is not written
+    // until the first append, so the session is not yet resumable.
+    expect("new: file not written yet", fresh !== undefined && !existsSync(fresh));
+    expect("new: remembered as a fresh session", remembered.length === 1 && lastRemembered() === undefined);
+
+    const sessions = await SessionManager.list(cwd);
+    let fileDetail = "skipped (no session on disk)";
+    if (sessions.length > 0) {
+      // Deliberately the oldest: the remembered file has to win over "most
+      // recent", which is what the plain `--continue` behaviour would pick.
+      const target = sessions[sessions.length - 1]!.path;
+      const opened = await start({ mode: "file", path: target });
+      expect("file: reopened the remembered session", opened === target);
+      expect("file: remembered the same path", lastRemembered() === target);
+      fileDetail = `reopened the oldest of ${sessions.length} session(s)`;
+    }
+
+    // A remembered file can be deleted between windows. That must degrade to
+    // the most recent session, not start an empty session pinned to the dead
+    // path (which would re-create the file the user deleted).
+    const missing = join(cwd, "pi-agent-chat-missing-session.jsonl");
+    const fallback = await start({ mode: "file", path: missing });
+    expect("missing file: not reused", fallback !== missing);
+    expect(
+      "missing file: fell back to the most recent session",
+      sessions.length === 0 ? !existsSync(fallback ?? "") : sessions.some((info) => info.path === fallback),
+    );
+
+    return [
+      {
+        name: "startup session",
+        ok: failures.length === 0,
+        detail:
+          failures.length === 0
+            ? `new=unwritten; file=${fileDetail}; missing file=fell back`
+            : `failed: ${failures.join("; ")}`,
+      },
+    ];
+  } catch (error) {
+    return [{ name: "startup session", ok: false, detail: describe(error) }];
+  } finally {
+    for (const runtime of runtimes) runtime.dispose();
   }
 }
 

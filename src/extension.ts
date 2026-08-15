@@ -10,6 +10,7 @@ import {
   runProjectFilesTest,
   runResourceListingTest,
   runViewStateTest,
+  runStartupSessionTest,
   runExtensionReloadTest,
   runExtensionCommandContextTest,
   runSessionTreeTest,
@@ -21,10 +22,25 @@ import {
 import { OriginalContentProvider, ORIGINAL_SCHEME } from "./agent/diff-view.js";
 import { describeWithStack } from "./agent/errors.js";
 import { configureHttpProxy } from "./agent/http.js";
-import { PiRuntime } from "./agent/runtime.js";
+import { PiRuntime, type StartupSession } from "./agent/runtime.js";
 import type { HostMessage, WebviewMessage } from "./shared/protocol.js";
 
 const VIEW_ID = "piAgentChat.view";
+
+/**
+ * Where the sidebar was left when the window closed, per workspace.
+ *
+ * `file: null` is the state that has no on-disk trace: a new session whose
+ * JSONL has not been created yet (it is written on the first append). Without
+ * it, a window closed on an empty new session would reopen in the previous
+ * conversation.
+ */
+const LAST_SESSION_KEY = "piAgentChat.lastSession";
+
+interface LastSession {
+  cwd: string;
+  file: string | null;
+}
 
 export function activate(context: vscode.ExtensionContext): void {
   // SDK-MIRROR: dist/cli.js sets these on the way in, and rpc-entry.js repeats
@@ -61,6 +77,7 @@ export function activate(context: vscode.ExtensionContext): void {
         ...(await runExtensionCommandContextTest(resolveWorkspaceCwd())),
         ...(await runResourceListingTest(resolveWorkspaceCwd())),
         ...(await runViewStateTest(resolveWorkspaceCwd())),
+        ...(await runStartupSessionTest(resolveWorkspaceCwd())),
       ];
       const report = formatDiagnostics(results);
       output.appendLine(report);
@@ -106,6 +123,7 @@ export const __spike = {
   runExtensionCommandContextTest,
   runResourceListingTest,
   runViewStateTest,
+  runStartupSessionTest,
   runLiveToolCallTest,
   formatDiagnostics,
   resolveWorkspaceCwd,
@@ -160,16 +178,43 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
   private async start(): Promise<void> {
     const cwd = resolveWorkspaceCwd();
     this.log(`starting pi runtime in ${cwd}`);
-    const runtime = await PiRuntime.create({ cwd, continueRecent: true, log: (message) => this.log(message) });
+    const startup = this.startupSession(cwd);
+    const runtime = await PiRuntime.create({ cwd, startup, log: (message) => this.log(message) });
     const bridge = new ChatBridge(
       runtime,
-      { post: (message) => this.post(message), log: (message) => this.log(message) },
+      {
+        post: (message) => this.post(message),
+        log: (message) => this.log(message),
+        rememberSession: (file) => this.rememberSession(cwd, file),
+      },
       this.diffProvider,
     );
     await bridge.attach();
     this.runtime = runtime;
     this.bridge = bridge;
     this.log(`session ready: ${runtime.session.sessionFile ?? "(in-memory)"}`);
+  }
+
+  /**
+   * Reopen whatever the sidebar was showing last, which is not the same as the
+   * most recent session on disk: the user may have switched back to an older
+   * one, or the CLI may have written a newer one in this cwd meanwhile.
+   * Nothing remembered (first run here, or the workspace moved) falls back to
+   * the documented "continue the most recent session" behaviour.
+   */
+  private startupSession(cwd: string): StartupSession {
+    const stored = this.context.workspaceState.get<LastSession>(LAST_SESSION_KEY);
+    if (!stored || stored.cwd !== cwd) return { mode: "recent" };
+    if (typeof stored.file !== "string" || stored.file.length === 0) return { mode: "new" };
+    this.log(`reopening last session: ${stored.file}`);
+    return { mode: "file", path: stored.file };
+  }
+
+  private rememberSession(cwd: string, file: string | undefined): void {
+    const stored: LastSession = { cwd, file: file ?? null };
+    void Promise.resolve(this.context.workspaceState.update(LAST_SESSION_KEY, stored)).then(undefined, (error) =>
+      this.log(`failed to remember the current session: ${describeWithStack(error).split("\n")[0]}`),
+    );
   }
 
   async newSession(): Promise<void> {

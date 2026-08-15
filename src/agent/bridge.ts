@@ -1,5 +1,6 @@
 import { isAbsolute, basename, relative as relativePath, resolve as resolvePath } from "node:path";
 import { homedir } from "node:os";
+import { existsSync } from "node:fs";
 import * as vscode from "vscode";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { sessionEntryToContextMessages, SessionManager } from "@earendil-works/pi-coding-agent";
@@ -29,6 +30,14 @@ import type { LaneNotice, LaneState, SubagentObserver, SubagentRun } from "./sub
 export interface BridgeHost {
   post(message: HostMessage): void;
   log(message: string): void;
+  /**
+   * The session the sidebar is on, so the next window start can return to it.
+   *
+   * `undefined` means a session with nothing written yet: the JSONL file is
+   * created on the first append, so "the user is sitting in a new, empty
+   * session" leaves no trace on disk and can only be remembered here.
+   */
+  rememberSession?(sessionFile: string | undefined): void;
 }
 
 interface CompactionQueuedPrompt {
@@ -79,6 +88,8 @@ type View =
 export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private unsubscribe?: () => void;
   private disposed = false;
+  /** Last value handed to `host.rememberSession`; absent until the first sync. */
+  private remembered?: { file: string | undefined };
   /** What the webview is showing; see `View`. The only source of truth for it. */
   private view: View = { kind: "live" };
   private activeRun?: SubagentRun;
@@ -316,6 +327,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.activity.noteHistory(events);
     this.histories.set(session.sessionId, events);
     this.unsubscribe = session.subscribe((event) => this.onSessionEvent(session, event));
+    this.rememberSession();
     const built = Date.now();
     // Get the transcript on screen first: binding extensions and collecting
     // resources are the slow parts and the webview needs none of them to
@@ -337,6 +349,25 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.refreshSessions();
     // A models.json broken outside the sidebar must not stay invisible.
     await this.reportModelsConfigError(session);
+  }
+
+  /**
+   * Tell the host which session is live, whenever that changes.
+   *
+   * A brand new session already has a path, but the file behind it is written
+   * on the first append — until then there is nothing for the next window to
+   * reopen, and `undefined` is what says "the user was sitting in a new,
+   * still-empty session". Cheap enough to call per event: once the file is
+   * known to exist the first comparison short-circuits, and before that the
+   * session is by definition idle.
+   */
+  private rememberSession(): void {
+    const file = this.runtime.session.sessionFile;
+    if (this.remembered && this.remembered.file === file) return;
+    const resumable = file !== undefined && existsSync(file) ? file : undefined;
+    if (this.remembered && this.remembered.file === resumable) return;
+    this.remembered = { file: resumable };
+    this.host.rememberSession?.(resumable);
   }
 
   /**
@@ -710,6 +741,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   }
 
   private onSessionEvent(session: AgentSession, event: AgentSessionEvent): void {
+    // The file appears mid-conversation (lazily, on the first append), so the
+    // value recorded at attach time goes stale as soon as the user speaks.
+    if (session === this.runtime.session) this.rememberSession();
     const toolKey = (id: string) => `${session.sessionId}:${id}`;
     // Extensions subscribed to this event have just run, and a starting run
     // means the context files went out with the system prompt.

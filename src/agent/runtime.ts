@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { existsSync } from "node:fs";
 import {
   type AgentSessionServices,
   AgentSessionRuntime,
@@ -18,14 +19,57 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { SubagentCoordinator, SUBAGENT_TOOL } from "./subagent.js";
 import { readSubagentConfig } from "./config.js";
+import { describe } from "./errors.js";
 import { configureHttpDispatcher } from "./http.js";
 import { t } from "./i18n.js";
 
+/**
+ * Which session a fresh runtime opens with.
+ *
+ * `file` is what the sidebar asks for on a normal start: it remembers the
+ * session it was last showing, which is not the same as the most recent one on
+ * disk (the user may have switched back to an older session, and the CLI may
+ * have written a newer one in the same cwd since). `recent` is the fallback for
+ * a window with nothing remembered, and matches `pi --continue`.
+ */
+export type StartupSession =
+  | { mode: "new" }
+  | { mode: "recent" }
+  | { mode: "file"; path: string };
+
 export interface PiRuntimeOptions {
   cwd: string;
-  /** Resume the most recent session for `cwd` instead of starting a new one. */
-  continueRecent?: boolean;
+  /** Defaults to a brand new session, as `pi` with no flags does. */
+  startup?: StartupSession;
   log: (message: string) => void;
+}
+
+/**
+ * Resolve `startup` against the session directory.
+ *
+ * A remembered file can be gone (deleted from the sessions page, or by another
+ * host); that is expected rather than exceptional, so it degrades to the most
+ * recent session instead of failing the whole start.
+ */
+function createSessionManager(
+  cwd: string,
+  startup: StartupSession | undefined,
+  log: (message: string) => void,
+): SessionManager {
+  if (startup?.mode === "file") {
+    try {
+      // `SessionManager.open()` on a missing path would silently start an empty
+      // session pinned to it, re-creating a file the user deleted, so the
+      // existence check has to happen here.
+      if (existsSync(startup.path)) return SessionManager.open(startup.path);
+      log(`last session file is gone; continuing the most recent session instead: ${startup.path}`);
+    } catch (error) {
+      log(`cannot reopen ${startup.path} (${describe(error)}); continuing the most recent session instead`);
+    }
+    return SessionManager.continueRecent(cwd);
+  }
+  if (startup?.mode === "recent") return SessionManager.continueRecent(cwd);
+  return SessionManager.create(cwd);
 }
 
 /**
@@ -260,7 +304,7 @@ export class PiRuntime implements vscode.Disposable {
       };
     };
 
-    const sessionManager = options.continueRecent ? SessionManager.continueRecent(cwd) : SessionManager.create(cwd);
+    const sessionManager = createSessionManager(cwd, options.startup, log);
 
     const runtime = await createAgentSessionRuntime(createRuntime, {
       cwd,

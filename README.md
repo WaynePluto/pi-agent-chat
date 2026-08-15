@@ -56,7 +56,7 @@ Overall, this extension bets on simplicity and on the continued progress of the 
 - Model and thinking-level switching (QuickPick), abort, steer / follow-up
 - Provider sign-in (OAuth / API key) plus a **custom provider** entry that opens the shared `~/.pi/agent/models.json` with a fresh commented template every time — the whole file when it is empty, one more provider entry (unsaved, so `Ctrl+Z` drops it) when it already has content. No sign-in is involved there: a `baseUrl`, a model id and any `apiKey` value (a placeholder is enough for endpoints that ignore it) make the model selectable. Saving the file reloads it, lists the models it added, and explains the ones that stay hidden; providers defined in that file carry a 🗑 row action that removes their entry (comments and formatting are preserved)
 - Resource listing pinned above the transcript (Context / Skills / Prompts / Extensions), same as the CLI startup listing
-- Auto-continues the most recent session of the workspace on startup
+- Reopens the session the sidebar was last showing (a fresh, still-empty session included), falling back to the workspace's most recent session when there is nothing to restore or the file is gone
 - `@` project file references: type `@` in the composer to fuzzy-search workspace files (respecting `.gitignore`; `Ctrl+→` toggles showing ignored files, which are labeled along with potentially sensitive ones); selected files become removable chips and are sent as plain relative paths for the model to `read` itself
 - Subagent (opt-in): one call fans out into several child sessions that each write directly to your working tree within a declared path range, shown as live rows in the parent's transcript
 

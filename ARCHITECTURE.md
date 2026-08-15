@@ -8,7 +8,7 @@
 
 | 模块 | 路径 | 职责 | 主要依赖 |
 |------|------|------|----------|
-| extension | `src/extension.ts` | 插件入口：`activate()` 注册 webview view `piAgentChat.view`、4 个命令、diff content provider；`ChatViewProvider` 懒创建 `PiRuntime` + `ChatBridge`；静态注册 OAuth flows | vscode, pi-ai/bun-oauth, bridge, diagnostics, diff-view, http, runtime, protocol |
+| extension | `src/extension.ts` | 插件入口：`activate()` 注册 webview view `piAgentChat.view`、4 个命令、diff content provider；`ChatViewProvider` 懒创建 `PiRuntime` + `ChatBridge`；用 `workspaceState` 记住上次显示的会话（含未落盘的新会话）以决定启动时打开哪个 session；静态注册 OAuth flows | vscode, pi-ai/bun-oauth, bridge, diagnostics, diff-view, http, runtime, protocol |
 | runtime | `src/agent/runtime.ts` | `PiRuntime`：SDK `AgentSessionRuntime` 薄封装；session 新建/继续、替换后重新 bindExtensions、**始终**注入 subagent 工具（内置优先，屏蔽扩展的同名工具；被屏蔽者经 `findShadowedSubagentExtension()` 与 `shadowedSubagentExtension` 仅用于告知）、按 `enabledModels` 解析会话 scoped models；扩展 UI 的 `ctx.ui.notify` 与扩展 handler 报错（`bindExtensions({ onError })`）经注入的 sink 转到 transcript（无 sink 时 notify 回退原生弹窗）；持有 dispose 级 `AbortSignal` 并贯穿所有 auth/model 调用 | vscode, pi-coding-agent, subagent |
 | bridge | `src/agent/bridge.ts` | `ChatBridge`：SDK `AgentSessionEvent` → `HostMessage`，webview 消息 → runtime 操作；历史回放（`buildHistoryEvents`）、资源清单、技能/提示词/扩展归属标注、子代理观察者、models.json 保存后重新加载与错误上报；**「当前显示什么」由单一 `View` 联合类型表示**（`live` / `lane` / `replay`），所有派生状态从它算出 | vscode, pi-coding-agent, protocol, auth, activity, commands, session-tree, session-title, model-config, diff-view, project-files, runtime, skills, invocations, subagent |
 | commands | `src/agent/commands.ts` | 斜杠命令目录（命名对齐 CLI）与内置命令分发；prompt 模板/扩展命令仅做补全展示，实际由 `AgentSession.prompt()` 处理 | vscode, pi-coding-agent, protocol, runtime, session-tree, session-title |
