@@ -89,6 +89,8 @@ the task so it can read the rest itself.
 
 Any such directory works, because nothing here parses it — the agent just lists and reads files, so your existing role files stay usable as they are, in this window and in the CLI, and changing one needs no setting. Reads are unrestricted, so a subagent can open its own role file even when it may not write anywhere near it. The mechanical limits — parallel ceiling, write ranges — live in the tool's schema and are enforced in code.
 
+**With no roles configured, there are no roles.** Delegation does not depend on any of this: the `task` is the entire briefing a subagent gets, and the parent writes it at run time — so without predefined roles, a subagent's role is whatever the parent decides on the spot. Your project `AGENTS.md` still applies: every subagent is a full pi session in the same working directory, so it loads the same context files, skills and extensions. Roles are worth writing down when you want that briefing to come out the same every time, or when the parent keeps splitting the work differently than you would.
+
 **When a subagent's model is unavailable.** If the default subagent model setting names something this window cannot use, the subagent falls back to the parent session's model and a note appears in the parent's transcript. A model the agent asks for itself is different: an unknown one is rejected before anything starts.
 
 #### If you already have a `subagent` extension
