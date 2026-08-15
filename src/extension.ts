@@ -63,6 +63,7 @@ export function activate(context: vscode.ExtensionContext): void {
     diffProvider,
     vscode.window.registerWebviewViewProvider(VIEW_ID, provider, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.commands.registerCommand("piAgentChat.newSession", () => provider.newSession()),
+    vscode.commands.registerCommand("piAgentChat.openSearch", () => provider.postToWebview({ type: "openSearch" })),
     vscode.commands.registerCommand("piAgentChat.focus", () => vscode.commands.executeCommand(`${VIEW_ID}.focus`)),
     vscode.commands.registerCommand("piAgentChat.runSpikeDiagnostics", async () => {
       const results = [
@@ -163,6 +164,11 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
 
   private post(message: HostMessage): void {
     void this.view?.webview.postMessage(message);
+  }
+
+  /** Post a message to the webview from a command (no-op until the view exists). */
+  postToWebview(message: HostMessage): void {
+    this.post(message);
   }
 
   private log(message: string): void {

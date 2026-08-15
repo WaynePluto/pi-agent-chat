@@ -344,15 +344,6 @@ resourcesBtn.addEventListener("click", () => {
   applyResourcesVisibility();
 });
 searchBtn.addEventListener("click", () => toggleSearch());
-// Ctrl/Cmd+F opens transcript search; it must not fire on the sessions page,
-// whose own filter box owns the shortcut there.
-window.addEventListener("keydown", (event) => {
-  if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key === "f") {
-    if (isSessionsOpen() || messagesWrapEl.classList.contains("hidden")) return;
-    event.preventDefault();
-    openSearch();
-  }
-});
 byId("btn-login").addEventListener("click", () => post({ type: "login" }));
 byId("btn-logout").addEventListener("click", () => post({ type: "logout" }));
 byId("btn-settings").addEventListener("click", () => post({ type: "openSettings" }));
@@ -380,6 +371,12 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   else if (message.type === "sessions") renderSessions(message.items);
   else if (message.type === "models") setModelCatalog(message.catalog);
   else if (message.type === "openPicker") openPicker(message.picker);
+  // The keybinding's decision point lives here, not in the host: the sessions
+  // page's own filter box owns the shortcut there, and search does not apply
+  // when the transcript is hidden.
+  else if (message.type === "openSearch") {
+    if (!isSessionsOpen() && !messagesWrapEl.classList.contains("hidden")) openSearch();
+  }
   else if (message.type === "commands") setSlashCommands(message.items);
   else if (message.type === "projectFiles") onProjectFiles(message.requestId, message.items, message.error);
   else if (message.type === "resources") {

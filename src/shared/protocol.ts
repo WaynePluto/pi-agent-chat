@@ -370,6 +370,15 @@ export type HostMessage =
   | { type: "models"; catalog: ModelCatalog }
   /** Open the composer's model picker from the host side (`/model`). */
   | { type: "openPicker"; picker: "model" }
+  /**
+   * Open the transcript search bar. Backs the `piAgentChat.openSearch`
+   * keybinding: webview keydown events are forwarded to the workbench keybinding
+   * service before the webview can `preventDefault()` them, so Ctrl+F while
+   * the view has focus also triggers the default `actions.find`; an extension
+   * keybinding scoped to `focusedView` outranks that default. The webview still
+   * decides whether search applies (not on the sessions page, transcript visible).
+   */
+  | { type: "openSearch" }
   | { type: "commands"; items: SlashCommand[] }
   /** Startup resource listing, pinned above the transcript. */
   | { type: "resources"; sections: ResourceSection[] }
