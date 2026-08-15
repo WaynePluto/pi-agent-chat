@@ -210,19 +210,19 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
   for (;;) {
     const descriptors = settingDescriptors();
     const items: Item[] = [
-      { id: "providers", label: t("settingsProviders"), description: t("settingsProvidersDetail") },
-      { id: "refreshModels", label: t("settingsRefreshModels"), description: t("settingsRefreshModelsDetail") },
-      { id: "scopedModels", label: t("settingsScopedModels"), description: t("settingsScopedModelsDetail") },
+      { id: "providers", label: t("settingsProviders"), detail: t("settingsProvidersDetail") },
+      { id: "refreshModels", label: t("settingsRefreshModels"), detail: t("settingsRefreshModelsDetail") },
+      { id: "scopedModels", label: t("settingsScopedModels"), detail: t("settingsScopedModelsDetail") },
       {
         id: "defaultTools",
         label: t("settingsDefaultTools"),
         description: defaultToolsSummary(runtime),
         detail: t("settingsDefaultToolsDetail"),
       },
-      { id: "subagent", label: t("settingsSubagent"), description: t("settingsSubagentDetail") },
-      { id: "shellPath", label: t("settingsShellPath"), description: t("settingsShellPathDetail") },
-      { id: "openFile", label: t("settingsOpenFile"), description: t("settingsOpenFileDetail") },
-      { id: "help", label: t("settingsHelp"), description: t("settingsHelpDetail") },
+      { id: "subagent", label: t("settingsSubagent"), detail: t("settingsSubagentDetail") },
+      { id: "shellPath", label: t("settingsShellPath"), detail: t("settingsShellPathDetail") },
+      { id: "openFile", label: t("settingsOpenFile"), detail: t("settingsOpenFileDetail") },
+      { id: "help", label: t("settingsHelp"), detail: t("settingsHelpDetail") },
       { id: "", label: t("settingsSectionOptions"), kind: vscode.QuickPickItemKind.Separator },
       ...descriptors.map((descriptor) => ({
         id: descriptor.id,
