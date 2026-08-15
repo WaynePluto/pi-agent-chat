@@ -722,6 +722,46 @@ const SCRIPT = [
       if (problems.length > 0) throw new Error(`scroll position not restored: ${problems.join("; ")}`);
     },
   },
+  // Transcript search: literal, case-insensitive matching over the visible
+  // text, Enter/Shift+Enter navigation. jsdom has no CSS Custom Highlight API,
+  // so what is asserted here is the counting/navigation half — the paint half
+  // is a no-op there by design.
+  {
+    label: "transcript search: matches counted and navigated",
+    messages: [
+      {
+        type: "history",
+        events: [
+          { kind: "user_message", text: "find alpha in the list" },
+          { kind: "assistant_message", text: "alpha found: alpha-1 and beta." },
+        ],
+      },
+    ],
+    beforeSnapshot: async (window) => {
+      const document = window.document;
+      document.getElementById("btn-search").click();
+      const input = document.getElementById("search-input");
+      input.value = "ALPHA";
+      input.dispatchEvent(new window.Event("input"));
+      // The input listener debounces the rebuild.
+      await new Promise((resolvePromise) => window.setTimeout(resolvePromise, 150));
+      const count = () => document.getElementById("search-count").textContent;
+      if (count() !== "3") throw new Error(`expected 3 matches, got "${count()}"`);
+      input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      if (count() !== "1 of 3") throw new Error(`expected 1 of 3, got "${count()}"`);
+      input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      if (count() !== "2 of 3") throw new Error(`expected 2 of 3, got "${count()}"`);
+      input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", shiftKey: true, bubbles: true }));
+      if (count() !== "1 of 3") throw new Error(`expected 1 of 3 after Shift+Enter, got "${count()}"`);
+    },
+  },
+  {
+    // Closing restores the pre-search DOM: the bar is the same static markup,
+    // hidden again, and the highlight registry never touched the transcript.
+    label: "transcript search closed again",
+    messages: [],
+    beforeMessages: (window) => window.document.getElementById("search-close").click(),
+  },
   // Near the end, because it replaces the transcript: steering splits the
   // execution process. The bubble floats while it is queued (the block above
   // still belongs to the interrupted run), and the moment the agent consumes it
@@ -834,7 +874,7 @@ async function run() {
 
   const sections = [];
   for (const [index, step] of SCRIPT.entries()) {
-    step.beforeMessages?.(window);
+    await step.beforeMessages?.(window);
     for (const message of step.messages) {
       // The host always identifies the transcript it is replaying; the webview
       // keys per-transcript view state (expanded work blocks) off it. Default
@@ -846,7 +886,7 @@ async function run() {
           : message;
       window.dispatchEvent(new window.MessageEvent("message", { data }));
     }
-    step.beforeSnapshot?.(window);
+    await step.beforeSnapshot?.(window);
     await flush(window);
     sections.push(`===== ${step.label} =====\n${snapshot(window)}`);
   }

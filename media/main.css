@@ -2247,3 +2247,60 @@ button.session-delete:hover:not(:disabled) {
 .scroll-down.news:hover:not(:disabled) {
   background: var(--vscode-button-hoverBackground);
 }
+
+/* Transcript search bar (Ctrl+F), overlaid at the top of the message list. */
+.search-bar {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 4px;
+  background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+  border-radius: 5px;
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
+}
+
+.search-bar.hidden {
+  display: none;
+}
+
+.search-bar input {
+  width: 150px;
+  padding: 2px 6px;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 3px;
+  outline: none;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.search-bar input:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.search-count {
+  min-width: 40px;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+}
+
+.search-bar .icon-button {
+  padding: 2px;
+}
+
+/* Match paint for the CSS Custom Highlight API; no DOM nodes are injected. */
+::highlight(pi-search) {
+  background-color: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.33));
+}
+
+::highlight(pi-search-current) {
+  background-color: var(--vscode-editor-findMatchBackground, rgba(247, 151, 30, 0.6));
+}

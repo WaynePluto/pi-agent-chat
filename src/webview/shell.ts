@@ -1,5 +1,5 @@
 import { getDict } from "./i18n.js";
-import { CHEVRON_ICON, MORE_ICON, SEND_ICON } from "./icons.js";
+import { CHEVRON_ICON, CLOSE_ICON, DOWN_ICON, MORE_ICON, SEND_ICON, UP_ICON } from "./icons.js";
 
 /**
  * The static page skeleton and the element references every view module works
@@ -17,6 +17,7 @@ root.innerHTML = `
       <button id="btn-new" title="${t.newSessionTitle}">${t.newSession}</button>
       <button id="btn-sessions" title="${t.sessionsTitle}">${t.sessions}</button>
       <button id="btn-tree" title="${t.treeTitle}">${t.tree}</button>
+      <button id="btn-search" title="${t.searchTitle}">${t.search}</button>
       <button id="btn-resources" title="${t.resourcesToggleTitle}" aria-pressed="false">${t.resources}</button>
       <button id="btn-settings" title="${t.settingsTitle}">${t.settings}</button>
       <button id="btn-header-more" class="overflow-toggle hidden" title="${t.moreActions}" aria-label="${t.moreActions}" aria-expanded="false">${MORE_ICON}</button>
@@ -38,6 +39,13 @@ root.innerHTML = `
     <button id="delegation-peer" class="secondary"></button>
   </div>
   <div id="messages-wrap" class="messages-wrap">
+    <div id="search-bar" class="search-bar hidden">
+      <input id="search-input" type="text" placeholder="${t.searchPlaceholder}" />
+      <span id="search-count" class="search-count"></span>
+      <button id="search-prev" class="icon-button" title="${t.searchPrevTitle}">${UP_ICON}</button>
+      <button id="search-next" class="icon-button" title="${t.searchNextTitle}">${DOWN_ICON}</button>
+      <button id="search-close" class="icon-button" title="${t.searchCloseTitle}">${CLOSE_ICON}</button>
+    </div>
     <main id="messages" class="messages"></main>
     <button id="scroll-down" class="scroll-down hidden" title="${t.scrollDownTitle}">${CHEVRON_ICON}</button>
   </div>
@@ -107,3 +115,7 @@ export const composerMoreBtn = byId<HTMLButtonElement>("btn-composer-more");
 export const composerMenuEl = byId("composer-menu");
 export const pickerEl = byId("picker");
 export const settingsBtn = byId<HTMLButtonElement>("btn-settings");
+export const searchBtn = byId<HTMLButtonElement>("btn-search");
+export const searchBarEl = byId("search-bar");
+export const searchInputEl = byId<HTMLInputElement>("search-input");
+export const searchCountEl = byId("search-count");

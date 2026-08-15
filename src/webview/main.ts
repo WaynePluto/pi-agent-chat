@@ -7,6 +7,7 @@ import { hasResources, isResourcesShown, renderResources, toggleResources } from
 import { renderExtensionWidgets } from "./widgets.js";
 import { initSessions, isSessionsOpen, renderSessions } from "./sessions-view.js";
 import { closePicker, openPicker, refreshPicker, setModelCatalog, togglePicker } from "./picker.js";
+import { closeSearch, openSearch, toggleSearch } from "./search.js";
 import { createOverflowGroup } from "./overflow.js";
 import {
   authEl,
@@ -30,6 +31,7 @@ import {
   newBtn,
   recallBtn,
   resourcesBtn,
+  searchBtn,
   resourcesEl,
   sendBtn,
   sessionsBtn,
@@ -60,6 +62,7 @@ const t = getDict();
 /** The sessions page replaces the chat: hide messages, composer and Tree. */
 function openSessions(): void {
   closePicker();
+  closeSearch();
   sessionsEl.classList.remove("hidden");
   messagesWrapEl.classList.add("hidden");
   composerEl.classList.add("hidden");
@@ -96,6 +99,8 @@ function updateHeaderButtons(): void {
   sessionsBtn.disabled = isSessionsOpen();
   // Nothing to reveal without a listing, and the panel belongs to the chat.
   resourcesBtn.disabled = !hasResources() || isSessionsOpen();
+  // The transcript is the search corpus; off the chat page there is nothing to search.
+  searchBtn.disabled = isSessionsOpen() || (state.ready && Boolean(state.needsAuth));
 }
 
 /**
@@ -261,7 +266,7 @@ function applyState(next: ChatState): void {
  */
 const headerOverflow = createOverflowGroup({
   row: headerActionsEl,
-  items: [newBtn, sessionsBtn, treeBtn, resourcesBtn, settingsBtn],
+  items: [newBtn, sessionsBtn, treeBtn, searchBtn, resourcesBtn, settingsBtn],
   toggle: headerMoreBtn,
   menu: headerMenuEl,
   // What is left of the header once the title has been given its floor.
@@ -337,6 +342,16 @@ treeBtn.addEventListener("click", () => post({ type: "openSessionTree" }));
 resourcesBtn.addEventListener("click", () => {
   toggleResources();
   applyResourcesVisibility();
+});
+searchBtn.addEventListener("click", () => toggleSearch());
+// Ctrl/Cmd+F opens transcript search; it must not fire on the sessions page,
+// whose own filter box owns the shortcut there.
+window.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key === "f") {
+    if (isSessionsOpen() || messagesWrapEl.classList.contains("hidden")) return;
+    event.preventDefault();
+    openSearch();
+  }
 });
 byId("btn-login").addEventListener("click", () => post({ type: "login" }));
 byId("btn-logout").addEventListener("click", () => post({ type: "logout" }));

@@ -4,6 +4,14 @@ export const SEND_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="
 export const STOP_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5"/></svg>`;
 export const CHEVRON_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M4.44 6.03L8 9.59l3.56-3.56 1.06 1.06L8 11.71 3.38 7.09l1.06-1.06z"/></svg>`;
 
+/** Magnifier: transcript search. */
+export const SEARCH_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M11.2 10.1a4.6 4.6 0 1 0-1.1 1.1l3.2 3.2 1.1-1.1-3.2-3.2zM6.7 10a3.3 3.3 0 1 1 0-6.6 3.3 3.3 0 0 1 0 6.6z"/></svg>`;
+/** Caret up/down: previous / next search match. */
+export const UP_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 4.3l4.5 4.5-1.06 1.06L8 6.42l-3.44 3.44L3.5 8.8 8 4.3z"/></svg>`;
+export const DOWN_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 11.7l-4.5-4.5 1.06-1.06L8 9.58l3.44-3.44 1.06 1.06L8 11.7z"/></svg>`;
+/** Cross: close. */
+export const CLOSE_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 7.06L4.53 3.6 3.47 4.66 6.94 8.12l-3.47 3.46 1.06 1.06L8 9.18l3.47 3.46 1.06-1.06L9.06 8.12l3.47-3.46-1.06-1.06L8 7.06z"/></svg>`;
+
 /** Horizontal ellipsis: reveals actions collapsed by a narrow panel. */
 export const MORE_ICON = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><circle cx="3.1" cy="8" r="1.55"/><circle cx="8" cy="8" r="1.55"/><circle cx="12.9" cy="8" r="1.55"/></svg>`;
 

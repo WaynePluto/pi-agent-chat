@@ -184,6 +184,14 @@ const en = {
   authBody: "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI.",
   authLogin: "Sign in / configure provider",
   authLogout: "Remove stored credential",
+  search: "Search",
+  searchTitle: "Search the transcript (Ctrl+F)",
+  searchPlaceholder: "Search the transcript...",
+  searchNoResults: "No results",
+  searchMatchCount: (index: number, total: number) => `${index} of ${total}`,
+  searchPrevTitle: "Previous match (Shift+Enter)",
+  searchNextTitle: "Next match (Enter)",
+  searchCloseTitle: "Close search (Esc)",
 };
 
 type Dict = typeof en;
@@ -348,6 +356,14 @@ const zh: Dict = {
   authBody: "开始聊天前需要先登录一个供应商（OAuth 或 API key）。凭证保存在 ~/.pi/agent/auth.json，与 pi CLI 共用。",
   authLogin: "登录 / 配置供应商",
   authLogout: "删除已保存的凭证",
+  search: "搜索",
+  searchTitle: "搜索对话内容（Ctrl+F）",
+  searchPlaceholder: "搜索对话内容...",
+  searchNoResults: "无结果",
+  searchMatchCount: (index: number, total: number) => `${index} / ${total}`,
+  searchPrevTitle: "上一个匹配（Shift+Enter）",
+  searchNextTitle: "下一个匹配（Enter）",
+  searchCloseTitle: "关闭搜索（Esc）",
 };
 
 /** Resolve the dictionary from the document language set by the extension. */

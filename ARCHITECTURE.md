@@ -18,7 +18,7 @@
 | tool-details | `src/agent/tool-details.ts` | 工具 `AgentToolResult.details` 跨界前的清洗：排除有专用卡片的工具（仅 pi 自带七个；`subagent` 虽有卡片但**不在列中**，它的卡片正是用 `details` 画的），其余按深度/条目/字符预算截断并剔除不可结构化克隆的值。不认任何扩展的 schema | protocol |
 | activity | `src/agent/activity.ts` | `ActivityTracker`：宿主侧「本会话中真正生效过」的判定，供资源面板点亮 Context / Extensions 两栏。上下文文件按「已发出过请求」判定；扩展按 `Extension.handlers` 订阅的事件 + 已观察到的会话事件（含 bind 时的 `session_start`）推断，另加 `onError` 直证 | pi-coding-agent, protocol |
 | session-tree | `src/agent/session-tree.ts` | `/tree` `/fork` `/clone`：用原生 QuickPick 驱动 session 条目树导航与分支操作 | vscode, pi-coding-agent, runtime |
-| settings-menu | `src/agent/settings-menu.ts` | header “设置”菜单：供应商/常用模型/shell 路径/子代理入口 + 11 项 CLI `/settings` 选项（auto-compact、默认思考等级、steering/follow-up、信任、skill 命令、重试、transport、超时、图片、警告）+ 打开设置文件；选项全部写 `~/.pi/agent/settings.json`（与 CLI 互通），“子代理”一项不自己收值，只把 VS Code 设置界面定位到 `piAgentChat.subagent` | vscode, pi-coding-agent, runtime, config, host i18n |
+| settings-menu | `src/agent/settings-menu.ts` | header “设置”菜单：供应商/常用模型/默认工具/shell 路径/子代理入口 + 11 项 CLI `/settings` 选项（auto-compact、默认思考等级、steering/follow-up、信任、skill 命令、重试、transport、超时、图片、警告）+ 打开设置文件；选项全部写 `~/.pi/agent/settings.json`（与 CLI 互通），“子代理”一项不自己收值，只把 VS Code 设置界面定位到 `piAgentChat.subagent`；`defaultTools` 多选（SDK 只有 getter）经 jsonc modify + WorkspaceEdit 写共享 settings.json 后 `settingsManager.reload()`，全选四件内置工具即删键恢复默认，全不选写入 `[]` | vscode, pi-coding-agent, jsonc-parser, runtime, config, host i18n |
 | model-picker | `src/agent/model-picker.ts` | 两层模型选择：`buildModelCatalog()` 为 composer 快捷菜单提供常用模型，`pickModel()` 是完整原生 QuickPick（搜索 / 能力详情 / ⭐常用 / 📌默认），`/scoped-models` 批量管理；常用模型以 `provider/modelId` 写入共享设置 `enabledModels`（语义对齐 CLI） | vscode, runtime, protocol, host i18n |
 | model-config | `src/agent/model-config.ts` | 自定义供应商：定位 / 打开共享的 `~/.pi/agent/models.json`，空文件写入带注释的整份模板、已有内容则向 `providers` 顶部插入一条新模板（文本插入以保留每个字段的注释，id 自动错开，不自动保存），列出文件中定义的 provider，并用 `jsonc-parser` + `WorkspaceEdit` 删除单个 provider；不做表单向导（schema 太大且 CLI 无对等物） | vscode, jsonc-parser, pi-coding-agent, host i18n |
 | auth | `src/agent/auth.ts` | 登录/登出流程：把 SDK `AuthInteraction` / `AuthPrompt` 映射到 VS Code 原生对话框；供应商列表首行提供「自定义供应商（models.json）」入口，models.json 定义的供应商行带 🗑 删除按钮 | vscode, pi-ai, runtime, model-config |
@@ -42,6 +42,7 @@
 | webview/composer | `src/webview/composer.ts` | 输入区：发送/steer/follow-up、`/` 命令补全、`@` 文件选择器与引用 chip、拖拽调整高度 | dom, format, host, shell, store, transcript |
 | webview/sessions-view | `src/webview/sessions-view.ts` | 会话列表页渲染与行内操作（恢复/删除/查看父子会话） | dom, format, host, shell, spinner, store, transcript |
 | webview/resources-view | `src/webview/resources-view.ts` | 资源面板（Context / Skills / Prompts / Extensions / Tools；不含 Themes，也不含任何非 pi 官方的资源类型）：header 按钮控制显隐；绿色 = 本会话中生效过（transcript 可见的技能/工具/提示词/扩展命令，并与宿主下发的 `item.used` 取并集），灰斜体 = 已配置但未生效，其余为常规前景色 | collapsible, dom, host, shell |
+| webview/search | `src/webview/search.ts` | transcript 搜索（Ctrl+F / header 按钮）：字面、大小写不敏感、空白归一化的查询对「可见文本语料」匹配（语料构建方式对齐 TUI 全屏搜索），Enter/Shift+Enter 导航；高亮走 CSS Custom Highlight API 不改 DOM（jsdom 降级为仅计数/导航），MutationObserver 防抖重算 | i18n, shell |
 | webview/statusline | `src/webview/statusline.ts` | CLI 风格底部状态行（tokens / 缓存 / 成本 / 上下文占用），以及扩展经 `ctx.ui.setStatus` 发布的独立状态行（后者不受窄面板整行隐藏规则影响） | dom, format, protocol, shell, store |
 | webview/widgets | `src/webview/widgets.ts` | 扩展经 `ctx.ui.setWidget` 发布的纯文本块，按 `aboveEditor` / `belowEditor` 落在 composer 上下两侧；只渲染 SDK 的 `string[]` 重载，component factory 重载属 TUI-only 不实现 | collapsible, dom, protocol, shell |
 | webview/picker | `src/webview/picker.ts` | composer 的模型 / 思考等级快捷菜单：小弹层对齐 chip 弹出，模型行只有名称 + 供应商（仅常用模型，为空时显示「无」），末尾「其他模型…」交给原生完整 picker | dom, host, i18n, icons, shell, store |
@@ -92,6 +93,7 @@ graph TD
     sessionsview[webview/sessions-view]
     resourcesview[webview/resources-view]
     statusline[webview/statusline]
+    search[webview/search]
     widgets[webview/widgets]
     picker[webview/picker]
     collapsible[webview/collapsible]
@@ -197,6 +199,9 @@ graph TD
   main --> statusline
   main --> widgets
   main --> picker
+  main --> search
+  search --> shell
+  search --> i18n
   picker --> shell
   picker --> store
   picker --> hostapi

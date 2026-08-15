@@ -23,7 +23,7 @@
 - `src/agent/config.ts` — 插件自有能力的 VS Code 配置（宿主侧唯一读取点，workspace 级可覆盖），并提供打开 VS Code 设置界面用的 section id。
 - `src/shared/protocol.ts` — host ↔ webview 消息协议与共享常量，**必须保持零依赖**（webview 打包不能引入 Node 代码）。
 - `src/shared/messages.ts` — 宿主侧文案的中英字典（含参数化模板），同样零依赖；宿主经 `agent/i18n.ts` 的 `t()`/`tf()` 取用，webview `i18n.ts` 也引用它以保持措辞一致。
-- `src/webview/` — webview 前端（无框架，DOM 直操作），按面板拆分：`main.ts` 只做布局/接线/路由，`transcript.ts`、`composer.ts`、`sessions-view.ts`、`resources-view.ts`、`picker.ts`、`statusline.ts` 各管一块，`shell.ts`/`store.ts`/`host.ts`/`collapsible.ts`/`bubble.ts`/`clipboard.ts`/`dom.ts` 为公共设施；`i18n.ts` 提供 zh/en 双语。
+- `src/webview/` — webview 前端（无框架，DOM 直操作），按面板拆分：`main.ts` 只做布局/接线/路由，`transcript.ts`、`composer.ts`、`sessions-view.ts`、`resources-view.ts`、`picker.ts`、`statusline.ts`、`search.ts`（transcript 搜索，高亮走 CSS Custom Highlight API，不改 DOM）各管一块，`shell.ts`/`store.ts`/`host.ts`/`collapsible.ts`/`bubble.ts`/`clipboard.ts`/`dom.ts` 为公共设施；`i18n.ts` 提供 zh/en 双语。
 - `media/main.css` — 样式，颜色只用 VS Code 主题变量。
 
 项目模块架构见 `ARCHITECTURE.md`；修改模块结构后请更新该文件。
