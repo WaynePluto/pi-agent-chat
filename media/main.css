@@ -202,7 +202,17 @@ button {
   cursor: pointer;
 }
 
-button:hover:not(:disabled) {
+/* `:where()` keeps this at the same specificity as the plain `button` rule
+   above (0,0,1), so any component that gives its buttons a flat look overrides
+   the hover state together with the resting one.
+
+   Written the obvious way (`button:hover:not(:disabled)`) it outranks every
+   class-only hover rule, and any button that is not meant to look like a
+   primary button — card headers, list rows, the fold toggle — lights up as a
+   blue block under the pointer while looking flat at rest. That was patched
+   once by listing the affected classes below; `:where()` removes the trap
+   instead of asking every new flat button to remember to register there. */
+button:where(:hover):where(:not(:disabled)) {
   background: var(--vscode-button-hoverBackground);
 }
 
@@ -210,8 +220,7 @@ button.secondary:hover:not(:disabled) {
   background: var(--vscode-button-secondaryHoverBackground, var(--hover-bg-strong));
 }
 
-/* Flat list-like buttons: beat the base button:hover:not(:disabled) rule
-   (higher specificity) so hovering stays a subtle gray, not button blue. */
+/* Flat list-like buttons share the list hover background. */
 button.card-header:hover:not(:disabled),
 button.work-header:hover:not(:disabled),
 button.session-main:hover:not(:disabled),
@@ -787,19 +796,213 @@ button.bubble-action svg {
 /* Markdown output (assistant/user bubbles) */
 .bubble.markdown {
   white-space: normal;
+  /* Anchor for the footer (fold + copy), which floats over the last line. */
+  position: relative;
 }
 
-.bubble.markdown > :first-child,
-.bubble.markdown > .bubble-badge + * {
+/* Rendered Markdown lives in its own element so that folding a long message
+   clamps the text only — the badges, the footer and the hover action bar must
+   stay reachable. */
+.bubble-content > :first-child {
   margin-top: 0;
 }
 
-/* The hover action bar is a DOM child of the user bubble but is absolutely
-   positioned, so it must not take `:last-child` away from the final Markdown
-   block: that block would keep its bottom margin and the text would sit
-   visibly above the center of a single-line bubble. */
-.bubble.markdown > :nth-last-child(1 of :not(.bubble-actions)) {
+.bubble-content > :last-child {
   margin-bottom: 0;
+}
+
+/* Folded: a preview of the message with the rest masked out. The height is in
+   `em` so it follows the editor font size the bubbles use. */
+.bubble.folded > .bubble-content {
+  max-height: 11em;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 65%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 65%, transparent 100%);
+}
+
+/* Per-message footer: "show full message" and "copy".
+   Absolutely positioned, so an ordinary short message costs no extra row in
+   the transcript; it is revealed on hover, and pinned open while folded (the
+   fold has to be undoable without hunting for a hover target). */
+.bubble-footer {
+  position: absolute;
+  right: 6px;
+  bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px;
+  border-radius: 4px;
+  /* Same surface as the bubble, so the buttons never sit on top of text. */
+  background: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 80ms ease-in;
+}
+
+.bubble:hover > .bubble-footer,
+.bubble:focus-within > .bubble-footer,
+.bubble.folded > .bubble-footer {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* The toggle only exists for messages long enough to be worth folding. */
+.bubble-fold {
+  display: none;
+  /* Absolutely positioned: keep the label on one line and inside the bubble. */
+  max-width: 40vw;
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 0 4px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--vscode-textLink-foreground);
+  font-family: inherit;
+  font-size: 0.85em;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.bubble.foldable > .bubble-footer > .bubble-fold {
+  display: inline-block;
+}
+
+.bubble-fold:hover {
+  color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+  background: var(--hover-bg-strong);
+}
+
+/* Copy buttons (message bubbles, code blocks). */
+button.copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+}
+
+button.copy-button:hover {
+  background: var(--hover-bg-strong);
+  color: var(--vscode-foreground);
+}
+
+button.copy-button.copied {
+  color: var(--vscode-charts-green, var(--accent));
+}
+
+button.copy-button svg {
+  display: block;
+}
+
+/* Fenced code blocks get their own copy button, parked in the top-right
+   corner of the block and revealed on hover. */
+.code-block {
+  position: relative;
+}
+
+.code-block > button.copy-button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--code-bg);
+  opacity: 0;
+  transition: opacity 80ms ease-in;
+}
+
+.code-block:hover > button.copy-button,
+.code-block > button.copy-button:focus-visible {
+  opacity: 1;
+}
+
+/* Syntax highlighting: highlight.js class names mapped onto VS Code colors.
+
+   A webview cannot read the active theme's TextMate token colors, so this maps
+   each token onto the closest *workbench* color instead — those are injected as
+   `--vscode-*` variables and follow the theme (light, dark, high contrast),
+   which a hard-coded highlight.js stylesheet would not. Every variable has a
+   fallback: a theme that leaves one undefined must not drop the color entirely.
+
+   Tokens deliberately left at the surrounding text color: punctuation,
+   operators, plain identifiers. */
+.hljs .hljs-comment,
+.hljs .hljs-quote {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+.hljs .hljs-keyword,
+.hljs .hljs-literal,
+.hljs .hljs-doctag,
+.hljs .hljs-selector-tag,
+.hljs .hljs-tag .hljs-name,
+.hljs .hljs-template-tag {
+  color: var(--vscode-symbolIcon-keywordForeground, var(--vscode-charts-blue, inherit));
+}
+
+.hljs .hljs-string,
+.hljs .hljs-regexp,
+.hljs .hljs-char,
+.hljs .hljs-meta .hljs-string,
+.hljs .hljs-selector-attr,
+.hljs .hljs-selector-pseudo {
+  color: var(--vscode-debugTokenExpression-string, var(--vscode-charts-orange, inherit));
+}
+
+.hljs .hljs-number,
+.hljs .hljs-symbol,
+.hljs .hljs-bullet,
+.hljs .hljs-link {
+  color: var(--vscode-debugTokenExpression-number, var(--vscode-charts-green, inherit));
+}
+
+.hljs .hljs-title,
+.hljs .hljs-section,
+.hljs .hljs-selector-id {
+  color: var(--vscode-symbolIcon-functionForeground, var(--vscode-charts-yellow, inherit));
+}
+
+.hljs .hljs-type,
+.hljs .hljs-built_in,
+.hljs .hljs-class,
+.hljs .hljs-title.class_,
+.hljs .hljs-selector-class {
+  color: var(--vscode-symbolIcon-classForeground, var(--vscode-charts-yellow, inherit));
+}
+
+.hljs .hljs-variable,
+.hljs .hljs-template-variable,
+.hljs .hljs-params,
+.hljs .hljs-attr,
+.hljs .hljs-attribute,
+.hljs .hljs-property {
+  color: var(--vscode-symbolIcon-variableForeground, inherit);
+}
+
+.hljs .hljs-meta {
+  color: var(--vscode-descriptionForeground);
+}
+
+/* Fenced `diff` blocks, kept in step with the tool cards' own diff rendering. */
+.hljs .hljs-addition {
+  color: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green, inherit));
+}
+
+.hljs .hljs-deletion {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-charts-red, inherit));
+}
+
+.hljs .hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs .hljs-strong {
+  font-weight: bold;
 }
 
 .bubble.markdown p,

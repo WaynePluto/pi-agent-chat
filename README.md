@@ -40,7 +40,8 @@ Overall, this extension bets on simplicity and on the continued progress of the 
 
 ## Features
 
-- Streaming markdown rendering (marked + DOM sanitizing whitelist, frame-throttled repaint)
+- Streaming markdown rendering (marked + DOM sanitizing whitelist, frame-throttled repaint), with syntax-highlighted code blocks colored from the active VS Code theme
+- Message bubbles: only the newest message of each role is expanded, older long ones fold to a preview (a fold you undo by hand stays undone); copy buttons for the raw message and for each code block
 - Tool cards: argument summary, collapsible output, compact colored diff for edit results
 - One-click native `vscode.diff` for edit results (reverse-applies the patch to reconstruct the old content) and open-target-file
 - Session new / list / resume / delete, with full transcript replay; while a run is in progress, other sessions can be opened as a read-only preview

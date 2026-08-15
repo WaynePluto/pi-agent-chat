@@ -1196,6 +1196,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       case "openFile":
         await vscode.window.showTextDocument(vscode.Uri.file(message.path));
         break;
+      case "copyText":
+        await vscode.env.clipboard.writeText(message.text);
+        break;
     }
   }
 

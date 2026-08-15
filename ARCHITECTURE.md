@@ -39,7 +39,7 @@
 | webview/shell | `src/webview/shell.ts` | 静态页面骨架（`#root` innerHTML）与所有元素引用 | i18n, icons |
 | webview/store | `src/webview/store.ts` | 唯一的 `ChatState` 快照（live binding + `setState`） | protocol |
 | webview/host | `src/webview/host.ts` | `acquireVsCodeApi()` 封装，唯一的 `post()` 出口 | protocol |
-| webview/transcript | `src/webview/transcript.ts` | 消息区：气泡、work block、思考/工具/通知卡片（含技能徽章）、diff 渲染、粘底滚动、运行指示器 | collapsible, dom, format, host, markdown, resources-view, shell, spinner, store |
+| webview/transcript | `src/webview/transcript.ts` | 消息区：气泡、work block、思考/工具/通知卡片（含技能徽章）、diff 渲染、粘底滚动、运行指示器 | bubble, collapsible, dom, format, host, markdown, resources-view, shell, spinner, store |
 | webview/composer | `src/webview/composer.ts` | 输入区：发送/steer/follow-up、`/` 命令补全、`@` 文件选择器与引用 chip、拖拽调整高度 | dom, format, host, shell, store, transcript |
 | webview/sessions-view | `src/webview/sessions-view.ts` | 会话列表页渲染与行内操作（恢复/删除/查看父子会话） | dom, format, host, shell, spinner, store, transcript |
 | webview/resources-view | `src/webview/resources-view.ts` | 资源面板（Context / Skills / Prompts / Extensions / Tools；不含 Themes，也不含任何非 pi 官方的资源类型）：header 按钮控制显隐；绿色 = 本会话中生效过（transcript 可见的技能/工具/提示词/扩展命令，并与宿主下发的 `item.used` 取并集），灰斜体 = 已配置但未生效，其余为常规前景色 | collapsible, dom, host, shell |
@@ -50,7 +50,10 @@
 | webview/overflow | `src/webview/overflow.ts` | 工具栏收纳组：面板过窄时把次要按钮搬进「⋯」弹层（换行探针判定，非硬编码断点） | dom |
 | webview/dom · spinner · icons · format | `src/webview/{dom,spinner,icons,format}.ts` | DOM 构造helper、共享 spinner 动画、SVG 图标常量、截断/格式化与显示上限 | — |
 | webview/i18n | `src/webview/i18n.ts` | zh/en 双语字典，按 `<html lang>` 选择 | shared/messages |
-| webview/markdown | `src/webview/markdown.ts` | marked 渲染 + DOM 层标签/属性白名单净化 | marked |
+| webview/markdown | `src/webview/markdown.ts` | marked 渲染 + DOM 层标签/属性白名单净化 + 为每个代码块补复制按钮与语法高亮（均在净化之后注入） | clipboard, dom, highlight, i18n, marked |
+| webview/highlight | `src/webview/highlight.ts` | highlight.js core + 手选语言子集；只高亮 fence 声明的语言（不做自动探测），带结果缓存供流式重渲染 | format, highlight.js |
+| webview/bubble | `src/webview/bubble.ts` | 正式消息气泡：内容容器 + 页脚（折叠开关 / 复制原文）；长消息折叠判定按 Markdown 源长度（无头可复现） | clipboard, dom, format, i18n, markdown |
+| webview/clipboard | `src/webview/clipboard.ts` | 复制按钮（消息 / 代码块）；写剪贴板交给宿主的 `copyText` | dom, host, i18n, icons |
 | build & scripts | `esbuild.mjs`, `scripts/` | 双 bundle 构建、运行时包复制到 `dist/node_modules`、`import.meta.url/resolve` 重写；`check_bundle.py` 校验产物、`smoke_load.mjs` 跑宿主 diagnostics、`smoke_webview.mjs` 在 jsdom 中比对 webview DOM 快照 | esbuild, jsdom, node |
 
 ## 依赖关系图
@@ -100,6 +103,9 @@ graph TD
     hostapi[webview/host]
     i18n[webview/i18n]
     markdown[webview/markdown]
+    highlight[webview/highlight]
+    bubble[webview/bubble]
+    clipboard[webview/clipboard]
     domutil["webview/dom · spinner · icons · format"]
   end
   protocol[shared/protocol]
@@ -213,6 +219,12 @@ graph TD
   transcript --> store
   transcript --> hostapi
   transcript --> markdown
+  transcript --> bubble
+  bubble --> markdown
+  bubble --> clipboard
+  markdown --> clipboard
+  markdown --> highlight
+  clipboard --> hostapi
   transcript --> resourcesview
   transcript --> domutil
   composer --> transcript

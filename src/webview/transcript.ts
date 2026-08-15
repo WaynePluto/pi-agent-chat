@@ -1,5 +1,6 @@
 import type { ChatEvent, JsonValue, ShadowedSubagentNotice, SkillRef } from "../shared/protocol.js";
 import { SUBAGENT_TOOL } from "../shared/protocol.js";
+import { createMessageBubble, type MessageBubble } from "./bubble.js";
 import { CARD_CLASSES, WORK_CLASSES, createCollapsible, type Collapsible } from "./collapsible.js";
 import { button, el, icon } from "./dom.js";
 import {
@@ -31,7 +32,7 @@ const t = getDict();
 
 /** Streaming assistant bubble keeps raw markdown for re-render on each delta. */
 interface StreamingBubble {
-  element: HTMLElement;
+  bubble: MessageBubble;
   raw: string;
 }
 let assistantBubble: StreamingBubble | undefined;
@@ -83,6 +84,12 @@ let workingLabelEl: HTMLElement | undefined;
 interface TranscriptViewState {
   /** Per work block, by position: open, and how far into it the user had read. */
   work: Map<number, { expanded: boolean; scrollTop?: number }>;
+  /**
+   * Message bubbles the user folded or unfolded by hand, by position. Only
+   * manual decisions are recorded: everything else follows the default rule
+   * (newest of each role open), which is recomputed on every replay.
+   */
+  bubbles: Map<number, boolean>;
   /** Message list offset. Undefined means this transcript was never left. */
   scrollTop?: number;
   /** Whether the user was following new output when they left. */
@@ -92,7 +99,7 @@ interface TranscriptViewState {
 }
 
 function emptyViewState(): TranscriptViewState {
-  return { work: new Map(), followBottom: true, toolScroll: new Map() };
+  return { work: new Map(), bubbles: new Map(), followBottom: true, toolScroll: new Map() };
 }
 
 const transcriptViews = new Map<string, TranscriptViewState>();
@@ -106,6 +113,16 @@ let currentView: TranscriptViewState = emptyViewState();
  */
 const workBlocks = new Map<number, Collapsible>();
 let workBlockIndex = -1;
+
+/**
+ * The newest formal message of each role, and how many have been rendered.
+ *
+ * The count is the bubble's position, the same stable identity work blocks use;
+ * the newest bubble of a role is the one that stays unfolded until the next
+ * message of that role takes its place.
+ */
+const latestBubbles = new Map<string, MessageBubble>();
+let bubbleIndex = -1;
 
 function selectTranscript(id: string | undefined): void {
   const key = id ?? "";
@@ -458,6 +475,8 @@ export function clearMessages(): void {
   // only swapped when the transcript itself changes.
   workBlocks.clear();
   workBlockIndex = -1;
+  latestBubbles.clear();
+  bubbleIndex = -1;
   placeholderEl = undefined;
   // Skill marks describe the displayed transcript, so they go with it.
   clearResourceHighlights();
@@ -473,11 +492,23 @@ function appendBubble(role: string, text: string): HTMLElement {
   return wrapper;
 }
 
-function appendMarkdownBubble(role: string, text: string): HTMLElement {
-  const wrapper = el("div", `bubble markdown ${role}`);
-  wrapper.appendChild(renderMarkdown(text));
-  sink.appendChild(wrapper);
-  return wrapper;
+function appendMarkdownBubble(role: string, text: string): MessageBubble {
+  const index = ++bubbleIndex;
+  const remembered = currentView.bubbles.get(index);
+  const bubble = createMessageBubble({
+    role,
+    text,
+    folded: remembered,
+    onToggle: (folded) => currentView.bubbles.set(index, folded),
+  });
+  // The message that just arrived is the one being read, so the previous one of
+  // the same role folds away — unless the user opened or closed it by hand, in
+  // which case their decision outranks the default.
+  const previous = latestBubbles.get(role);
+  if (previous && !previous.pinned) previous.setFolded(true);
+  latestBubbles.set(role, bubble);
+  sink.appendChild(bubble.root);
+  return bubble;
 }
 
 /**
@@ -485,7 +516,7 @@ function appendMarkdownBubble(role: string, text: string): HTMLElement {
  * distinct accent so they read differently from immediate prompts.
  */
 function appendUserBubble(text: string, mode?: "steer" | "followUp", skill?: string, prompt?: string, extension?: string): void {
-  const wrapper = appendMarkdownBubble("user", text);
+  const wrapper = appendMarkdownBubble("user", text).root;
   wrapper.appendChild(entryActionBar());
   // A prompt template is expanded, and an extension command is consumed, before
   // the agent runs, so neither leaves a tool card behind. The host resolves
@@ -637,9 +668,7 @@ export function hasPendingBubbles(): boolean {
 }
 
 function createStreamingBubble(role: string): StreamingBubble {
-  const element = el("div", `bubble markdown ${role}`);
-  sink.appendChild(element);
-  return { element, raw: "" };
+  return { bubble: appendMarkdownBubble(role, ""), raw: "" };
 }
 
 /**
@@ -1051,7 +1080,7 @@ function scheduleRender(): void {
 }
 
 function flushStreaming(): void {
-  if (assistantBubble) assistantBubble.element.replaceChildren(renderMarkdown(assistantBubble.raw));
+  if (assistantBubble) assistantBubble.bubble.setText(assistantBubble.raw);
   // Collapsed cards keep their raw text unrendered on purpose.
   if (thinkingCard) {
     thinkingCard.invalidate();

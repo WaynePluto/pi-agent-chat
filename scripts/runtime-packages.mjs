@@ -13,7 +13,7 @@
  */
 
 import { cp, mkdir, rm } from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -81,6 +81,25 @@ export const runtimePackages = [
   "yaml",
 ];
 
+/**
+ * Where to copy a runtime package from.
+ *
+ * This list exists for the *on-disk SDK copy*, so each package has to be taken
+ * the way that copy resolves it. Under the hoisted pnpm layout a plugin's own
+ * direct dependency wins the root slot and pushes the SDK's version into a
+ * nested `node_modules`, so the root is not always the right source.
+ *
+ * `highlight.js` is the live example: the webview bundles 11.x for syntax
+ * colouring, the SDK needs 10.x, and 11.x no longer exports the
+ * `./lib/index.js` deep import the SDK uses — copying the root version makes
+ * the on-disk SDK unloadable. The plugin's own copy is bundled and never read
+ * from disk, so the SDK's version is the one that has to ship.
+ */
+function runtimePackageSource(name) {
+  const nested = resolve(repoRoot, "node_modules", "@earendil-works", "pi-coding-agent", "node_modules", name);
+  return existsSync(nested) ? nested : resolve(repoRoot, "node_modules", name);
+}
+
 /** Native clipboard bindings live in platform-specific sibling packages. */
 export function platformClipboardPackages() {
   const manifest = resolve(repoRoot, "node_modules", "@mariozechner", "clipboard", "package.json");
@@ -102,7 +121,7 @@ export async function copyRuntimePackages(target, { log = () => {} } = {}) {
   await rm(target, { recursive: true, force: true });
   const skipped = [];
   for (const name of runtimePackages) {
-    const source = resolve(repoRoot, "node_modules", name);
+    const source = runtimePackageSource(name);
     try {
       await mkdir(dirname(join(target, name)), { recursive: true });
       await cp(source, join(target, name), {

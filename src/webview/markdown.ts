@@ -1,5 +1,12 @@
 import { marked } from "marked";
 
+import { copyButton } from "./clipboard.js";
+import { el } from "./dom.js";
+import { highlightCode } from "./highlight.js";
+import { getDict } from "./i18n.js";
+
+const t = getDict();
+
 /**
  * Markdown rendering for chat bubbles.
  *
@@ -53,7 +60,40 @@ export function renderMarkdown(text: string): DocumentFragment {
   const template = document.createElement("template");
   template.innerHTML = html;
   sanitize(template.content);
+  decorateCodeBlocks(template.content);
   return template.content;
+}
+
+/**
+ * Give every fenced code block its own copy button, and color it.
+ *
+ * `marked` does neither: highlighting is delegated to a `highlight` option that
+ * a caller has to supply, and no published extension adds a copy button on its
+ * own. Both are done here on the rendered DOM instead — after `sanitize()`,
+ * whose allowlist deliberately contains neither the wrapper, nor the button,
+ * nor the token spans. That order is the point: the model's output is reduced
+ * to text first, and everything added afterwards is ours.
+ */
+function decorateCodeBlocks(root: ParentNode): void {
+  for (const pre of [...root.querySelectorAll("pre")]) {
+    const wrapper = el("div", "code-block");
+    pre.replaceWith(wrapper);
+    wrapper.append(pre, copyButton("code-copy", t.copyCode, () => pre.textContent ?? ""));
+    highlightBlock(pre);
+  }
+}
+
+/** Language of a fenced block, as `marked` records it: `<code class="language-ts">`. */
+function highlightBlock(pre: HTMLPreElement): void {
+  const code = pre.querySelector("code");
+  if (!code) return;
+  const language = [...code.classList].find((name) => name.startsWith("language-"))?.slice("language-".length);
+  // `textContent` of a sanitized block is plain text, and highlight.js escapes
+  // it on the way out, so the result is safe to assign as markup.
+  const html = highlightCode(code.textContent ?? "", language);
+  if (html === undefined) return;
+  code.innerHTML = html;
+  code.classList.add("hljs");
 }
 
 function sanitize(root: ParentNode): void {

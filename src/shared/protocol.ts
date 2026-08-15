@@ -447,4 +447,12 @@ export type WebviewMessage =
   /** Open the settings menu (providers, shell path, ...). */
   | { type: "openSettings" }
   | { type: "openDiff"; path: string; patch: string }
-  | { type: "openFile"; path: string };
+  | { type: "openFile"; path: string }
+  /**
+   * Copy text to the clipboard (message bubbles, code blocks).
+   *
+   * The host owns this the way it owns `openFile`: `navigator.clipboard` in a
+   * webview is gated on focus and permissions that differ between desktop and
+   * remote/browser hosts, while `vscode.env.clipboard` works everywhere.
+   */
+  | { type: "copyText"; text: string };

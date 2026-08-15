@@ -21,4 +21,12 @@ export const MAX_SESSION_TITLE_CHARS = 120;
 export const MAX_NOTICE_HEADER_CHARS = 80;
 /** One subagent row stays a glance, not a transcript of its own. */
 export const MAX_LANE_DETAIL_CHARS = 240;
+/* A message bubble folds to a preview only once it is long enough to be worth
+   folding: collapsing one-liners would cost a click and save no space. Either
+   limit alone is enough — a wall of short lines is as tall as a long paragraph. */
+export const MAX_UNFOLDED_BUBBLE_CHARS = 700;
+export const MAX_UNFOLDED_BUBBLE_LINES = 14;
+/* Syntax highlighting runs again on every frame of a streaming answer, so a
+   pasted-file-sized block is left as plain text rather than tokenized 60x/s. */
+export const MAX_HIGHLIGHT_CHARS = 20_000;
 export const MAX_COMMAND_MATCHES = 50;

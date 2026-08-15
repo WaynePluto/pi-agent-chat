@@ -925,10 +925,17 @@ Open in editor" type="button">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
       <div class="bubble markdown user">
-        <p>
-          "Fix the bug in"
-          <strong>
-            "demo.ts"
+        <div class="bubble-content">
+          <p>
+            "Fix the bug in"
+            <strong>
+              "demo.ts"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -969,16 +976,23 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown assistant">
-        <p>
-          "Done."
-        <ul>
-          <li>
-            "changed"
-            <code>
-              "b"
-            "to 3"
-          <li>
-            "nothing else"
+        <div class="bubble-content">
+          <p>
+            "Done."
+          <ul>
+            <li>
+              "changed"
+              <code>
+                "b"
+              "to 3"
+            <li>
+              "nothing else"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -1171,10 +1185,17 @@ Open in editor" type="button">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
       <div class="bubble markdown user">
-        <p>
-          "Fix the bug in"
-          <strong>
-            "demo.ts"
+        <div class="bubble-content">
+          <p>
+            "Fix the bug in"
+            <strong>
+              "demo.ts"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -1215,16 +1236,23 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown assistant">
-        <p>
-          "Done."
-        <ul>
-          <li>
-            "changed"
-            <code>
-              "b"
-            "to 3"
-          <li>
-            "nothing else"
+        <div class="bubble-content">
+          <p>
+            "Done."
+          <ul>
+            <li>
+              "changed"
+              <code>
+                "b"
+              "to 3"
+            <li>
+              "nothing else"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -1417,10 +1445,17 @@ Open in editor" type="button">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
       <div class="bubble markdown user">
-        <p>
-          "Fix the bug in"
-          <strong>
-            "demo.ts"
+        <div class="bubble-content">
+          <p>
+            "Fix the bug in"
+            <strong>
+              "demo.ts"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -1461,16 +1496,23 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown assistant">
-        <p>
-          "Done."
-        <ul>
-          <li>
-            "changed"
-            <code>
-              "b"
-            "to 3"
-          <li>
-            "nothing else"
+        <div class="bubble-content">
+          <p>
+            "Done."
+          <ul>
+            <li>
+              "changed"
+              <code>
+                "b"
+              "to 3"
+            <li>
+              "nothing else"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -1688,10 +1730,17 @@ Open in editor" type="button">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
       <div class="bubble markdown user">
-        <p>
-          "Fix the bug in"
-          <strong>
-            "demo.ts"
+        <div class="bubble-content">
+          <p>
+            "Fix the bug in"
+            <strong>
+              "demo.ts"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -1732,16 +1781,23 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown assistant">
-        <p>
-          "Done."
-        <ul>
-          <li>
-            "changed"
-            <code>
-              "b"
-            "to 3"
-          <li>
-            "nothing else"
+        <div class="bubble-content">
+          <p>
+            "Done."
+          <ul>
+            <li>
+              "changed"
+              <code>
+                "b"
+              "to 3"
+            <li>
+              "nothing else"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -1941,10 +1997,17 @@ Open in editor" type="button">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
       <div class="bubble markdown user">
-        <p>
-          "Fix the bug in"
-          <strong>
-            "demo.ts"
+        <div class="bubble-content">
+          <p>
+            "Fix the bug in"
+            <strong>
+              "demo.ts"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -1985,16 +2048,23 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown assistant">
-        <p>
-          "Done."
-        <ul>
-          <li>
-            "changed"
-            <code>
-              "b"
-            "to 3"
-          <li>
-            "nothing else"
+        <div class="bubble-content">
+          <p>
+            "Done."
+          <ul>
+            <li>
+              "changed"
+              <code>
+                "b"
+              "to 3"
+            <li>
+              "nothing else"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -2208,10 +2278,17 @@ Open in editor" type="button">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
       <div class="bubble markdown user">
-        <p>
-          "Fix the bug in"
-          <strong>
-            "demo.ts"
+        <div class="bubble-content">
+          <p>
+            "Fix the bug in"
+            <strong>
+              "demo.ts"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -2252,16 +2329,23 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown assistant">
-        <p>
-          "Done."
-        <ul>
-          <li>
-            "changed"
-            <code>
-              "b"
-            "to 3"
-          <li>
-            "nothing else"
+        <div class="bubble-content">
+          <p>
+            "Done."
+          <ul>
+            <li>
+              "changed"
+              <code>
+                "b"
+              "to 3"
+            <li>
+              "nothing else"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -2454,8 +2538,15 @@ Open in editor" type="button">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
       <div class="bubble markdown user">
-        <p>
-          "first prompt"
+        <div class="bubble-content">
+          <p>
+            "first prompt"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -2467,13 +2558,27 @@ Open in editor" type="button">
             <span>
               <svg/>
       <div class="bubble markdown assistant">
-        <p>
-          "first answer"
+        <div class="bubble-content">
+          <p>
+            "first answer"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown user">
         <span class="bubble-badge label-badge">
           "before refactor"
-        <p>
-          "second prompt"
+        <div class="bubble-content">
+          <p>
+            "second prompt"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -2482,6 +2587,592 @@ Open in editor" type="button">
             <span>
               <svg/>
           <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <div id="widgets-above" class="widgets hidden">
+  <footer id="composer" class="composer">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <span class="overflow-slot">
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <span class="overflow-slot">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <span class="overflow-slot">
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <span class="overflow-slot">
+      <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
+        "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <button id="btn-send" class="icon-button" title="Send (Enter)">
+        <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
+      <div id="picker" class="picker hidden">
+    <div id="widgets-below" class="widgets hidden">
+    <div id="statusline" class="statusline">
+      <div class="statusline-row stats">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
+===== long messages fold except the newest of each role =====
+<div id="root">
+  <header id="header" class="header">
+    <div id="header-title" class="header-title" title="New session">
+      "New session"
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
+      <button id="btn-new" title="Start a new session">
+        "New"
+      <span class="overflow-slot">
+      <button id="btn-sessions" title="Browse, resume or delete sessions">
+        "Sessions"
+      <span class="overflow-slot">
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)">
+        "Session tree"
+      <span class="overflow-slot">
+      <button id="btn-resources" title="Show or hide the loaded resources panel" aria-pressed="false">
+        "Resources"
+      <span class="overflow-slot">
+      <button id="btn-settings" title="Providers, shell path and other Pi settings">
+        "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
+  <div id="sessions" class="sessions hidden">
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources hidden">
+    <div class="resources-panel collapsed">
+      <button class="resources-toggle" title="Expand" aria-expanded="false" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 2 · Prompts 1 · Extensions 3 · Tools 4"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo, helper"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/.agents/skills/demo/SKILL.md
+Open in editor" type="button">
+              "demo"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Prompts]"
+            <span class="resource-summary">
+              "/review"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/.pi/prompts/review.md
+Open in editor" type="button">
+              "/review"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              <span class="resource-inactive">
+                "broken.ts (load failed)"
+              ","
+              "ext.ts"
+              ","
+              "notify.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.pi/agent/extensions/notify.ts
+Open in editor" type="button">
+              "notify.ts"
+            <div class="resource-scope">
+              "Project"
+            <div class="resource-inactive" title="Configured, but not in effect in this session">
+              "broken.ts: parse failed"
+            <button class="resource-file" title="/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Tools]"
+            <span class="resource-summary">
+              "bash"
+              ","
+              <span class="resource-inactive">
+                "grep"
+              ","
+              "notify"
+              ","
+              "subagent"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Built-in"
+            <div title="Execute a bash command">
+              "bash"
+            <div class="resource-inactive" title="Search file contents
+Configured, but not in effect in this session">
+              "grep"
+            <div title="Delegate one task to a child agent session">
+              "subagent"
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="Send a desktop notification
+/home/me/.pi/agent/extensions/notify.ts
+Open in editor" type="button">
+              "notify"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+    <button id="delegation-peer" class="secondary">
+  <div id="messages-wrap" class="messages-wrap">
+    <main id="messages" class="messages">
+      <div class="bubble markdown user foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Here is the plan."
+          <div class="code-block">
+            <pre>
+              <code class="language-ts hljs">
+                <span class="hljs-keyword">
+                  "const"
+                "a ="
+                <span class="hljs-number">
+                  "1"
+                ";"
+                <span class="hljs-keyword">
+                  "const"
+                "b ="
+                <span class="hljs-number">
+                  "2"
+                ";"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <div class="code-block">
+            <pre>
+              <code>
+                "an unlabelled block stays plain text"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <ul>
+            <li>
+              "read the current renderer"
+            <li>
+              "extract the bubble into its own module"
+            <li>
+              "fold long messages"
+            <li>
+              "add the copy buttons"
+            <li>
+              "update the styles"
+            <li>
+              "rebuild the snapshot"
+            <li>
+              "review the diff"
+          <p>
+            "That is all."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown user">
+        <div class="bubble-content">
+          <p>
+            "and the second file?"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant">
+        <div class="bubble-content">
+          <p>
+            "Same change, applied."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <div id="widgets-above" class="widgets hidden">
+  <footer id="composer" class="composer">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <span class="overflow-slot">
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <span class="overflow-slot">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <span class="overflow-slot">
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <span class="overflow-slot">
+      <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
+        "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <button id="btn-send" class="icon-button" title="Send (Enter)">
+        <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
+      <div id="picker" class="picker hidden">
+    <div id="widgets-below" class="widgets hidden">
+    <div id="statusline" class="statusline">
+      <div class="statusline-row stats">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
+===== long messages: a fold undone by hand survives a transcript round trip =====
+<div id="root">
+  <header id="header" class="header">
+    <div id="header-title" class="header-title" title="New session">
+      "New session"
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
+      <button id="btn-new" title="Start a new session">
+        "New"
+      <span class="overflow-slot">
+      <button id="btn-sessions" title="Browse, resume or delete sessions">
+        "Sessions"
+      <span class="overflow-slot">
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)">
+        "Session tree"
+      <span class="overflow-slot">
+      <button id="btn-resources" title="Show or hide the loaded resources panel" aria-pressed="false">
+        "Resources"
+      <span class="overflow-slot">
+      <button id="btn-settings" title="Providers, shell path and other Pi settings">
+        "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
+  <div id="sessions" class="sessions hidden">
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources hidden">
+    <div class="resources-panel collapsed">
+      <button class="resources-toggle" title="Expand" aria-expanded="false" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 2 · Prompts 1 · Extensions 3 · Tools 4"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo, helper"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/.agents/skills/demo/SKILL.md
+Open in editor" type="button">
+              "demo"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Prompts]"
+            <span class="resource-summary">
+              "/review"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/.pi/prompts/review.md
+Open in editor" type="button">
+              "/review"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              <span class="resource-inactive">
+                "broken.ts (load failed)"
+              ","
+              "ext.ts"
+              ","
+              "notify.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.pi/agent/extensions/notify.ts
+Open in editor" type="button">
+              "notify.ts"
+            <div class="resource-scope">
+              "Project"
+            <div class="resource-inactive" title="Configured, but not in effect in this session">
+              "broken.ts: parse failed"
+            <button class="resource-file" title="/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Tools]"
+            <span class="resource-summary">
+              "bash"
+              ","
+              <span class="resource-inactive">
+                "grep"
+              ","
+              "notify"
+              ","
+              "subagent"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Built-in"
+            <div title="Execute a bash command">
+              "bash"
+            <div class="resource-inactive" title="Search file contents
+Configured, but not in effect in this session">
+              "grep"
+            <div title="Delegate one task to a child agent session">
+              "subagent"
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="Send a desktop notification
+/home/me/.pi/agent/extensions/notify.ts
+Open in editor" type="button">
+              "notify"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+    <button id="delegation-peer" class="secondary">
+  <div id="messages-wrap" class="messages-wrap">
+    <main id="messages" class="messages">
+      <div class="bubble markdown user foldable">
+        <div class="bubble-content">
+          <p>
+            "Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Here is the plan."
+          <div class="code-block">
+            <pre>
+              <code class="language-ts hljs">
+                <span class="hljs-keyword">
+                  "const"
+                "a ="
+                <span class="hljs-number">
+                  "1"
+                ";"
+                <span class="hljs-keyword">
+                  "const"
+                "b ="
+                <span class="hljs-number">
+                  "2"
+                ";"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <div class="code-block">
+            <pre>
+              <code>
+                "an unlabelled block stays plain text"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <ul>
+            <li>
+              "read the current renderer"
+            <li>
+              "extract the bubble into its own module"
+            <li>
+              "fold long messages"
+            <li>
+              "add the copy buttons"
+            <li>
+              "update the styles"
+            <li>
+              "rebuild the snapshot"
+            <li>
+              "review the diff"
+          <p>
+            "That is all."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown user">
+        <div class="bubble-content">
+          <p>
+            "and the second file?"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant">
+        <div class="bubble-content">
+          <p>
+            "Same change, applied."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
             <span>
               <svg/>
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
@@ -2681,9 +3372,88 @@ Open in editor" type="button">
     <button id="delegation-peer" class="secondary">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages actions-locked">
+      <div class="bubble markdown user foldable">
+        <div class="bubble-content">
+          <p>
+            "Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Here is the plan."
+          <div class="code-block">
+            <pre>
+              <code class="language-ts hljs">
+                <span class="hljs-keyword">
+                  "const"
+                "a ="
+                <span class="hljs-number">
+                  "1"
+                ";"
+                <span class="hljs-keyword">
+                  "const"
+                "b ="
+                <span class="hljs-number">
+                  "2"
+                ";"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <div class="code-block">
+            <pre>
+              <code>
+                "an unlabelled block stays plain text"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <ul>
+            <li>
+              "read the current renderer"
+            <li>
+              "extract the bubble into its own module"
+            <li>
+              "fold long messages"
+            <li>
+              "add the copy buttons"
+            <li>
+              "update the styles"
+            <li>
+              "rebuild the snapshot"
+            <li>
+              "review the diff"
+          <p>
+            "That is all."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown user">
-        <p>
-          "first prompt"
+        <div class="bubble-content">
+          <p>
+            "and the second file?"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -2695,21 +3465,13 @@ Open in editor" type="button">
             <span>
               <svg/>
       <div class="bubble markdown assistant">
-        <p>
-          "first answer"
-      <div class="bubble markdown user">
-        <span class="bubble-badge label-badge">
-          "before refactor"
-        <p>
-          "second prompt"
-        <div class="bubble-actions">
-          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+        <div class="bubble-content">
+          <p>
+            "Same change, applied."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
             <span>
               <svg/>
       <section class="work-block collapsed finished">
@@ -2766,11 +3528,18 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown assistant">
-        <p>
-          "Here is the"
-          <strong>
-            "result"
-          "."
+        <div class="bubble-content">
+          <p>
+            "Here is the"
+            <strong>
+              "result"
+            "."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <div class="working-row">
         <span class="working-spinner">
           "⠋"
@@ -2973,9 +3742,88 @@ Open in editor" type="button">
     <button id="delegation-peer" class="secondary">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages actions-locked">
+      <div class="bubble markdown user foldable">
+        <div class="bubble-content">
+          <p>
+            "Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Here is the plan."
+          <div class="code-block">
+            <pre>
+              <code class="language-ts hljs">
+                <span class="hljs-keyword">
+                  "const"
+                "a ="
+                <span class="hljs-number">
+                  "1"
+                ";"
+                <span class="hljs-keyword">
+                  "const"
+                "b ="
+                <span class="hljs-number">
+                  "2"
+                ";"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <div class="code-block">
+            <pre>
+              <code>
+                "an unlabelled block stays plain text"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <ul>
+            <li>
+              "read the current renderer"
+            <li>
+              "extract the bubble into its own module"
+            <li>
+              "fold long messages"
+            <li>
+              "add the copy buttons"
+            <li>
+              "update the styles"
+            <li>
+              "rebuild the snapshot"
+            <li>
+              "review the diff"
+          <p>
+            "That is all."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown user">
-        <p>
-          "first prompt"
+        <div class="bubble-content">
+          <p>
+            "and the second file?"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -2987,21 +3835,13 @@ Open in editor" type="button">
             <span>
               <svg/>
       <div class="bubble markdown assistant">
-        <p>
-          "first answer"
-      <div class="bubble markdown user">
-        <span class="bubble-badge label-badge">
-          "before refactor"
-        <p>
-          "second prompt"
-        <div class="bubble-actions">
-          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+        <div class="bubble-content">
+          <p>
+            "Same change, applied."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
             <span>
               <svg/>
       <section class="work-block collapsed finished">
@@ -3058,11 +3898,18 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown assistant">
-        <p>
-          "Here is the"
-          <strong>
-            "result"
-          "."
+        <div class="bubble-content">
+          <p>
+            "Here is the"
+            <strong>
+              "result"
+            "."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <section class="work-block running collapsed">
         <button class="work-header" title="Expand" aria-expanded="false" type="button">
           <span class="work-label">
@@ -3285,9 +4132,88 @@ Open in editor" type="button">
     <button id="delegation-peer" class="secondary">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages actions-locked">
+      <div class="bubble markdown user foldable">
+        <div class="bubble-content">
+          <p>
+            "Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Here is the plan."
+          <div class="code-block">
+            <pre>
+              <code class="language-ts hljs">
+                <span class="hljs-keyword">
+                  "const"
+                "a ="
+                <span class="hljs-number">
+                  "1"
+                ";"
+                <span class="hljs-keyword">
+                  "const"
+                "b ="
+                <span class="hljs-number">
+                  "2"
+                ";"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <div class="code-block">
+            <pre>
+              <code>
+                "an unlabelled block stays plain text"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <ul>
+            <li>
+              "read the current renderer"
+            <li>
+              "extract the bubble into its own module"
+            <li>
+              "fold long messages"
+            <li>
+              "add the copy buttons"
+            <li>
+              "update the styles"
+            <li>
+              "rebuild the snapshot"
+            <li>
+              "review the diff"
+          <p>
+            "That is all."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown user">
-        <p>
-          "first prompt"
+        <div class="bubble-content">
+          <p>
+            "and the second file?"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -3299,21 +4225,13 @@ Open in editor" type="button">
             <span>
               <svg/>
       <div class="bubble markdown assistant">
-        <p>
-          "first answer"
-      <div class="bubble markdown user">
-        <span class="bubble-badge label-badge">
-          "before refactor"
-        <p>
-          "second prompt"
-        <div class="bubble-actions">
-          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+        <div class="bubble-content">
+          <p>
+            "Same change, applied."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
             <span>
               <svg/>
       <section class="work-block collapsed finished">
@@ -3370,11 +4288,18 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown assistant">
-        <p>
-          "Here is the"
-          <strong>
-            "result"
-          "."
+        <div class="bubble-content">
+          <p>
+            "Here is the"
+            <strong>
+              "result"
+            "."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <section class="work-block running collapsed">
         <button class="work-header" title="Expand" aria-expanded="false" type="button">
           <span class="work-label">
@@ -3399,8 +4324,15 @@ Open in editor" type="button">
         <div class="bubble-badges">
           <span class="bubble-badge">
             "queued"
-        <p>
-          "continue after compaction"
+        <div class="bubble-content">
+          <p>
+            "continue after compaction"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -3613,9 +4545,88 @@ Open in editor" type="button">
     <button id="delegation-peer" class="secondary">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
+      <div class="bubble markdown user foldable">
+        <div class="bubble-content">
+          <p>
+            "Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Here is the plan."
+          <div class="code-block">
+            <pre>
+              <code class="language-ts hljs">
+                <span class="hljs-keyword">
+                  "const"
+                "a ="
+                <span class="hljs-number">
+                  "1"
+                ";"
+                <span class="hljs-keyword">
+                  "const"
+                "b ="
+                <span class="hljs-number">
+                  "2"
+                ";"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <div class="code-block">
+            <pre>
+              <code>
+                "an unlabelled block stays plain text"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <ul>
+            <li>
+              "read the current renderer"
+            <li>
+              "extract the bubble into its own module"
+            <li>
+              "fold long messages"
+            <li>
+              "add the copy buttons"
+            <li>
+              "update the styles"
+            <li>
+              "rebuild the snapshot"
+            <li>
+              "review the diff"
+          <p>
+            "That is all."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown user">
-        <p>
-          "first prompt"
+        <div class="bubble-content">
+          <p>
+            "and the second file?"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -3627,21 +4638,13 @@ Open in editor" type="button">
             <span>
               <svg/>
       <div class="bubble markdown assistant">
-        <p>
-          "first answer"
-      <div class="bubble markdown user">
-        <span class="bubble-badge label-badge">
-          "before refactor"
-        <p>
-          "second prompt"
-        <div class="bubble-actions">
-          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+        <div class="bubble-content">
+          <p>
+            "Same change, applied."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
             <span>
               <svg/>
       <section class="work-block collapsed finished">
@@ -3698,11 +4701,18 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown assistant">
-        <p>
-          "Here is the"
-          <strong>
-            "result"
-          "."
+        <div class="bubble-content">
+          <p>
+            "Here is the"
+            <strong>
+              "result"
+            "."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <section class="work-block collapsed finished">
         <button class="work-header" title="Expand" aria-expanded="false" type="button">
           <span class="work-label">
@@ -3740,8 +4750,15 @@ Open in editor" type="button">
             <svg/>
         <div class="card-body">
       <div class="bubble markdown user">
-        <p>
-          "continue after compaction"
+        <div class="bubble-content">
+          <p>
+            "continue after compaction"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -3949,9 +4966,88 @@ Open in editor" type="button">
     <button id="delegation-peer" class="secondary">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
+      <div class="bubble markdown user foldable">
+        <div class="bubble-content">
+          <p>
+            "Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Here is the plan."
+          <div class="code-block">
+            <pre>
+              <code class="language-ts hljs">
+                <span class="hljs-keyword">
+                  "const"
+                "a ="
+                <span class="hljs-number">
+                  "1"
+                ";"
+                <span class="hljs-keyword">
+                  "const"
+                "b ="
+                <span class="hljs-number">
+                  "2"
+                ";"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <div class="code-block">
+            <pre>
+              <code>
+                "an unlabelled block stays plain text"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <ul>
+            <li>
+              "read the current renderer"
+            <li>
+              "extract the bubble into its own module"
+            <li>
+              "fold long messages"
+            <li>
+              "add the copy buttons"
+            <li>
+              "update the styles"
+            <li>
+              "rebuild the snapshot"
+            <li>
+              "review the diff"
+          <p>
+            "That is all."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown user">
-        <p>
-          "first prompt"
+        <div class="bubble-content">
+          <p>
+            "and the second file?"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -3963,21 +5059,13 @@ Open in editor" type="button">
             <span>
               <svg/>
       <div class="bubble markdown assistant">
-        <p>
-          "first answer"
-      <div class="bubble markdown user">
-        <span class="bubble-badge label-badge">
-          "before refactor"
-        <p>
-          "second prompt"
-        <div class="bubble-actions">
-          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+        <div class="bubble-content">
+          <p>
+            "Same change, applied."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
             <span>
               <svg/>
       <section class="work-block finished">
@@ -4048,11 +5136,18 @@ Open in editor" type="button">
               <pre class="tool-body">
                 "ok"
       <div class="bubble markdown assistant">
-        <p>
-          "Here is the"
-          <strong>
-            "result"
-          "."
+        <div class="bubble-content">
+          <p>
+            "Here is the"
+            <strong>
+              "result"
+            "."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <section class="work-block finished">
         <button class="work-header" title="Collapse" aria-expanded="true" type="button">
           <span class="work-label">
@@ -4175,8 +5270,15 @@ Open in editor" type="button">
               <li>
                 "Continue from the retained messages."
       <div class="bubble markdown user">
-        <p>
-          "continue after compaction"
+        <div class="bubble-content">
+          <p>
+            "continue after compaction"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -4384,9 +5486,88 @@ Open in editor" type="button">
     <button id="delegation-peer" class="secondary">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
+      <div class="bubble markdown user foldable">
+        <div class="bubble-content">
+          <p>
+            "Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Here is the plan."
+          <div class="code-block">
+            <pre>
+              <code class="language-ts hljs">
+                <span class="hljs-keyword">
+                  "const"
+                "a ="
+                <span class="hljs-number">
+                  "1"
+                ";"
+                <span class="hljs-keyword">
+                  "const"
+                "b ="
+                <span class="hljs-number">
+                  "2"
+                ";"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <div class="code-block">
+            <pre>
+              <code>
+                "an unlabelled block stays plain text"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <ul>
+            <li>
+              "read the current renderer"
+            <li>
+              "extract the bubble into its own module"
+            <li>
+              "fold long messages"
+            <li>
+              "add the copy buttons"
+            <li>
+              "update the styles"
+            <li>
+              "rebuild the snapshot"
+            <li>
+              "review the diff"
+          <p>
+            "That is all."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown user">
-        <p>
-          "first prompt"
+        <div class="bubble-content">
+          <p>
+            "and the second file?"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -4398,21 +5579,13 @@ Open in editor" type="button">
             <span>
               <svg/>
       <div class="bubble markdown assistant">
-        <p>
-          "first answer"
-      <div class="bubble markdown user">
-        <span class="bubble-badge label-badge">
-          "before refactor"
-        <p>
-          "second prompt"
-        <div class="bubble-actions">
-          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+        <div class="bubble-content">
+          <p>
+            "Same change, applied."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
             <span>
               <svg/>
       <section class="work-block finished">
@@ -4483,11 +5656,18 @@ Open in editor" type="button">
               <pre class="tool-body">
                 "ok"
       <div class="bubble markdown assistant">
-        <p>
-          "Here is the"
-          <strong>
-            "result"
-          "."
+        <div class="bubble-content">
+          <p>
+            "Here is the"
+            <strong>
+              "result"
+            "."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <section class="work-block finished">
         <button class="work-header" title="Collapse" aria-expanded="true" type="button">
           <span class="work-label">
@@ -4610,8 +5790,15 @@ Open in editor" type="button">
               <li>
                 "Continue from the retained messages."
       <div class="bubble markdown user">
-        <p>
-          "continue after compaction"
+        <div class="bubble-content">
+          <p>
+            "continue after compaction"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -4821,9 +6008,88 @@ Open in editor" type="button">
     <button id="delegation-peer" class="secondary">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages actions-locked">
+      <div class="bubble markdown user foldable">
+        <div class="bubble-content">
+          <p>
+            "Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Here is the plan."
+          <div class="code-block">
+            <pre>
+              <code class="language-ts hljs">
+                <span class="hljs-keyword">
+                  "const"
+                "a ="
+                <span class="hljs-number">
+                  "1"
+                ";"
+                <span class="hljs-keyword">
+                  "const"
+                "b ="
+                <span class="hljs-number">
+                  "2"
+                ";"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <div class="code-block">
+            <pre>
+              <code>
+                "an unlabelled block stays plain text"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <ul>
+            <li>
+              "read the current renderer"
+            <li>
+              "extract the bubble into its own module"
+            <li>
+              "fold long messages"
+            <li>
+              "add the copy buttons"
+            <li>
+              "update the styles"
+            <li>
+              "rebuild the snapshot"
+            <li>
+              "review the diff"
+          <p>
+            "That is all."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown user">
-        <p>
-          "first prompt"
+        <div class="bubble-content">
+          <p>
+            "and the second file?"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -4835,21 +6101,13 @@ Open in editor" type="button">
             <span>
               <svg/>
       <div class="bubble markdown assistant">
-        <p>
-          "first answer"
-      <div class="bubble markdown user">
-        <span class="bubble-badge label-badge">
-          "before refactor"
-        <p>
-          "second prompt"
-        <div class="bubble-actions">
-          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+        <div class="bubble-content">
+          <p>
+            "Same change, applied."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
             <span>
               <svg/>
       <section class="work-block finished">
@@ -4920,11 +6178,18 @@ Open in editor" type="button">
               <pre class="tool-body">
                 "ok"
       <div class="bubble markdown assistant">
-        <p>
-          "Here is the"
-          <strong>
-            "result"
-          "."
+        <div class="bubble-content">
+          <p>
+            "Here is the"
+            <strong>
+              "result"
+            "."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <section class="work-block finished">
         <button class="work-header" title="Collapse" aria-expanded="true" type="button">
           <span class="work-label">
@@ -5047,8 +6312,15 @@ Open in editor" type="button">
               <li>
                 "Continue from the retained messages."
       <div class="bubble markdown user">
-        <p>
-          "continue after compaction"
+        <div class="bubble-content">
+          <p>
+            "continue after compaction"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -5322,9 +6594,88 @@ Open in editor" type="button">
       "Back to the parent agent (it has moved on)"
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages actions-locked">
+      <div class="bubble markdown user foldable">
+        <div class="bubble-content">
+          <p>
+            "Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Here is the plan."
+          <div class="code-block">
+            <pre>
+              <code class="language-ts hljs">
+                <span class="hljs-keyword">
+                  "const"
+                "a ="
+                <span class="hljs-number">
+                  "1"
+                ";"
+                <span class="hljs-keyword">
+                  "const"
+                "b ="
+                <span class="hljs-number">
+                  "2"
+                ";"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <div class="code-block">
+            <pre>
+              <code>
+                "an unlabelled block stays plain text"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <ul>
+            <li>
+              "read the current renderer"
+            <li>
+              "extract the bubble into its own module"
+            <li>
+              "fold long messages"
+            <li>
+              "add the copy buttons"
+            <li>
+              "update the styles"
+            <li>
+              "rebuild the snapshot"
+            <li>
+              "review the diff"
+          <p>
+            "That is all."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown user">
-        <p>
-          "first prompt"
+        <div class="bubble-content">
+          <p>
+            "and the second file?"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -5336,21 +6687,13 @@ Open in editor" type="button">
             <span>
               <svg/>
       <div class="bubble markdown assistant">
-        <p>
-          "first answer"
-      <div class="bubble markdown user">
-        <span class="bubble-badge label-badge">
-          "before refactor"
-        <p>
-          "second prompt"
-        <div class="bubble-actions">
-          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+        <div class="bubble-content">
+          <p>
+            "Same change, applied."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
             <span>
               <svg/>
       <section class="work-block finished">
@@ -5421,11 +6764,18 @@ Open in editor" type="button">
               <pre class="tool-body">
                 "ok"
       <div class="bubble markdown assistant">
-        <p>
-          "Here is the"
-          <strong>
-            "result"
-          "."
+        <div class="bubble-content">
+          <p>
+            "Here is the"
+            <strong>
+              "result"
+            "."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <section class="work-block finished">
         <button class="work-header" title="Collapse" aria-expanded="true" type="button">
           <span class="work-label">
@@ -5548,8 +6898,15 @@ Open in editor" type="button">
               <li>
                 "Continue from the retained messages."
       <div class="bubble markdown user">
-        <p>
-          "continue after compaction"
+        <div class="bubble-content">
+          <p>
+            "continue after compaction"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -5865,9 +7222,88 @@ Open in editor" type="button">
       "Back to the parent agent (it has moved on)"
   <div id="messages-wrap" class="messages-wrap hidden">
     <main id="messages" class="messages">
+      <div class="bubble markdown user foldable">
+        <div class="bubble-content">
+          <p>
+            "Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Here is the plan."
+          <div class="code-block">
+            <pre>
+              <code class="language-ts hljs">
+                <span class="hljs-keyword">
+                  "const"
+                "a ="
+                <span class="hljs-number">
+                  "1"
+                ";"
+                <span class="hljs-keyword">
+                  "const"
+                "b ="
+                <span class="hljs-number">
+                  "2"
+                ";"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <div class="code-block">
+            <pre>
+              <code>
+                "an unlabelled block stays plain text"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <ul>
+            <li>
+              "read the current renderer"
+            <li>
+              "extract the bubble into its own module"
+            <li>
+              "fold long messages"
+            <li>
+              "add the copy buttons"
+            <li>
+              "update the styles"
+            <li>
+              "rebuild the snapshot"
+            <li>
+              "review the diff"
+          <p>
+            "That is all."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown user">
-        <p>
-          "first prompt"
+        <div class="bubble-content">
+          <p>
+            "and the second file?"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -5879,21 +7315,13 @@ Open in editor" type="button">
             <span>
               <svg/>
       <div class="bubble markdown assistant">
-        <p>
-          "first answer"
-      <div class="bubble markdown user">
-        <span class="bubble-badge label-badge">
-          "before refactor"
-        <p>
-          "second prompt"
-        <div class="bubble-actions">
-          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+        <div class="bubble-content">
+          <p>
+            "Same change, applied."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
             <span>
               <svg/>
       <section class="work-block finished">
@@ -5964,11 +7392,18 @@ Open in editor" type="button">
               <pre class="tool-body">
                 "ok"
       <div class="bubble markdown assistant">
-        <p>
-          "Here is the"
-          <strong>
-            "result"
-          "."
+        <div class="bubble-content">
+          <p>
+            "Here is the"
+            <strong>
+              "result"
+            "."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <section class="work-block finished">
         <button class="work-header" title="Collapse" aria-expanded="true" type="button">
           <span class="work-label">
@@ -6091,8 +7526,15 @@ Open in editor" type="button">
               <li>
                 "Continue from the retained messages."
       <div class="bubble markdown user">
-        <p>
-          "continue after compaction"
+        <div class="bubble-content">
+          <p>
+            "continue after compaction"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -6403,9 +7845,88 @@ Open in editor" type="button">
       "Back to the parent agent (it has moved on)"
   <div id="messages-wrap" class="messages-wrap hidden">
     <main id="messages" class="messages">
+      <div class="bubble markdown user foldable">
+        <div class="bubble-content">
+          <p>
+            "Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Here is the plan."
+          <div class="code-block">
+            <pre>
+              <code class="language-ts hljs">
+                <span class="hljs-keyword">
+                  "const"
+                "a ="
+                <span class="hljs-number">
+                  "1"
+                ";"
+                <span class="hljs-keyword">
+                  "const"
+                "b ="
+                <span class="hljs-number">
+                  "2"
+                ";"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <div class="code-block">
+            <pre>
+              <code>
+                "an unlabelled block stays plain text"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <ul>
+            <li>
+              "read the current renderer"
+            <li>
+              "extract the bubble into its own module"
+            <li>
+              "fold long messages"
+            <li>
+              "add the copy buttons"
+            <li>
+              "update the styles"
+            <li>
+              "rebuild the snapshot"
+            <li>
+              "review the diff"
+          <p>
+            "That is all."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <div class="bubble markdown user">
-        <p>
-          "first prompt"
+        <div class="bubble-content">
+          <p>
+            "and the second file?"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -6417,21 +7938,13 @@ Open in editor" type="button">
             <span>
               <svg/>
       <div class="bubble markdown assistant">
-        <p>
-          "first answer"
-      <div class="bubble markdown user">
-        <span class="bubble-badge label-badge">
-          "before refactor"
-        <p>
-          "second prompt"
-        <div class="bubble-actions">
-          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
-            <span>
-              <svg/>
-          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+        <div class="bubble-content">
+          <p>
+            "Same change, applied."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
             <span>
               <svg/>
       <section class="work-block finished">
@@ -6502,11 +8015,18 @@ Open in editor" type="button">
               <pre class="tool-body">
                 "ok"
       <div class="bubble markdown assistant">
-        <p>
-          "Here is the"
-          <strong>
-            "result"
-          "."
+        <div class="bubble-content">
+          <p>
+            "Here is the"
+            <strong>
+              "result"
+            "."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
       <section class="work-block finished">
         <button class="work-header" title="Collapse" aria-expanded="true" type="button">
           <span class="work-label">
@@ -6629,8 +8149,15 @@ Open in editor" type="button">
               <li>
                 "Continue from the retained messages."
       <div class="bubble markdown user">
-        <p>
-          "continue after compaction"
+        <div class="bubble-content">
+          <p>
+            "continue after compaction"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -6849,8 +8376,15 @@ Open in editor" type="button">
         <div class="bubble-badges">
           <span class="bubble-badge skill-invocation" title="You invoked this skill; its instructions were loaded with the message">
             "skill"
-        <p>
-          "/skill:update-dependencies"
+        <div class="bubble-content">
+          <p>
+            "/skill:update-dependencies"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -6862,8 +8396,15 @@ Open in editor" type="button">
             <span>
               <svg/>
       <div class="bubble markdown assistant">
-        <p>
-          "Checking versions."
+        <div class="bubble-content">
+          <p>
+            "Checking versions."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -7108,8 +8649,15 @@ Open in editor" type="button">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
       <div class="bubble markdown user">
-        <p>
-          "Review the diff for regressions."
+        <div class="bubble-content">
+          <p>
+            "Review the diff for regressions."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -7121,8 +8669,15 @@ Open in editor" type="button">
             <span>
               <svg/>
       <div class="bubble markdown user">
-        <p>
-          "/ext-command"
+        <div class="bubble-content">
+          <p>
+            "/ext-command"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -7154,8 +8709,15 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown assistant">
-        <p>
-          "Nothing to flag."
+        <div class="bubble-content">
+          <p>
+            "Nothing to flag."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -8415,8 +9977,15 @@ Open in editor" type="button">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages actions-locked">
       <div class="bubble markdown user">
-        <p>
-          "check the python version"
+        <div class="bubble-content">
+          <p>
+            "check the python version"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -8667,8 +10236,15 @@ Open in editor" type="button">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages">
       <div class="bubble markdown user">
-        <p>
-          "check both versions"
+        <div class="bubble-content">
+          <p>
+            "check both versions"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -8699,8 +10275,15 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown assistant">
-        <p>
-          "Done."
+        <div class="bubble-content">
+          <p>
+            "Done."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -8943,8 +10526,15 @@ Open in editor" type="button">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages actions-locked">
       <div class="bubble markdown user">
-        <p>
-          "list the files"
+        <div class="bubble-content">
+          <p>
+            "list the files"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -8976,8 +10566,15 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown user">
-        <p>
-          "actually, only the tests"
+        <div class="bubble-content">
+          <p>
+            "actually, only the tests"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -9255,8 +10852,15 @@ Open in editor" type="button">
   <div id="messages-wrap" class="messages-wrap">
     <main id="messages" class="messages actions-locked">
       <div class="bubble markdown user">
-        <p>
-          "list the files"
+        <div class="bubble-content">
+          <p>
+            "list the files"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>
@@ -9288,8 +10892,15 @@ Open in editor" type="button">
                 <svg/>
             <div class="card-body">
       <div class="bubble markdown user">
-        <p>
-          "actually, only the tests"
+        <div class="bubble-content">
+          <p>
+            "actually, only the tests"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
         <div class="bubble-actions">
           <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
             <span>

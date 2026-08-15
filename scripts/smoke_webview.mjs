@@ -67,6 +67,35 @@ const PATCH = [
   " const c = 4;",
 ].join("\n");
 
+/* Message bubbles fold once they stop being the newest of their role, but only
+   if they are long. One fixture per trigger: too many characters, too many
+   lines (the second one also carries two fenced code blocks: a labelled one,
+   which is highlighted and gets its own copy button, and an unlabelled one,
+   which stays plain text because the language is never guessed). */
+const LONG_PROMPT = "Refactor the transcript renderer and explain every step in detail. ".repeat(11);
+const LONG_ANSWER = [
+  "Here is the plan.",
+  "",
+  "```ts",
+  "const a = 1;",
+  "const b = 2;",
+  "```",
+  "",
+  "```",
+  "an unlabelled block stays plain text",
+  "```",
+  "",
+  "- read the current renderer",
+  "- extract the bubble into its own module",
+  "- fold long messages",
+  "- add the copy buttons",
+  "- update the styles",
+  "- rebuild the snapshot",
+  "- review the diff",
+  "",
+  "That is all.",
+].join("\n");
+
 const RESOURCE_SECTIONS = [
   { name: "Context", items: [{ label: "AGENTS.md", path: "/workspace/AGENTS.md", scope: "project" }] },
   {
@@ -219,6 +248,44 @@ const SCRIPT = [
       { type: "entryIds", ids: ["entry-1", "entry-2"], labels: [undefined, "before refactor"] },
       { type: "state", state: baseState },
     ],
+  },
+  // Folding: only the newest message of each role stays open, and only long
+  // messages fold at all (a folded one-liner would cost a click and save
+  // nothing). The length test runs on the Markdown source precisely so that it
+  // is reproducible here, where every element measures zero.
+  {
+    label: "long messages fold except the newest of each role",
+    messages: [
+      {
+        type: "history",
+        transcriptId: "long-messages",
+        events: [
+          { kind: "user_message", text: LONG_PROMPT },
+          { kind: "assistant_message", text: LONG_ANSWER },
+          { kind: "user_message", text: "and the second file?" },
+          { kind: "assistant_message", text: "Same change, applied." },
+        ],
+      },
+      { type: "state", state: baseState },
+    ],
+  },
+  {
+    label: "long messages: a fold undone by hand survives a transcript round trip",
+    messages: [],
+    beforeSnapshot: (window) => {
+      window.document.querySelector(".bubble.user.folded .bubble-fold").click();
+      // Away to another transcript and back: the default rule would fold this
+      // bubble again, the remembered manual decision must outrank it.
+      const replay = (transcriptId, events) =>
+        window.dispatchEvent(new window.MessageEvent("message", { data: { type: "history", transcriptId, events } }));
+      replay("other-session", []);
+      replay("long-messages", [
+        { kind: "user_message", text: LONG_PROMPT },
+        { kind: "assistant_message", text: LONG_ANSWER },
+        { kind: "user_message", text: "and the second file?" },
+        { kind: "assistant_message", text: "Same change, applied." },
+      ]);
+    },
   },
   {
     label: "live streaming: thinking, tool call, text delta",

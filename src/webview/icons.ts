@@ -16,6 +16,9 @@ export const BRANCH_ICON = `<svg viewBox="0 0 16 16" width="15" height="15" fill
 /** Tag: bookmark this message for later navigation. */
 export const TAG_ICON = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2 2h5.9l6.1 6.1-5.9 5.9L2 7.9V2zm1.3 1.3v4.05l4.8 4.8 4.05-4.05-4.8-4.8H3.3zm1.9 1.15a.9.9 0 1 1 0 1.8.9.9 0 0 1 0-1.8z"/></svg>`;
 
+/** Two stacked sheets: copy the raw text of a message or a code block. */
+export const COPY_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M5.5 1.5h7A1.5 1.5 0 0 1 14 3v7h-1.3V3a.2.2 0 0 0-.2-.2h-7V1.5z"/><path d="M3.5 4h6A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14h-6A1.5 1.5 0 0 1 2 12.5v-7A1.5 1.5 0 0 1 3.5 4zm0 1.3a.2.2 0 0 0-.2.2v7c0 .11.09.2.2.2h6a.2.2 0 0 0 .2-.2v-7a.2.2 0 0 0-.2-.2h-6z"/></svg>`;
+
 /* Composer quick menus (model / thinking level). */
 
 /** Checkmark: the row that is currently active. */
