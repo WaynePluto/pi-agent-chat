@@ -802,12 +802,17 @@ button.bubble-action svg {
 
 /* Rendered Markdown lives in its own element so that folding a long message
    clamps the text only — the badges, the footer and the hover action bar must
-   stay reachable. */
-.bubble-content > :first-child {
+   stay reachable.
+
+   The bubble selector is kept in front on purpose: these have to outrank
+   `.bubble.markdown p` (0,2,1) below, which sets the block spacing. Written as
+   the obvious `.bubble-content > :first-child` they land at (0,2,0), lose, and
+   every message grows an extra 0.4em at both ends. */
+.bubble.markdown .bubble-content > :first-child {
   margin-top: 0;
 }
 
-.bubble-content > :last-child {
+.bubble.markdown .bubble-content > :last-child {
   margin-bottom: 0;
 }
 
@@ -904,6 +909,16 @@ button.copy-button svg {
    corner of the block and revealed on hover. */
 .code-block {
   position: relative;
+  /* The wrapper carries the block spacing and the `pre` inside goes flush.
+     Otherwise the wrapper contributes no margin of its own, the `pre` falls
+     back to the browser default `1em 0`, and the first/last-child resets on
+     the bubble can no longer reach it — every message with a code fence grows
+     an extra line of padding at both ends. */
+  margin: 0.4em 0;
+}
+
+.code-block > pre {
+  margin: 0;
 }
 
 .code-block > button.copy-button {
