@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
 import * as vscode from "vscode";
+import { applyEdits, modify } from "jsonc-parser";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { PiRuntime } from "./runtime.js";
 import { configureHttpDispatcher } from "./http.js";
@@ -212,6 +213,12 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
       { id: "providers", label: t("settingsProviders"), description: t("settingsProvidersDetail") },
       { id: "refreshModels", label: t("settingsRefreshModels"), description: t("settingsRefreshModelsDetail") },
       { id: "scopedModels", label: t("settingsScopedModels"), description: t("settingsScopedModelsDetail") },
+      {
+        id: "defaultTools",
+        label: t("settingsDefaultTools"),
+        description: defaultToolsSummary(runtime),
+        detail: t("settingsDefaultToolsDetail"),
+      },
       { id: "subagent", label: t("settingsSubagent"), description: t("settingsSubagentDetail") },
       { id: "shellPath", label: t("settingsShellPath"), description: t("settingsShellPathDetail") },
       { id: "openFile", label: t("settingsOpenFile"), description: t("settingsOpenFileDetail") },
@@ -230,6 +237,7 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
     if (picked.id === "providers") return void (await ui.login());
     if (picked.id === "refreshModels") return void (await ui.refreshModels());
     if (picked.id === "scopedModels") return void (await ui.manageScopedModels());
+    if (picked.id === "defaultTools") return void (await manageDefaultTools(runtime, ui));
     if (picked.id === "shellPath") return void (await pickShellPath(runtime, ui));
     // The subagent switches are this host's own VS Code settings, so the
     // Settings editor is where they belong: it already renders their
@@ -263,6 +271,93 @@ async function editSetting(runtime: PiRuntime, ui: SettingsMenuUi, descriptor: S
   descriptor.apply?.(runtime);
   ui.status(tf("settingChanged", descriptor.label, choiceLabel(descriptor, picked.value)));
   if (descriptor.affectsCommands) ui.commandsChanged?.();
+}
+
+/**
+ * The built-in tools a fresh session starts with — the SDK's fixed set
+ * (`defaultActiveToolNames` in `core/sdk.ts`). Extension and SDK custom tools
+ * are not listed: `defaultTools` never gates them.
+ */
+const BUILTIN_TOOLS = ["read", "bash", "edit", "write"] as const;
+
+const TOOL_DESCRIPTIONS: Record<(typeof BUILTIN_TOOLS)[number], keyof typeof import("../shared/messages.js").sharedMessages> = {
+  read: "toolDescRead",
+  bash: "toolDescBash",
+  edit: "toolDescEdit",
+  write: "toolDescWrite",
+};
+
+/** Menu-row summary of the `defaultTools` setting. */
+function defaultToolsSummary(runtime: PiRuntime): string {
+  const configured = runtime.settingsManager.getDefaultTools();
+  if (configured === undefined) return t("defaultToolsAll");
+  if (configured.length === 0) return t("defaultToolsNone");
+  return configured.join(", ");
+}
+
+/**
+ * `defaultTools` multi-select, in the spirit of `/scoped-models`.
+ *
+ * The SDK reads the setting when a session is constructed but offers no
+ * setter (the CLI leaves it to hand edits of settings.json), so the picked
+ * value is written into the shared `~/.pi/agent/settings.json` the same way a
+ * hand edit would be — jsonc `modify()` + WorkspaceEdit keeps comments and an
+ * open editor in sync — followed by `settingsManager.reload()` so the running
+ * host agrees with the file. Running sessions keep the tools they were built
+ * with; the new set takes effect on the next session construction.
+ *
+ * Checking all four restores the default, so the key is removed; checking
+ * none is a real configuration (no built-in tools) and writes `[]` — unlike
+ * `/scoped-models`, "none" is not a reset here.
+ */
+async function manageDefaultTools(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "status">): Promise<void> {
+  const active = new Set(runtime.settingsManager.getDefaultTools() ?? BUILTIN_TOOLS);
+  const items = BUILTIN_TOOLS.map((tool) => ({
+    label: tool,
+    description: t(TOOL_DESCRIPTIONS[tool]),
+    picked: active.has(tool),
+  }));
+  const picked = await vscode.window.showQuickPick(items, {
+    title: t("defaultToolsTitle"),
+    placeHolder: t("defaultToolsPlaceholder"),
+    canPickMany: true,
+  });
+  if (!picked) return;
+  const checked = new Set(picked.map((item) => item.label));
+  const selected = BUILTIN_TOOLS.filter((tool) => checked.has(tool));
+  const value = selected.length === BUILTIN_TOOLS.length ? undefined : [...selected];
+  if (!(await persistDefaultTools(value))) return;
+  await runtime.settingsManager.reload();
+  ui.status(tf("defaultToolsSaved", defaultToolsSummary(runtime)));
+}
+
+/** Indentation for the structural edit, matching the SDK's own writes. */
+const SETTINGS_FORMATTING = { tabSize: 2, insertSpaces: true };
+
+/**
+ * Write `defaultTools` into the global settings.json (`undefined` removes the
+ * key). Returns false when the file cannot be edited — e.g. it is broken
+ * JSON, in which case the "Open settings file" menu entry is the fix.
+ */
+async function persistDefaultTools(tools: string[] | undefined): Promise<boolean> {
+  const path = join(getAgentDir(), "settings.json");
+  try {
+    await fs.access(path);
+  } catch {
+    // First run: the CLI creates the file lazily; seed an empty object.
+    await fs.writeFile(path, "{}\n", { flag: "wx" }).catch(() => {});
+  }
+  const uri = vscode.Uri.file(path);
+  const document = await vscode.workspace.openTextDocument(uri);
+  const text = document.getText();
+  const edits = modify(text, ["defaultTools"], tools, { formattingOptions: SETTINGS_FORMATTING });
+  // Empty edits: the file already says what was picked (e.g. removing a key
+  // that was never set) — nothing to persist, but nothing failed either.
+  if (edits.length === 0) return true;
+  const edit = new vscode.WorkspaceEdit();
+  edit.replace(uri, new vscode.Range(document.positionAt(0), document.positionAt(text.length)), applyEdits(text, edits));
+  if (!(await vscode.workspace.applyEdit(edit))) return false;
+  return await document.save();
 }
 
 /** Open the shared `~/.pi/agent/settings.json` in an editor tab. */

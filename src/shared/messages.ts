@@ -102,6 +102,22 @@ export const sharedMessages = {
     en: "Choose the models listed first in the model picker",
     zh: "选择模型选择器中优先列出的模型",
   },
+  settingsDefaultTools: { en: "Default tools", zh: "默认工具" },
+  settingsDefaultToolsDetail: {
+    en: "Built-in tools enabled when a session starts",
+    zh: "新会话启动时启用的内置工具",
+  },
+  defaultToolsTitle: { en: "Pi Agent Chat: default tools", zh: "Pi Agent Chat：默认工具" },
+  defaultToolsPlaceholder: {
+    en: "Check the built-in tools enabled at session start; checking all four restores the default, checking none disables them",
+    zh: "勾选会话启动时启用的内置工具；全选即恢复默认，全不选则不启用内置工具",
+  },
+  defaultToolsAll: { en: "all (default)", zh: "全部（默认）" },
+  defaultToolsNone: { en: "none (built-in tools off)", zh: "无（不启用内置工具）" },
+  toolDescRead: { en: "Read file contents", zh: "读取文件内容" },
+  toolDescBash: { en: "Run shell commands", zh: "执行 shell 命令" },
+  toolDescEdit: { en: "Edit files with exact replacements", zh: "按精确替换修改文件" },
+  toolDescWrite: { en: "Create or overwrite files", zh: "创建或覆写文件" },
   settingsRefreshModels: { en: "Refresh model catalog", zh: "刷新模型列表" },
   settingsRefreshModelsDetail: {
     en: "Re-fetch every provider's model list from the network (retry after a failed refresh)",
@@ -558,6 +574,10 @@ export const sharedTemplates = {
   favoriteModelsSaved: {
     en: (count: number) => `${count} frequently used model(s) saved to settings`,
     zh: (count: number) => `已保存 ${count} 个常用模型到设置`,
+  },
+  defaultToolsSaved: {
+    en: (tools: string) => `default tools: ${tools} (applies to new sessions)`,
+    zh: (tools: string) => `默认工具已设置为 ${tools}（对新会话生效）`,
   },
   favoriteModelSet: {
     en: (reference: string, favorite: boolean) =>
