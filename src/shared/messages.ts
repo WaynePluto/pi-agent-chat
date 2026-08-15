@@ -107,11 +107,29 @@ export const sharedMessages = {
     en: "Built-in tools enabled when a session starts",
     zh: "新会话启动时启用的内置工具",
   },
-  defaultToolsTitle: { en: "Pi Agent Chat: default tools", zh: "Pi Agent Chat：默认工具" },
+  defaultToolsScopeTitle: { en: "Pi Agent Chat: default tools scope", zh: "Pi Agent Chat：默认工具作用域" },
+  defaultToolsScopeUser: { en: "User (global)", zh: "用户（全局）" },
+  defaultToolsScopeUserDetail: {
+    en: "Applies to every project; written to ~/.pi/agent/settings.json",
+    zh: "对所有项目生效；写入 ~/.pi/agent/settings.json",
+  },
+  defaultToolsScopeWorkspace: { en: "Workspace", zh: "工作区" },
+  defaultToolsWorkspaceNotSet: { en: "not set (follows the user setting)", zh: "未设置（沿用用户设置）" },
+  defaultToolsTitleUser: { en: "Pi Agent Chat: default tools (user)", zh: "Pi Agent Chat：默认工具（用户）" },
+  defaultToolsTitleWorkspace: {
+    en: "Pi Agent Chat: default tools (workspace)",
+    zh: "Pi Agent Chat：默认工具（工作区）",
+  },
   defaultToolsPlaceholder: {
     en: "Check the built-in tools enabled at session start; checking all four restores the default, checking none disables them",
     zh: "勾选会话启动时启用的内置工具；全选即恢复默认，全不选则不启用内置工具",
   },
+  defaultToolsWorkspacePlaceholder: {
+    en: "Check the built-in tools enabled at session start in this workspace",
+    zh: "勾选本工作区会话启动时启用的内置工具",
+  },
+  defaultToolsResetWorkspace: { en: "Reset workspace override", zh: "清除工作区覆盖" },
+  defaultToolsWorkspace: { en: "workspace", zh: "工作区" },
   defaultToolsAll: { en: "all (default)", zh: "全部（默认）" },
   defaultToolsNone: { en: "none (built-in tools off)", zh: "无（不启用内置工具）" },
   toolDescRead: { en: "Read file contents", zh: "读取文件内容" },
@@ -226,6 +244,10 @@ export const sharedMessages = {
   shellPathCleared: {
     en: "shell path reset to system default (applies to new sessions)",
     zh: "shell 路径已恢复系统默认（对新会话生效）",
+  },
+  defaultToolsWorkspaceReset: {
+    en: "workspace default tools override removed; following the user setting (applies to new sessions)",
+    zh: "已清除工作区的默认工具覆盖，恢复沿用用户设置（对新会话生效）",
   },
 
   /* Login / logout ------------------------------------------------------ */
@@ -578,6 +600,18 @@ export const sharedTemplates = {
   defaultToolsSaved: {
     en: (tools: string) => `default tools: ${tools} (applies to new sessions)`,
     zh: (tools: string) => `默认工具已设置为 ${tools}（对新会话生效）`,
+  },
+  defaultToolsSavedWorkspace: {
+    en: (tools: string) => `default tools (workspace): ${tools} (applies to new sessions)`,
+    zh: (tools: string) => `默认工具（工作区）已设置为 ${tools}（对新会话生效）`,
+  },
+  defaultToolsScopeWorkspaceDetail: {
+    en: (path: string) => `Overrides the user setting in this workspace only; written to ${path}`,
+    zh: (path: string) => `仅覆盖本工作区的用户设置；写入 ${path}`,
+  },
+  defaultToolsResetDetail: {
+    en: (path: string) => `Remove defaultTools from ${path}; this workspace follows the user setting again`,
+    zh: (path: string) => `从 ${path} 移除 defaultTools；本工作区恢复沿用用户设置`,
   },
   favoriteModelSet: {
     en: (reference: string, favorite: boolean) =>

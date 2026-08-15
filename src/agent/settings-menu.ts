@@ -1,8 +1,8 @@
 import { promises as fs } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import * as vscode from "vscode";
 import { applyEdits, modify } from "jsonc-parser";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { PiRuntime } from "./runtime.js";
 import { configureHttpDispatcher } from "./http.js";
 import { subagentSettingId } from "./config.js";
@@ -287,64 +287,154 @@ const TOOL_DESCRIPTIONS: Record<(typeof BUILTIN_TOOLS)[number], keyof typeof imp
   write: "toolDescWrite",
 };
 
-/** Menu-row summary of the `defaultTools` setting. */
+/**
+ * Menu-row summary of the effective `defaultTools`, marking a workspace
+ * override (the marker is what tells the two scopes apart at a glance).
+ */
 function defaultToolsSummary(runtime: PiRuntime): string {
-  const configured = runtime.settingsManager.getDefaultTools();
-  if (configured === undefined) return t("defaultToolsAll");
-  if (configured.length === 0) return t("defaultToolsNone");
-  return configured.join(", ");
+  const summary = toolSetSummary(runtime.settingsManager.getDefaultTools());
+  return runtime.settingsManager.getProjectSettings().defaultTools ? `${summary} (${t("defaultToolsWorkspace")})` : summary;
+}
+
+/** One-line summary of one scope's explicit value (`undefined` = all, default). */
+function toolSetSummary(tools: string[] | undefined): string {
+  if (tools === undefined) return t("defaultToolsAll");
+  if (tools.length === 0) return t("defaultToolsNone");
+  return tools.join(", ");
 }
 
 /**
  * `defaultTools` multi-select, in the spirit of `/scoped-models`.
  *
+ * The setting is shared with the pi CLI and has two scopes: the user scope
+ * writes `~/.pi/agent/settings.json`, the workspace scope writes
+ * `<cwd>/.pi/settings.json` and overrides it there — the SDK's
+ * SettingsManager deep-merges project over global, and the CLI reads the same
+ * two files, so neither host drifts.
+ *
  * The SDK reads the setting when a session is constructed but offers no
  * setter (the CLI leaves it to hand edits of settings.json), so the picked
- * value is written into the shared `~/.pi/agent/settings.json` the same way a
- * hand edit would be — jsonc `modify()` + WorkspaceEdit keeps comments and an
- * open editor in sync — followed by `settingsManager.reload()` so the running
- * host agrees with the file. Running sessions keep the tools they were built
- * with; the new set takes effect on the next session construction.
+ * value is written the same way a hand edit would be — jsonc `modify()` +
+ * WorkspaceEdit keeps comments and an open editor in sync — followed by
+ * `settingsManager.reload()` so the running host agrees with the file.
+ * Running sessions keep the tools they were built with; the new set takes
+ * effect on the next session construction.
  *
- * Checking all four restores the default, so the key is removed; checking
- * none is a real configuration (no built-in tools) and writes `[]` — unlike
- * `/scoped-models`, "none" is not a reset here.
+ * Scope-specific save semantics:
+ * - User: checking all four restores the default, so the key is removed;
+ *   checking none is a real configuration (no built-in tools) and writes `[]`.
+ * - Workspace: the explicit list is always written — even all four, so a
+ *   workspace can pin its tools against later user-scope changes. Removing
+ *   the override is its own "reset" entry: the key is deleted and the
+ *   workspace follows the user setting again.
  */
 async function manageDefaultTools(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "status">): Promise<void> {
-  const active = new Set(runtime.settingsManager.getDefaultTools() ?? BUILTIN_TOOLS);
-  const items = BUILTIN_TOOLS.map((tool) => ({
-    label: tool,
-    description: t(TOOL_DESCRIPTIONS[tool]),
-    picked: active.has(tool),
-  }));
-  const picked = await vscode.window.showQuickPick(items, {
-    title: t("defaultToolsTitle"),
-    placeHolder: t("defaultToolsPlaceholder"),
-    canPickMany: true,
-  });
+  const settings = runtime.settingsManager;
+  const globalTools = settings.getGlobalSettings().defaultTools;
+  const projectTools = settings.getProjectSettings().defaultTools;
+  const workspacePath = join(runtime.cwd, CONFIG_DIR_NAME, "settings.json");
+
+  type ScopeItem = vscode.QuickPickItem & { scope: "user" | "workspace" | "reset" };
+  const items: ScopeItem[] = [
+    {
+      scope: "user",
+      label: t("defaultToolsScopeUser"),
+      description: toolSetSummary(globalTools),
+      detail: t("defaultToolsScopeUserDetail"),
+    },
+    {
+      scope: "workspace",
+      label: t("defaultToolsScopeWorkspace"),
+      description: projectTools ? toolSetSummary(projectTools) : t("defaultToolsWorkspaceNotSet"),
+      detail: tf("defaultToolsScopeWorkspaceDetail", workspacePath),
+    },
+  ];
+  if (projectTools) {
+    items.push({
+      scope: "reset",
+      label: t("defaultToolsResetWorkspace"),
+      detail: tf("defaultToolsResetDetail", workspacePath),
+    });
+  }
+  const picked = await vscode.window.showQuickPick(items, { title: t("defaultToolsScopeTitle"), matchOnDetail: true });
   if (!picked) return;
+
+  if (picked.scope === "reset") {
+    if (!(await persistDefaultTools(workspacePath, undefined))) return;
+    await settings.reload();
+    ui.status(t("defaultToolsWorkspaceReset"));
+    return;
+  }
+
+  if (picked.scope === "user") {
+    const selected = await pickToolSet(
+      t("defaultToolsTitleUser"),
+      t("defaultToolsPlaceholder"),
+      new Set(globalTools ?? BUILTIN_TOOLS),
+    );
+    if (!selected) return;
+    const value = selected.length === BUILTIN_TOOLS.length ? undefined : selected;
+    if (!(await persistDefaultTools(join(getAgentDir(), "settings.json"), value))) return;
+  } else {
+    const inherited = new Set(globalTools ?? BUILTIN_TOOLS);
+    const selected = await pickToolSet(
+      t("defaultToolsTitleWorkspace"),
+      t("defaultToolsWorkspacePlaceholder"),
+      new Set(projectTools ?? inherited),
+    );
+    if (!selected) return;
+    // With no existing override, picking exactly the inherited set would
+    // create an override that changes nothing — skip the write.
+    if (!projectTools && selected.length === inherited.size && selected.every((tool) => inherited.has(tool))) {
+      ui.status(tf("defaultToolsSaved", defaultToolsSummary(runtime)));
+      return;
+    }
+    if (!(await persistDefaultTools(workspacePath, selected))) return;
+  }
+
+  await settings.reload();
+  ui.status(
+    picked.scope === "user"
+      ? tf("defaultToolsSaved", defaultToolsSummary(runtime))
+      : tf("defaultToolsSavedWorkspace", defaultToolsSummary(runtime)),
+  );
+}
+
+/** The `defaultTools` checkbox multi-select shared by both scopes. */
+async function pickToolSet(
+  title: string,
+  placeHolder: string,
+  active: ReadonlySet<string>,
+): Promise<string[] | undefined> {
+  const picked = await vscode.window.showQuickPick(
+    BUILTIN_TOOLS.map((tool) => ({
+      label: tool,
+      description: t(TOOL_DESCRIPTIONS[tool]),
+      picked: active.has(tool),
+    })),
+    { title, placeHolder, canPickMany: true },
+  );
+  if (!picked) return undefined;
   const checked = new Set(picked.map((item) => item.label));
-  const selected = BUILTIN_TOOLS.filter((tool) => checked.has(tool));
-  const value = selected.length === BUILTIN_TOOLS.length ? undefined : [...selected];
-  if (!(await persistDefaultTools(value))) return;
-  await runtime.settingsManager.reload();
-  ui.status(tf("defaultToolsSaved", defaultToolsSummary(runtime)));
+  return BUILTIN_TOOLS.filter((tool) => checked.has(tool));
 }
 
 /** Indentation for the structural edit, matching the SDK's own writes. */
 const SETTINGS_FORMATTING = { tabSize: 2, insertSpaces: true };
 
 /**
- * Write `defaultTools` into the global settings.json (`undefined` removes the
- * key). Returns false when the file cannot be edited — e.g. it is broken
- * JSON, in which case the "Open settings file" menu entry is the fix.
+ * Write `defaultTools` into a settings.json (`undefined` removes the key).
+ * Returns false when the file cannot be edited — e.g. it is broken JSON, in
+ * which case the "Open settings file" menu entry is the fix.
  */
-async function persistDefaultTools(tools: string[] | undefined): Promise<boolean> {
-  const path = join(getAgentDir(), "settings.json");
+async function persistDefaultTools(path: string, tools: string[] | undefined): Promise<boolean> {
   try {
     await fs.access(path);
   } catch {
-    // First run: the CLI creates the file lazily; seed an empty object.
+    // First write to this file: seed an empty object the way the CLI creates
+    // its settings files lazily. The workspace variant may still lack its
+    // `<cwd>/.pi` directory.
+    await fs.mkdir(dirname(path), { recursive: true }).catch(() => {});
     await fs.writeFile(path, "{}\n", { flag: "wx" }).catch(() => {});
   }
   const uri = vscode.Uri.file(path);
