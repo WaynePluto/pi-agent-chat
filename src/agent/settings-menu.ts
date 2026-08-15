@@ -23,6 +23,8 @@ export interface SettingsMenuUi {
   help(): void;
   /** Maintain the frequently used model list (`/scoped-models`). */
   manageScopedModels(): Promise<void>;
+  /** Re-fetch every provider's model catalogue from the network. */
+  refreshModels(): Promise<void>;
   /** The slash command catalogue changed (e.g. skill commands toggled). */
   commandsChanged?(): void;
 }
@@ -208,6 +210,7 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
     const descriptors = settingDescriptors();
     const items: Item[] = [
       { id: "providers", label: t("settingsProviders"), description: t("settingsProvidersDetail") },
+      { id: "refreshModels", label: t("settingsRefreshModels"), description: t("settingsRefreshModelsDetail") },
       { id: "scopedModels", label: t("settingsScopedModels"), description: t("settingsScopedModelsDetail") },
       { id: "subagent", label: t("settingsSubagent"), description: t("settingsSubagentDetail") },
       { id: "shellPath", label: t("settingsShellPath"), description: t("settingsShellPathDetail") },
@@ -225,6 +228,7 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
     const picked = await vscode.window.showQuickPick(items, { title: t("settingsTitle"), matchOnDetail: true });
     if (!picked) return;
     if (picked.id === "providers") return void (await ui.login());
+    if (picked.id === "refreshModels") return void (await ui.refreshModels());
     if (picked.id === "scopedModels") return void (await ui.manageScopedModels());
     if (picked.id === "shellPath") return void (await pickShellPath(runtime, ui));
     // The subagent switches are this host's own VS Code settings, so the

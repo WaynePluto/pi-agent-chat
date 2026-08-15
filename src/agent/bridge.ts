@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { existsSync } from "node:fs";
 import * as vscode from "vscode";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import type { ModelsRefreshResult } from "@earendil-works/pi-ai";
 import { sessionEntryToContextMessages, SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, HostMessage, ResourceItem, ResourceScope, ResourceSection, SessionListItem, WebviewMessage } from "../shared/protocol.js";
@@ -60,6 +61,13 @@ const REPLAYED_LANE_ID = "replayed";
  * session would rebuild it three times.
  */
 const SUBAGENT_SETTING_DEBOUNCE_MS = 300;
+
+/**
+ * How long a manual catalogue refresh may take before it falls back to the
+ * cached lists. Same budget the CLI's model selector gives `refresh()`, so a
+ * hung endpoint degrades identically in both hosts.
+ */
+const MODEL_REFRESH_TIMEOUT_MS = 15_000;
 
 /**
  * What the webview is currently showing.
@@ -1276,6 +1284,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
             await manageScopedModels(this.runtime, this.modelPickerUi());
             await this.postModels();
           },
+          refreshModels: async () => {
+            await this.refreshModelCatalog();
+          },
           commandsChanged: () => this.postCommands(),
         });
         await this.postState();
@@ -1508,6 +1519,53 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     } catch (error) {
       this.host.log(`scoped models refresh failed: ${describe(error)}`);
     }
+  }
+
+  /**
+   * Re-fetch every provider's model catalogue from the network, on demand.
+   *
+   * The settings menu's "refresh" entry. A failed catalogue fetch is not
+   * fatal — the provider keeps its cached list — but nothing retried it
+   * before; login/logout are the only automatic triggers. Same call the CLI's
+   * model selector makes each time it opens.
+   */
+  async refreshModelCatalog(): Promise<void> {
+    const session = this.runtime.session;
+    const timeout = AbortSignal.timeout(MODEL_REFRESH_TIMEOUT_MS);
+    let result: ModelsRefreshResult;
+    try {
+      result = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: t("modelsRefreshing") },
+        () => this.runtime.refreshModelCatalog(timeout),
+      );
+    } catch (error) {
+      this.reportError(session, "model catalog refresh failed", error, "command");
+      return;
+    }
+    if (this.disposed) return;
+    if (result.aborted && timeout.aborted) {
+      this.emit(session, { kind: "error", text: t("modelsRefreshTimedOut"), scope: "command" });
+    } else if (result.errors.size > 0) {
+      // Same shape as the login/logout warning: provider names plus the first
+      // underlying reason (with `cause` unwrapped by `describe()`).
+      const names = [...result.errors.keys()].map((id) => this.runtime.modelRuntime.getProvider(id)?.name ?? id);
+      this.emit(session, {
+        kind: "error",
+        text: tf("modelRefreshFailed", names.join(", "), describe([...result.errors.values()][0])),
+        scope: "command",
+      });
+    } else {
+      // Snapshot, not `getAvailable()`: the catalogue is what this action
+      // fetched, and a fresh auth probe would only add its own failure modes.
+      this.emit(session, {
+        kind: "status",
+        text: tf("modelsRefreshed", this.runtime.modelRuntime.getAvailableSnapshot().length),
+        scope: "command",
+      });
+    }
+    await this.rescopeModels();
+    await this.postModels();
+    await this.postState();
   }
 
   /**

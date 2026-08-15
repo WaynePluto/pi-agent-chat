@@ -102,6 +102,11 @@ export const sharedMessages = {
     en: "Choose the models listed first in the model picker",
     zh: "选择模型选择器中优先列出的模型",
   },
+  settingsRefreshModels: { en: "Refresh model catalog", zh: "刷新模型列表" },
+  settingsRefreshModelsDetail: {
+    en: "Re-fetch every provider's model list from the network (retry after a failed refresh)",
+    zh: "从网络重新获取各供应商的模型列表（用于刷新失败后重试）",
+  },
   settingsHelp: { en: "Command help", zh: "命令帮助" },
   settingsSubagent: { en: "Subagent", zh: "子代理" },
   settingsSubagentDetail: {
@@ -260,6 +265,16 @@ export const sharedMessages = {
   modelsConfigRepaired: {
     en: 'models.json held no configuration (it was empty or just {}), which pi rejects, so { "providers": {} } was written back - the form pi reads as "nothing configured".',
     zh: 'models.json 里没有任何配置（空文件或只有 {}），pi 不接受这种状态，已写入 { "providers": {} } — 这才是 pi 能读懂的「没有自定义配置」。',
+  },
+  /** Progress title while a manual catalogue refresh is running. */
+  modelsRefreshing: {
+    en: "Pi Agent Chat: refreshing model catalogs…",
+    zh: "Pi Agent Chat：正在刷新模型列表…",
+  },
+  /** Manual catalogue refresh was aborted by its timeout. */
+  modelsRefreshTimedOut: {
+    en: "model catalog refresh timed out; showing cached models",
+    zh: "模型列表刷新超时；当前显示缓存的列表",
   },
 
   /* Session tree -------------------------------------------------------- */
@@ -586,6 +601,11 @@ export const sharedTemplates = {
   modelsConfigReloaded: {
     en: (count: number) => `models.json reloaded: ${count} model(s) available`,
     zh: (count: number) => `models.json 已重新加载：当前有 ${count} 个可用模型`,
+  },
+  /** Manual catalogue refresh finished without provider errors. */
+  modelsRefreshed: {
+    en: (count: number) => `model catalogs refreshed: ${count} model(s) available`,
+    zh: (count: number) => `模型列表已刷新：当前有 ${count} 个可用模型`,
   },
   /** Models the edit added that can actually be selected. */
   modelsConfigAdded: {

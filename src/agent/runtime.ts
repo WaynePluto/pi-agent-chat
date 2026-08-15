@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { existsSync } from "node:fs";
+import type { ModelsRefreshResult } from "@earendil-works/pi-ai";
 import {
   type AgentSessionServices,
   AgentSessionRuntime,
@@ -401,6 +402,20 @@ export class PiRuntime implements vscode.Disposable {
   /** Direct access to provider/auth management (login, logout, status). */
   get modelRuntime() {
     return this.runtime.services.modelRuntime;
+  }
+
+  /**
+   * Re-fetch every provider's model catalogue from the network.
+   *
+   * The same `ModelRuntime.refresh()` login/logout already run, exposed for a
+   * manual retry: a catalogue fetch that failed transiently (proxy, DNS, TLS)
+   * leaves the provider on its cached list, and the CLI offers the same call
+   * every time its model selector opens (`refreshModels()`, 15s timeout).
+   * `force` bypasses the catalogue freshness interval so the click always
+   * means "go ask again".
+   */
+  async refreshModelCatalog(signal?: AbortSignal): Promise<ModelsRefreshResult> {
+    return this.runtime.services.modelRuntime.refresh({ force: true, signal: this.withLifetime(signal) });
   }
 
   /**
