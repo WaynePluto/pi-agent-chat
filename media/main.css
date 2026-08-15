@@ -1753,27 +1753,34 @@ textarea:disabled {
   font-size: 0.86em;
 }
 
+/* Breathing room on both sides: the transcript above ends at the panel edge and
+   the composer's own top padding is 0 (its resize handle stands in for it), so
+   without padding here the block is wedged between the two. */
 #widgets-above {
-  padding: 6px 12px 0;
+  padding: 10px 12px 8px;
   position: relative;
   z-index: 1;
 }
 
 #widgets-below {
-  padding: 6px 0 0;
+  padding: 8px 0 2px;
 }
 
 .widget + .widget {
   margin-top: 4px;
 }
 
+/* Flat like the other collapsible headers: without an explicit background it
+   inherits the primary-button blue from the base `button` rule and paints a
+   solid blue band above the composer. */
 button.widget-header {
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 1px 4px;
+  padding: 2px 4px;
   color: var(--vscode-descriptionForeground);
+  background: transparent;
   text-align: left;
 }
 
