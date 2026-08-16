@@ -39,7 +39,7 @@ export interface ChatStats {
  *
  * Deliberately the familiar ecosystem name: the model knows what a `subagent`
  * is for. The plugin owns the name in this window — an extension that
- * registers a same-named tool is shadowed (see `ShadowedSubagentNotice`), and
+ * registers a same-named tool is shadowed (see `SubagentSetup`), and
  * the tool itself is the host's or nothing, never the extension's. Cross-host
  * resume is best-effort by design (see AGENTS.md): a CLI that has its own
  * `subagent` extension may see the model imitate the call shape recorded
@@ -48,18 +48,19 @@ export interface ChatStats {
 export const SUBAGENT_TOOL = "subagent";
 
 /**
- * Notice that an extension-registered `subagent` tool was suppressed.
+ * How the session on screen was assembled with respect to delegation.
  *
- * The two values travel together because the wording depends on both: the
- * tool the user can use instead is this window's own `subagent`, which is off
- * unless opted in, so saying "use this window's own subagent" would be wrong
- * for most sessions.
+ * The values travel together because the wording depends on both: the notice
+ * about a shadowed extension must know whether the window's own `subagent`
+ * tool is active in its place, and with nothing shadowed a disabled
+ * subagent still deserves a hint pointing at the setting — the feature is off
+ * by default and would otherwise stay invisible.
  */
-export interface ShadowedSubagentNotice {
-  /** Path of the pi extension that registered the suppressed tool. */
-  path: string;
-  /** Whether the `subagent` tool is part of this session's tool set. */
-  subagentEnabled: boolean;
+export interface SubagentSetup {
+  /** Whether this window's `subagent` tool is part of this session's tool set. */
+  enabled: boolean;
+  /** Path of the pi extension that registered the suppressed same-named tool. */
+  shadowedExtension?: string;
 }
 
 /** One subagent of a running `subagent` call. */
@@ -357,13 +358,14 @@ export type HostMessage =
       /** True when SYSTEM.md replaces Pi's default prompt and its bundled-docs guidance. */
       systemPromptOverridden?: boolean;
       /**
-       * Set when a pi extension registers a `subagent` tool, which is always
-       * dropped in this host: the name belongs to the window's own tool.
-       * Part of the new-session notice rather than a transcript event: it
-       * describes how this session is set up, not something that happened in
-       * it.
+       * How this session was assembled with respect to the subagent tool:
+       * whether the window's own tool is active, and which extension's
+       * same-named registration was dropped for it (the name belongs to this
+       * window's tool; see `SubagentSetup`). Part of the new-session notice
+       * rather than a transcript event: it describes how this session is set
+       * up, not something that happened in it.
        */
-      shadowedSubagent?: ShadowedSubagentNotice;
+      subagent?: SubagentSetup;
     }
   | { type: "sessions"; items: SessionListItem[] }
   /** Answer to `listModels`, also pushed after credentials or markers change. */

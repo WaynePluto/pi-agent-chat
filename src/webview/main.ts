@@ -366,7 +366,7 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   else if (message.type === "event") {
     applyEvent(message.event);
     updateRecallButton();
-  } else if (message.type === "history") applyHistory(message.events, message.live, message.systemPromptOverridden, message.shadowedSubagent, message.transcriptId);
+  } else if (message.type === "history") applyHistory(message.events, message.live, message.systemPromptOverridden, message.subagent, message.transcriptId);
   else if (message.type === "entryIds") assignEntryIds(message.ids, message.labels);
   else if (message.type === "sessions") renderSessions(message.items);
   else if (message.type === "models") setModelCatalog(message.catalog);

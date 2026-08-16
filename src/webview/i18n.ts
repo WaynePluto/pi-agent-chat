@@ -11,7 +11,7 @@
  */
 
 import { isChinese, sharedMessages } from "../shared/messages.js";
-import type { ShadowedSubagentNotice } from "../shared/protocol.js";
+import type { SubagentSetup } from "../shared/protocol.js";
 
 const en = {
   newSessionLabel: "New session",
@@ -135,24 +135,29 @@ const en = {
   streaming: "Working...",
   compacting: "Compacting context...",
   queued: (n: number) => `${n} queued message(s)`,
-  emptySession: (systemPromptOverridden: boolean, shadowedSubagent?: ShadowedSubagentNotice) =>
+  emptySession: (systemPromptOverridden: boolean, subagent?: SubagentSetup) =>
     [
       "No messages in this session yet.",
       "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.",
       ...(systemPromptOverridden
         ? ["The default system prompt has been overridden, so the model may not know where Pi's bundled docs are."]
         : []),
-      ...(shadowedSubagent
+      ...(subagent?.shadowedExtension
         ? [
-            `The "subagent" tool registered by the extension at ${shadowedSubagent.path} is disabled here because ` +
+            `The "subagent" tool registered by the extension at ${subagent.shadowedExtension} is disabled here because ` +
               "this window has its own subagent tool under that name. The extension keeps working in the Pi CLI.",
-            shadowedSubagent.subagentEnabled
+            subagent.enabled
               ? "Delegation in this session goes through this window's subagent tool, which is enabled here. " +
                 "Each subagent is given its task and the paths it may write to; it has no role file behind it."
               : "This window's own subagent tool is currently turned off, so this session has no delegation tool at all. " +
                 "Turn it on under Settings → Subagent (this session is still empty, so it takes effect right away).",
           ]
-        : []),
+        : subagent && !subagent.enabled
+          ? [
+              "This window's subagent tool — delegating several tasks at once to child sessions that write to your working tree directly — is turned off. " +
+                "Turn it on under Settings → Subagent (this session is still empty, so it takes effect right away).",
+            ]
+          : []),
     ].join("\n\n"),
   loadingSession: "Loading session...",
   sessionsHeader: "Sessions",
@@ -310,22 +315,27 @@ const zh: Dict = {
   streaming: "工作中...",
   compacting: "正在压缩上下文……",
   queued: (n: number) => `${n} 条消息排队中`,
-  emptySession: (systemPromptOverridden: boolean, shadowedSubagent?: ShadowedSubagentNotice) =>
+  emptySession: (systemPromptOverridden: boolean, subagent?: SubagentSetup) =>
     [
       "当前会话还没有消息。",
       "Pi 可以解释自身功能并查阅其文档。你可以询问如何使用或扩展 Pi。",
       ...(systemPromptOverridden ? ["默认 system prompt 已被覆盖，因此模型可能不知道 Pi 随附文档的位置。"] : []),
-      ...(shadowedSubagent
+      ...(subagent?.shadowedExtension
         ? [
-            `扩展 ${shadowedSubagent.path} 注册的“subagent”工具在这里已被禁用：本窗口自带同名的 subagent 工具。` +
+            `扩展 ${subagent.shadowedExtension} 注册的“subagent”工具在这里已被禁用：本窗口自带同名的 subagent 工具。` +
               "该扩展在 Pi CLI 中仍然正常工作。",
-            shadowedSubagent.subagentEnabled
+            subagent.enabled
               ? "本会话经本窗口的 subagent 工具委派（已开启）。每个子代理只拿到任务描述和可写入的路径范围，" +
                 "背后没有角色文件。"
               : "本窗口内置的 subagent 工具当前未开启，因此本会话没有任何委派工具。" +
                 "可在“设置 → 子代理”中开启（本会话还是空的，开启后立即生效）。",
           ]
-        : []),
+        : subagent && !subagent.enabled
+          ? [
+              "本插件的 subagent 工具未开启：它可以把多个任务并行委派给子会话，直接修改你的工作区。" +
+                "可在“设置 → 子代理”中开启（本会话还是空的，开启后立即生效）。",
+            ]
+          : []),
     ].join("\n\n"),
   loadingSession: "正在加载会话...",
   sessionsHeader: "会话列表",

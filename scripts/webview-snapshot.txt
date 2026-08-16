@@ -818,6 +818,416 @@ Open in editor" type="button">
         <span>
           "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
 
+===== empty state: subagent off, nothing shadowed =====
+<div id="root">
+  <header id="header" class="header">
+    <div id="header-title" class="header-title" title="New session">
+      "New session"
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
+      <button id="btn-new" title="Start a new session" disabled>
+        "New"
+      <span class="overflow-slot">
+      <button id="btn-sessions" title="Browse, resume or delete sessions">
+        "Sessions"
+      <span class="overflow-slot">
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)" disabled>
+        "Session tree"
+      <span class="overflow-slot">
+      <button id="btn-search" title="Search the transcript (Ctrl+F)">
+        "Search"
+      <span class="overflow-slot">
+      <button id="btn-resources" title="Show or hide the loaded resources panel" aria-pressed="false">
+        "Resources"
+      <span class="overflow-slot">
+      <button id="btn-settings" title="Providers, shell path and other Pi settings">
+        "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
+  <div id="sessions" class="sessions hidden">
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources hidden">
+    <div class="resources-panel collapsed">
+      <button class="resources-toggle" title="Expand" aria-expanded="false" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 2 · Prompts 1 · Extensions 3 · Tools 4"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo, helper"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/.agents/skills/demo/SKILL.md
+Open in editor" type="button">
+              "demo"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Prompts]"
+            <span class="resource-summary">
+              "/review"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/.pi/prompts/review.md
+Open in editor" type="button">
+              "/review"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              <span class="resource-inactive">
+                "broken.ts (load failed)"
+              ","
+              "ext.ts"
+              ","
+              "notify.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.pi/agent/extensions/notify.ts
+Open in editor" type="button">
+              "notify.ts"
+            <div class="resource-scope">
+              "Project"
+            <div class="resource-inactive" title="Configured, but not in effect in this session">
+              "broken.ts: parse failed"
+            <button class="resource-file" title="/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Tools]"
+            <span class="resource-summary">
+              "bash"
+              ","
+              <span class="resource-inactive">
+                "grep"
+              ","
+              "notify"
+              ","
+              "subagent"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Built-in"
+            <div title="Execute a bash command">
+              "bash"
+            <div class="resource-inactive" title="Search file contents
+Configured, but not in effect in this session">
+              "grep"
+            <div title="Delegate one task to a child agent session">
+              "subagent"
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="Send a desktop notification
+/home/me/.pi/agent/extensions/notify.ts
+Open in editor" type="button">
+              "notify"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+    <button id="delegation-peer" class="secondary">
+  <div id="messages-wrap" class="messages-wrap">
+    <div id="search-bar" class="search-bar hidden">
+      <input id="search-input" placeholder="Search the transcript..." type="text">
+      <span id="search-count" class="search-count">
+      <button id="search-prev" class="icon-button" title="Previous match (Shift+Enter)">
+        <svg/>
+      <button id="search-next" class="icon-button" title="Next match (Enter)">
+        <svg/>
+      <button id="search-close" class="icon-button" title="Close search (Esc)">
+        <svg/>
+    <main id="messages" class="messages">
+      <div class="bubble status empty-session">
+        "No messages in this session yet. Pi can explain its own features and look up its docs. Ask it how to use or extend Pi. This window's subagent tool — delegating several tasks at once to child sessions that write to your working tree directly — is turned off. Turn it on under Settings → Subagent (this session is still empty, so it takes effect right away)."
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <div id="widgets-above" class="widgets hidden">
+  <footer id="composer" class="composer">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <span class="overflow-slot">
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <span class="overflow-slot">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <span class="overflow-slot">
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <span class="overflow-slot">
+      <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
+        "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <button id="btn-send" class="icon-button" title="Send (Enter)">
+        <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
+      <div id="picker" class="picker hidden">
+    <div id="widgets-below" class="widgets hidden">
+    <div id="statusline" class="statusline">
+      <div class="statusline-row stats">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
+===== empty state: subagent on, nothing shadowed =====
+<div id="root">
+  <header id="header" class="header">
+    <div id="header-title" class="header-title" title="New session">
+      "New session"
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
+      <button id="btn-new" title="Start a new session" disabled>
+        "New"
+      <span class="overflow-slot">
+      <button id="btn-sessions" title="Browse, resume or delete sessions">
+        "Sessions"
+      <span class="overflow-slot">
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)" disabled>
+        "Session tree"
+      <span class="overflow-slot">
+      <button id="btn-search" title="Search the transcript (Ctrl+F)">
+        "Search"
+      <span class="overflow-slot">
+      <button id="btn-resources" title="Show or hide the loaded resources panel" aria-pressed="false">
+        "Resources"
+      <span class="overflow-slot">
+      <button id="btn-settings" title="Providers, shell path and other Pi settings">
+        "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
+  <div id="sessions" class="sessions hidden">
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources hidden">
+    <div class="resources-panel collapsed">
+      <button class="resources-toggle" title="Expand" aria-expanded="false" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 2 · Prompts 1 · Extensions 3 · Tools 4"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo, helper"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/.agents/skills/demo/SKILL.md
+Open in editor" type="button">
+              "demo"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Prompts]"
+            <span class="resource-summary">
+              "/review"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/.pi/prompts/review.md
+Open in editor" type="button">
+              "/review"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              <span class="resource-inactive">
+                "broken.ts (load failed)"
+              ","
+              "ext.ts"
+              ","
+              "notify.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.pi/agent/extensions/notify.ts
+Open in editor" type="button">
+              "notify.ts"
+            <div class="resource-scope">
+              "Project"
+            <div class="resource-inactive" title="Configured, but not in effect in this session">
+              "broken.ts: parse failed"
+            <button class="resource-file" title="/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
+        <div class="resource-section collapsed">
+          <button class="resource-header" title="Expand" aria-expanded="false" type="button">
+            <span class="resource-name">
+              "[Tools]"
+            <span class="resource-summary">
+              "bash"
+              ","
+              <span class="resource-inactive">
+                "grep"
+              ","
+              "notify"
+              ","
+              "subagent"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Built-in"
+            <div title="Execute a bash command">
+              "bash"
+            <div class="resource-inactive" title="Search file contents
+Configured, but not in effect in this session">
+              "grep"
+            <div title="Delegate one task to a child agent session">
+              "subagent"
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="Send a desktop notification
+/home/me/.pi/agent/extensions/notify.ts
+Open in editor" type="button">
+              "notify"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+    <button id="delegation-peer" class="secondary">
+  <div id="messages-wrap" class="messages-wrap">
+    <div id="search-bar" class="search-bar hidden">
+      <input id="search-input" placeholder="Search the transcript..." type="text">
+      <span id="search-count" class="search-count">
+      <button id="search-prev" class="icon-button" title="Previous match (Shift+Enter)">
+        <svg/>
+      <button id="search-next" class="icon-button" title="Next match (Enter)">
+        <svg/>
+      <button id="search-close" class="icon-button" title="Close search (Esc)">
+        <svg/>
+    <main id="messages" class="messages">
+      <div class="bubble status empty-session">
+        "No messages in this session yet. Pi can explain its own features and look up its docs. Ask it how to use or extend Pi."
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <div id="widgets-above" class="widgets hidden">
+  <footer id="composer" class="composer">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <span class="overflow-slot">
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <span class="overflow-slot">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <span class="overflow-slot">
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <span class="overflow-slot">
+      <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
+        "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <button id="btn-send" class="icon-button" title="Send (Enter)">
+        <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
+      <div id="picker" class="picker hidden">
+    <div id="widgets-below" class="widgets hidden">
+    <div id="statusline" class="statusline">
+      <div class="statusline-row stats">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
 ===== history replay: user + thinking + tool + assistant =====
 <div id="root">
   <header id="header" class="header">

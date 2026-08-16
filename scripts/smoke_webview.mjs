@@ -167,7 +167,7 @@ const SCRIPT = [
       {
         type: "history",
         events: [],
-        shadowedSubagent: { path: "/home/u/.pi/agent/extensions/subagent/index.ts", subagentEnabled: false },
+        subagent: { enabled: false, shadowedExtension: "/home/u/.pi/agent/extensions/subagent/index.ts" },
       },
     ],
   },
@@ -179,9 +179,21 @@ const SCRIPT = [
       {
         type: "history",
         events: [],
-        shadowedSubagent: { path: "/home/u/.pi/agent/extensions/subagent/index.ts", subagentEnabled: true },
+        subagent: { enabled: true, shadowedExtension: "/home/u/.pi/agent/extensions/subagent/index.ts" },
       },
     ],
+  },
+  {
+    // The feature is off by default and invisible without a shadowed
+    // extension, so the empty-session notice is its only discovery point.
+    label: "empty state: subagent off, nothing shadowed",
+    messages: [{ type: "history", events: [], subagent: { enabled: false } }],
+  },
+  {
+    // Enabled and nothing shadowed: no extra paragraph — the user turned it on
+    // deliberately and the tool is visible in the resources panel.
+    label: "empty state: subagent on, nothing shadowed",
+    messages: [{ type: "history", events: [], subagent: { enabled: true } }],
   },
   {
     label: "history replay: user + thinking + tool + assistant",

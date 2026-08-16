@@ -6,7 +6,7 @@ import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-
 import type { ModelsRefreshResult } from "@earendil-works/pi-ai";
 import { sessionEntryToContextMessages, SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, HostMessage, ResourceItem, ResourceScope, ResourceSection, SessionListItem, WebviewMessage } from "../shared/protocol.js";
+import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, HostMessage, ResourceItem, ResourceScope, ResourceSection, SessionListItem, SubagentSetup, WebviewMessage } from "../shared/protocol.js";
 import { formatLocalTimestamp } from "../shared/time.js";
 import { loginFlow, logoutFlow } from "./auth.js";
 import { ActivityTracker, type ResourceActivity } from "./activity.js";
@@ -506,17 +506,17 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     // Part of the new-session notice rather than a transcript event: it says
     // how this session is wired, not that something happened in it. Sent as an
     // event it would also evict the very placeholder it belongs to.
-    const shadowedPath = this.runtime.shadowedSubagentExtension;
-    const shadowedSubagent = shadowedPath
-      ? { path: shadowedPath, subagentEnabled: this.runtime.subagentEnabled }
-      : undefined;
+    const subagent: SubagentSetup = {
+      enabled: this.runtime.subagentEnabled,
+      shadowedExtension: this.runtime.shadowedSubagentExtension,
+    };
     if (this.view.kind === "replay") {
       this.host.post({
         type: "history",
         events: [...this.view.events],
         transcriptId: this.view.file,
         systemPromptOverridden,
-        shadowedSubagent,
+        subagent,
       });
       this.postEntryIds();
       return;
@@ -531,7 +531,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       live: session.isStreaming,
       transcriptId: session.sessionId,
       systemPromptOverridden,
-      shadowedSubagent,
+      subagent,
     });
     // Every replay rebuilds the bubbles, so their entry bindings must follow.
     this.postEntryIds();
