@@ -6,6 +6,5 @@
   "configuration.subagent.maxSubagents": "Largest number of subagents one `subagent` call may start. This value is published to the model as the schema limit, so it also caps what the model can ask for. Higher values cost proportionally more and get harder to follow.",
   "configuration.subagent.defaultModel": "Model for subagents that do not name one themselves, as `provider/modelId`. Leave empty to inherit the parent session's model. A cheaper, faster model here is usually the right trade: subagents execute well-scoped changes rather than plan them.",
   "command.newSession.title": "Pi Agent Chat: New Session",
-  "command.focus.title": "Pi Agent Chat: Focus Chat",
-  "command.openSearch.title": "Pi Agent Chat: Search in Chat"
+  "command.focus.title": "Pi Agent Chat: Focus Chat"
 }

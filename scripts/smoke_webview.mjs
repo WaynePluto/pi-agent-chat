@@ -765,6 +765,11 @@ const SCRIPT = [
       if (count() !== "2 of 3") throw new Error(`expected 2 of 3, got "${count()}"`);
       input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", shiftKey: true, bubbles: true }));
       if (count() !== "1 of 3") throw new Error(`expected 1 of 3 after Shift+Enter, got "${count()}"`);
+      // Next/previous wrap around at both ends.
+      input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", shiftKey: true, bubbles: true }));
+      if (count() !== "3 of 3") throw new Error(`expected wrap to 3 of 3, got "${count()}"`);
+      input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      if (count() !== "1 of 3") throw new Error(`expected wrap to 1 of 3, got "${count()}"`);
     },
   },
   {
@@ -773,6 +778,50 @@ const SCRIPT = [
     label: "transcript search closed again",
     messages: [],
     beforeMessages: (window) => window.document.getElementById("search-close").click(),
+  },
+  {
+    // Search reaches into collapsed executions through their data: the tool
+    // output below never rendered (work blocks collapse by default), the query
+    // still finds it, and landing on the hit opens the work block and the card
+    // layer by layer. The snapshot shows the once-hidden body rendered.
+    label: "transcript search reveals a collapsed tool card",
+    messages: [
+      {
+        type: "history",
+        events: [
+          { kind: "user_message", text: "list the mirrors" },
+          { kind: "tool_start", id: "call-9", name: "bash", args: { command: "cat mirrors.txt" } },
+          { kind: "tool_end", id: "call-9", name: "bash", isError: false, text: "mirror helsinki-2 online" },
+        ],
+      },
+    ],
+    beforeSnapshot: async (window) => {
+      const document = window.document;
+      // Preconditions: a collapsed work block whose card body never rendered.
+      const work = document.querySelector(".work-block");
+      if (!work || !work.classList.contains("collapsed")) throw new Error("expected a collapsed work block");
+      const card = document.querySelector(".tool-card");
+      if (!card || !card.classList.contains("collapsed")) throw new Error("expected a collapsed tool card");
+      if (card.querySelector(":scope > .card-body").childElementCount !== 0) {
+        throw new Error("expected an unrendered card body");
+      }
+      document.getElementById("btn-search").click();
+      const input = document.getElementById("search-input");
+      input.value = "helsinki";
+      input.dispatchEvent(new window.Event("input"));
+      await new Promise((resolvePromise) => window.setTimeout(resolvePromise, 150));
+      const count = () => document.getElementById("search-count").textContent;
+      // "helsinki" is only in the never-rendered output: the data layer's match.
+      if (count() !== "1") throw new Error(`expected 1 match, got "${count()}"`);
+      input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      if (count() !== "1 of 1") throw new Error(`expected 1 of 1, got "${count()}"`);
+      // Both layers opened, and the body text landed in the DOM.
+      if (work.classList.contains("collapsed")) throw new Error("work block did not expand");
+      if (card.classList.contains("collapsed")) throw new Error("tool card did not expand");
+      if (!card.textContent.includes("mirror helsinki-2 online")) throw new Error("card body did not render");
+      // Close again so later sections do not carry the open bar.
+      document.getElementById("search-close").click();
+    },
   },
   // Near the end, because it replaces the transcript: steering splits the
   // execution process. The bubble floats while it is queued (the block above

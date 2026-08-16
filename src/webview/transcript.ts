@@ -192,6 +192,81 @@ function restoreToolScroll(id: string, body: HTMLElement): void {
 }
 
 /* ---------------------------------------------------------------- */
+/* Search support: reveal, and the text of unrendered bodies         */
+/* ---------------------------------------------------------------- */
+
+/**
+ * How to open one collapsible thing on screen: expand a card or work block,
+ * unfold a message bubble. Keyed by root element so transcript search can
+ * reach them from a bare DOM anchor.
+ */
+const revealActions = new WeakMap<HTMLElement, () => HTMLElement | undefined>();
+
+/** Register how a collapsible opens itself; returns its body on reveal. */
+function registerReveal(collapsible: Collapsible): void {
+  revealActions.set(collapsible.root, () => {
+    collapsible.setExpanded(true);
+    return collapsible.body;
+  });
+}
+
+/**
+ * Expand everything between the transcript root and `target` — and `target`
+ * itself when it is a collapsible — outermost first, so a match buried in a
+ * collapsed execution is uncovered layer by layer: the work block, then the
+ * card, and the details block inside it on the next navigation (its region
+ * only exists once the card body has rendered). Returns the collapsible body
+ * of `target` when `target` itself became one, else undefined.
+ */
+export function revealTranscriptElement(target: Element): HTMLElement | undefined {
+  const chain: Array<() => HTMLElement | undefined> = [];
+  for (let node: Element | null = target; node && node !== messagesEl; node = node.parentElement) {
+    const action = revealActions.get(node as HTMLElement);
+    if (action) chain.push(action);
+  }
+  let body: HTMLElement | undefined;
+  // Outermost first: expanding a parent renders the DOM the children live in.
+  for (const action of chain.reverse()) body = action() ?? body;
+  return body;
+}
+
+interface HiddenBody {
+  /** Collapsed body element; empty until the first expansion renders it. */
+  body: HTMLElement;
+  getText(): string;
+}
+
+/**
+ * Text of lazy card bodies that have never rendered — tool output, thinking,
+ * notices, compaction summaries, details payloads — so search can reach it
+ * before any expansion. Collapsed is not enough to be listed: the body must
+ * still be empty, because once rendered the text is in the DOM for good (and
+ * re-collapsing keeps it there). Cleared with the transcript.
+ */
+const hiddenBodies = new Map<HTMLElement, HiddenBody>();
+
+function registerHiddenBody(collapsible: Collapsible, getText: () => string): void {
+  registerReveal(collapsible);
+  hiddenBodies.set(collapsible.root, { body: collapsible.body, getText });
+}
+
+/** Searchable text of not-yet-rendered card bodies, with the card root to reveal. */
+export function collectHiddenBodies(): Array<{ root: HTMLElement; text: string }> {
+  const regions: Array<{ root: HTMLElement; text: string }> = [];
+  for (const [root, region] of hiddenBodies) {
+    if (!root.isConnected) {
+      hiddenBodies.delete(root);
+      continue;
+    }
+    // Rendered already: the DOM corpus covers this text from here on.
+    if (region.body.childElementCount > 0) continue;
+    const text = region.getText();
+    if (text) regions.push({ root, text });
+  }
+  return regions;
+}
+
+/* ---------------------------------------------------------------- */
 /* Batched history replay                                            */
 /* ---------------------------------------------------------------- */
 
@@ -477,6 +552,7 @@ export function clearMessages(): void {
   workBlockIndex = -1;
   latestBubbles.clear();
   bubbleIndex = -1;
+  hiddenBodies.clear();
   placeholderEl = undefined;
   // Skill marks describe the displayed transcript, so they go with it.
   clearResourceHighlights();
@@ -507,6 +583,12 @@ function appendMarkdownBubble(role: string, text: string): MessageBubble {
   const previous = latestBubbles.get(role);
   if (previous && !previous.pinned) previous.setFolded(true);
   latestBubbles.set(role, bubble);
+  // A folded bubble clips its content away, so search must be able to open it.
+  // Not pinned: only the user's own toggle outranks the fold rules.
+  revealActions.set(bubble.root, () => {
+    if (bubble.folded) bubble.setFolded(false);
+    return undefined;
+  });
   sink.appendChild(bubble.root);
   return bubble;
 }
@@ -689,7 +771,7 @@ export function appendNoticeCard(kind: "status" | "error", text: string, scope?:
     parent.appendChild(card);
     return;
   }
-  createCollapsible({
+  const card = createCollapsible({
     classes: CARD_CLASSES,
     rootClass: `notice-card ${kind}`,
     label: short,
@@ -697,6 +779,7 @@ export function appendNoticeCard(kind: "status" | "error", text: string, scope?:
     parent,
     render: (body) => body.replaceChildren(el("pre", "notice-body", text)),
   });
+  registerHiddenBody(card, () => text);
 }
 
 /**
@@ -708,7 +791,7 @@ function appendCompactionBoundary(summary: string, tokensBefore: number, estimat
   const status = estimatedTokensAfter === undefined
     ? t.compactionTokensBefore(formatTokens(tokensBefore))
     : t.compactionTokens(formatTokens(tokensBefore), formatTokens(estimatedTokensAfter));
-  createCollapsible({
+  const boundary = createCollapsible({
     classes: CARD_CLASSES,
     rootClass: "compaction-boundary",
     tag: "section",
@@ -724,6 +807,8 @@ function appendCompactionBoundary(summary: string, tokensBefore: number, estimat
       }
     },
   });
+  // The summary is the only body text worth finding; the note is boilerplate.
+  registerHiddenBody(boundary, () => summary);
 }
 
 /* ---------------------------------------------------------------- */
@@ -757,6 +842,8 @@ function ensureWorkBlock(): WorkBlock {
   updateWorkStatus(work);
   activeWorkBlock = work;
   workBlocks.set(index, work.collapsible);
+  // No hidden-body text here: the work body is filled eagerly, only hidden.
+  registerReveal(work.collapsible);
   return work;
 }
 
@@ -791,6 +878,7 @@ function createThinkingCard(streaming: boolean): ThinkingCard {
     render: (body) => body.replaceChildren(renderMarkdown(entry.raw)),
   }) as ThinkingCard;
   entry.raw = "";
+  registerHiddenBody(entry, () => entry.raw);
   if (streaming) entry.root.classList.add("streaming");
   return entry;
 }
@@ -834,6 +922,11 @@ function startToolCard(id: string, name: string, args: unknown, skill?: SkillRef
   entry.argsText = summarizeArgs(args);
   entry.bodyText = "";
   toolCards.set(id, entry);
+  // While collapsed the body never renders, so its text (args, output, patch,
+  // details) is searchable only through this region; the closure reads the
+  // live entry, which tool_end keeps filling in.
+  registerHiddenBody(entry, () =>
+    [entry.argsText, entry.bodyText, entry.patch, flattenDetailText(entry.details)].filter(Boolean).join("\n"));
   // Expanded after the entry exists, because expanding renders the body and the
   // body reads back from `entry`. The delegation card is the only view of what
   // the subagents are doing, and the parent produces no output while it waits:
@@ -1025,6 +1118,21 @@ function renderDetailsBlock(details: JsonValue, parent: HTMLElement): void {
     render: (target) => appendDetailValue(target, details),
   });
   block.root.title = t.toolDetailsTitle;
+  registerHiddenBody(block, () => flattenDetailText(details));
+}
+
+/**
+ * Scalar values of a details payload as one line, keys excluded — the same
+ * text the rendered tree shows, which is what search should match against.
+ */
+function flattenDetailText(value: JsonValue | undefined): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value !== "object") return String(value);
+  const children = Array.isArray(value) ? value : Object.values(value);
+  return children
+    .map((item) => flattenDetailText(item as JsonValue))
+    .filter(Boolean)
+    .join(" ");
 }
 
 function appendDetailValue(parent: HTMLElement, value: JsonValue): void {

@@ -90,24 +90,12 @@
         "title": "%command.focus.title%"
       },
       {
-        "command": "piAgentChat.openSearch",
-        "title": "%command.openSearch.title%"
-      },
-      {
         "command": "piAgentChat.runSpikeDiagnostics",
         "title": "Pi Agent Chat: Run Spike Diagnostics"
       },
       {
         "command": "piAgentChat.runSpikeLiveTest",
         "title": "Pi Agent Chat: Run Spike Live Test (uses API tokens)"
-      }
-    ],
-    "keybindings": [
-      {
-        "command": "piAgentChat.openSearch",
-        "key": "ctrl+f",
-        "mac": "cmd+f",
-        "when": "focusedView == piAgentChat.view"
       }
     ]
   },

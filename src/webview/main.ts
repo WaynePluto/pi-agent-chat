@@ -7,7 +7,7 @@ import { hasResources, isResourcesShown, renderResources, toggleResources } from
 import { renderExtensionWidgets } from "./widgets.js";
 import { initSessions, isSessionsOpen, renderSessions } from "./sessions-view.js";
 import { closePicker, openPicker, refreshPicker, setModelCatalog, togglePicker } from "./picker.js";
-import { closeSearch, openSearch, toggleSearch } from "./search.js";
+import { closeSearch, toggleSearch } from "./search.js";
 import { createOverflowGroup } from "./overflow.js";
 import {
   authEl,
@@ -371,12 +371,6 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   else if (message.type === "sessions") renderSessions(message.items);
   else if (message.type === "models") setModelCatalog(message.catalog);
   else if (message.type === "openPicker") openPicker(message.picker);
-  // The keybinding's decision point lives here, not in the host: the sessions
-  // page's own filter box owns the shortcut there, and search does not apply
-  // when the transcript is hidden.
-  else if (message.type === "openSearch") {
-    if (!isSessionsOpen() && !messagesWrapEl.classList.contains("hidden")) openSearch();
-  }
   else if (message.type === "commands") setSlashCommands(message.items);
   else if (message.type === "projectFiles") onProjectFiles(message.requestId, message.items, message.error);
   else if (message.type === "resources") {

@@ -1,26 +1,39 @@
+import { collectHiddenBodies, revealTranscriptElement } from "./transcript.js";
 import { getDict } from "./i18n.js";
 import { byId, messagesEl, searchBarEl, searchCountEl, searchInputEl } from "./shell.js";
 
 /**
- * Transcript search (Ctrl+F), the GUI counterpart of the TUI's fullscreen
- * transcript search: the query is a literal, case-insensitive,
- * whitespace-normalized string matched against a corpus of the transcript's
- * visible text, and matches are highlighted with next/previous navigation.
+ * Transcript search (the header button), the GUI counterpart of the TUI's
+ * fullscreen transcript search: the query is a literal,
+ * case-insensitive, whitespace-normalized string matched against a corpus of
+ * the transcript's text, and matches are highlighted with next/previous
+ * navigation.
  *
- * Two deliberate mechanics:
+ * Mechanics, in three layers:
  *
- * - **The corpus mirrors the TUI's** (`buildSearchCorpus` in pi-tui): every
- *   visible text node is concatenated (a space separates nodes of different
+ * - **The DOM corpus mirrors the TUI's** (`buildSearchCorpus` in pi-tui):
+ *   every text node is concatenated (a space separates nodes of different
  *   parent elements, like the TUI's span separator), the match runs over the
  *   corpus, and each match maps back to per-node segments. That is what lets
  *   a match span inline markup (`hel<b>lo</b>`) the same way it spans styled
- *   spans in the terminal.
- * - **Highlighting never touches the DOM.** The CSS Custom Highlight API
- *   paints ranges from a registry, so streaming re-renders, markdown
- *   re-parsing and history rebuilds cannot be disturbed by injected `<mark>`
- *   elements, and the smoke snapshot (a DOM serialization) never sees them.
- *   Where the API does not exist (jsdom), matches are still counted and
- *   navigation still runs — only the paint is skipped.
+ *   spans in the terminal. Collapsed cards and folded messages are part of
+ *   it — their text stays in the DOM, and navigation expands them.
+ * - **Lazy card bodies that have never rendered are searched through their
+ *   data** (`collectHiddenBodies` in transcript.ts): tool output, thinking
+ *   text and details payloads exist as data until the card is first expanded,
+ *   so such regions match without DOM and anchor on the card root.
+ * - **Navigation reveals.** Landing on a hidden-region match expands the work
+ *   block, then the card (`revealTranscriptElement`), rebuilds the corpus —
+ *   the body text is DOM now — and re-lands on the first visible match inside
+ *   it; a details block nested in that body registers its own region on the
+ *   way, so the next Enter opens that layer too.
+ *
+ * Highlighting never touches the DOM: the CSS Custom Highlight API paints
+ * ranges from a registry, so streaming re-renders, markdown re-parsing and
+ * history rebuilds cannot be disturbed by injected `<mark>` elements, and the
+ * smoke snapshot (a DOM serialization) never sees them. Where the API does
+ * not exist (jsdom), matches are still counted and navigation still runs —
+ * only the paint is skipped.
  */
 
 const t = getDict();
@@ -31,21 +44,25 @@ const ALL_HIGHLIGHT = "pi-search";
 const CURRENT_HIGHLIGHT = "pi-search-current";
 
 interface SearchMatch {
-  /** One range per corpus segment the match spans. */
+  /** One range per corpus segment the match spans; empty for a data-layer hit. */
   ranges: Range[];
   /** Element scrolled into view when the match becomes current. */
   anchor: Element;
+  /** Card root of a data-layer hit: no DOM until it is revealed. */
+  root?: HTMLElement;
 }
 
 let matches: SearchMatch[] = [];
 let currentIndex = -1;
 let rebuildTimer: ReturnType<typeof setTimeout> | undefined;
+/** One-shot: the reveal path rebuilds itself, so skip the redundant follow-up. */
+let suppressObserverRebuild = false;
 
 export function isSearchOpen(): boolean {
   return !searchBarEl.classList.contains("hidden");
 }
 
-export function openSearch(): void {
+function openSearch(): void {
   searchBarEl.classList.remove("hidden");
   searchInputEl.focus();
   searchInputEl.select();
@@ -68,13 +85,12 @@ export function toggleSearch(): void {
 /* Corpus                                                            */
 /* ---------------------------------------------------------------- */
 
-/** Text the user cannot see is not searched (TUI parity: rendered lines only). */
+/** What a page switch hides is not searched. Collapsed cards and folded
+ * messages are — see the module header. */
 function isSearchableText(node: Text): boolean {
   const parent = node.parentElement;
   if (!parent || !node.data) return false;
   if (parent.closest(".hidden")) return false;
-  // Collapsed collapsible bodies are display:none.
-  if (parent.closest(".collapsed > .card-body, .collapsed > .work-body")) return false;
   // Bubble footers are chrome (fold toggle label), not conversation.
   if (parent.closest(".bubble-footer")) return false;
   return true;
@@ -127,9 +143,9 @@ function rebuild(): void {
   matches = [];
   currentIndex = -1;
   if (query) {
+    const expression = new RegExp(escapeRegExp(query), "gu");
     const corpus = buildCorpus();
     const haystack = corpus.text.toLowerCase();
-    const expression = new RegExp(escapeRegExp(query), "gu");
     for (const hit of haystack.matchAll(expression)) {
       if (hit.index === undefined) continue;
       const start = hit.index;
@@ -157,6 +173,22 @@ function rebuild(): void {
       const anchor = ranges[0]?.startContainer.parentElement;
       if (ranges.length > 0 && anchor) matches.push({ ranges, anchor });
     }
+    // Lazy bodies that never rendered: match their data-layer text and anchor
+    // on the card root. No ranges — the highlight appears once navigation has
+    // expanded the card and the corpus picks the rendered text up.
+    for (const region of collectHiddenBodies()) {
+      const regionHaystack = region.text.toLowerCase();
+      for (const hit of regionHaystack.matchAll(expression)) {
+        if (hit.index === undefined) continue;
+        matches.push({ ranges: [], anchor: region.root, root: region.root });
+      }
+    }
+    // Walk order and registration order only approximate document order once
+    // the two sources mix; sort by anchor so next/previous run top to bottom.
+    matches.sort((a, b) => {
+      if (a.anchor === b.anchor) return 0;
+      return a.anchor.compareDocumentPosition(b.anchor) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+    });
   }
   // Stay at "no current match" until the user navigates: typing must not
   // yank the scroll position, and the first Enter then lands on match one.
@@ -199,10 +231,41 @@ function paint(): void {
 /* ---------------------------------------------------------------- */
 
 function setCurrent(index: number, scroll = true): void {
-  currentIndex = ((index % matches.length) + matches.length) % matches.length;
-  const current = matches[currentIndex];
-  if (scroll && current) {
-    current.anchor.scrollIntoView?.({ block: "center" });
+  if (matches.length === 0) return;
+  // Enter/prev/next step by one and rely on the wrap here, not at each call site.
+  const wrapped = ((index % matches.length) + matches.length) % matches.length;
+  const target = matches[wrapped];
+  if (!target) return;
+  // A hidden-region hit has no DOM yet: open its card and every collapsed
+  // ancestor, rebuild now that the body text is rendered, and re-land on the
+  // first visible match inside the body.
+  if (target.root) {
+    // Our own rebuild just ran over these mutations; the observer would only
+    // run a second, redundant one that resets the current match.
+    suppressObserverRebuild = true;
+    const body = revealTranscriptElement(target.root);
+    rebuild();
+    const landed = matches.findIndex((match) => !match.root && body !== undefined && body.contains(match.anchor));
+    if (landed >= 0) {
+      setCurrent(landed, scroll);
+      return;
+    }
+    // The hit may be text that does not survive rendering verbatim (markdown
+    // syntax, for instance, or the details payload of a nested block that is
+    // only now registered): settle for putting the card on screen; the next
+    // Enter then lands on the first visible match inside it.
+    currentIndex = -1;
+    if (scroll) target.root.scrollIntoView?.({ block: "center" });
+    paint();
+    renderCount();
+    return;
+  }
+  // A DOM hit still needs its collapsed ancestors expanded (and a folded
+  // bubble opened) before the anchor can be scrolled into view.
+  revealTranscriptElement(target.anchor);
+  currentIndex = wrapped;
+  if (scroll) {
+    target.anchor.scrollIntoView?.({ block: "center" });
   }
   paint();
   renderCount();
@@ -239,5 +302,10 @@ byId<HTMLButtonElement>("search-close").addEventListener("click", () => closeSea
 
 /** Streaming, history replays and lane switches all land here as DOM edits. */
 new MutationObserver(() => {
-  if (isSearchOpen()) scheduleRebuild();
+  if (!isSearchOpen()) return;
+  if (suppressObserverRebuild) {
+    suppressObserverRebuild = false;
+    return;
+  }
+  scheduleRebuild();
 }).observe(messagesEl, { subtree: true, childList: true, characterData: true });

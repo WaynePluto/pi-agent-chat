@@ -40,8 +40,10 @@ root.innerHTML = `
   </div>
   <div id="messages-wrap" class="messages-wrap">
     <div id="search-bar" class="search-bar hidden">
-      <input id="search-input" type="text" placeholder="${t.searchPlaceholder}" />
-      <span id="search-count" class="search-count"></span>
+      <div class="search-field">
+        <input id="search-input" type="text" placeholder="${t.searchPlaceholder}" />
+        <span id="search-count" class="search-count"></span>
+      </div>
       <button id="search-prev" class="icon-button" title="${t.searchPrevTitle}">${UP_ICON}</button>
       <button id="search-next" class="icon-button" title="${t.searchNextTitle}">${DOWN_ICON}</button>
       <button id="search-close" class="icon-button" title="${t.searchCloseTitle}">${CLOSE_ICON}</button>

@@ -6,11 +6,13 @@ export const CHEVRON_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fil
 
 /** Magnifier: transcript search. */
 export const SEARCH_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M11.2 10.1a4.6 4.6 0 1 0-1.1 1.1l3.2 3.2 1.1-1.1-3.2-3.2zM6.7 10a3.3 3.3 0 1 1 0-6.6 3.3 3.3 0 0 1 0 6.6z"/></svg>`;
-/** Caret up/down: previous / next search match. */
-export const UP_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 4.3l4.5 4.5-1.06 1.06L8 6.42l-3.44 3.44L3.5 8.8 8 4.3z"/></svg>`;
-export const DOWN_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 11.7l-4.5-4.5 1.06-1.06L8 9.58l3.44-3.44 1.06 1.06L8 11.7z"/></svg>`;
-/** Cross: close. */
-export const CLOSE_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 7.06L4.53 3.6 3.47 4.66 6.94 8.12l-3.47 3.46 1.06 1.06L8 9.18l3.47 3.46 1.06-1.06L9.06 8.12l3.47-3.46-1.06-1.06L8 7.06z"/></svg>`;
+/* Codicon paths, embedded verbatim from microsoft/vscode-codicons
+ * (src/icons/arrow-up.svg, arrow-down.svg, close.svg): the same glyphs the
+ * workbench find widget uses. Do not hand-simplify them — the geometry is
+ * the design. */
+export const UP_ICON = `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M13.854 7.14576L8.85401 2.14576C8.65901 1.95076 8.34201 1.95076 8.14701 2.14576L3.14601 7.14576C2.95101 7.34076 2.95101 7.65776 3.14601 7.85276C3.34101 8.04776 3.65801 8.04776 3.85301 7.85276L7.99901 3.70676V13.4998C7.99901 13.7758 8.22301 13.9998 8.49901 13.9998C8.77501 13.9998 8.99901 13.7758 8.99901 13.4998V3.70676L13.145 7.85276C13.243 7.95076 13.371 7.99876 13.499 7.99876C13.627 7.99876 13.755 7.94976 13.853 7.85276C14.048 7.65776 14.048 7.34076 13.853 7.14576H13.854Z"/></svg>`;
+export const DOWN_ICON = `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M13.854 8.146C13.659 7.951 13.342 7.951 13.147 8.146L9.00096 12.292V2.5C9.00096 2.224 8.77696 2 8.50096 2C8.22496 2 8.00096 2.224 8.00096 2.5V12.293L3.85496 8.147C3.65996 7.952 3.34296 7.952 3.14796 8.147C2.95296 8.342 2.95296 8.659 3.14796 8.854L8.14796 13.854C8.24596 13.952 8.37396 14 8.50196 14C8.62996 14 8.75796 13.951 8.85596 13.854L13.856 8.854C14.051 8.659 14.051 8.342 13.856 8.147L13.854 8.146Z"/></svg>`;
+export const CLOSE_ICON = `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M13.85 13.1502C14.05 13.3502 14.05 13.6602 13.85 13.8602C13.75 13.9602 13.62 14.0102 13.5 14.0102C13.38 14.0102 13.24 13.9602 13.15 13.8602L8 8.71023L2.85 13.8602C2.75 13.9602 2.62 14.0102 2.5 14.0102C2.38 14.0102 2.24 13.9602 2.15 13.8602C1.95 13.6602 1.95 13.3502 2.15 13.1502L7.3 8.00023L2.15 2.85023C1.95 2.65023 1.95 2.34023 2.15 2.14023C2.35 1.94023 2.66 1.94023 2.86 2.14023L8.01 7.29023L13.16 2.14023C13.36 1.94023 13.67 1.94023 13.87 2.14023C14.07 2.34023 14.07 2.65023 13.87 2.85023L8.72 8.00023L13.87 13.1502H13.85Z"/></svg>`;
 
 /** Horizontal ellipsis: reveals actions collapsed by a narrow panel. */
 export const MORE_ICON = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><circle cx="3.1" cy="8" r="1.55"/><circle cx="8" cy="8" r="1.55"/><circle cx="12.9" cy="8" r="1.55"/></svg>`;

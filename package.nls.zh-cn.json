@@ -6,6 +6,5 @@
   "configuration.subagent.maxSubagents": "单次 `subagent` 调用最多启动的子代理数量。该值会作为 schema 上限告知模型，因此同时限制了模型能请求的路数。值越大成本按比例增加，也越难跟得过来。",
   "configuration.subagent.defaultModel": "未自行指定模型的子代理所使用的模型，格式为 `provider/modelId`。留空表示继承父会话的模型。这里通常适合选更便宜、更快的模型：子代理执行的是范围明确的改动，而不是做规划。",
   "command.newSession.title": "Pi Agent Chat：新建会话",
-  "command.focus.title": "Pi Agent Chat：聚焦聊天窗口",
-  "command.openSearch.title": "Pi Agent Chat：在聊天中搜索"
+  "command.focus.title": "Pi Agent Chat：聚焦聊天窗口"
 }

@@ -38,11 +38,11 @@
 | webview/shell | `src/webview/shell.ts` | 静态页面骨架（`#root` innerHTML）与所有元素引用 | i18n, icons |
 | webview/store | `src/webview/store.ts` | 唯一的 `ChatState` 快照（live binding + `setState`） | protocol |
 | webview/host | `src/webview/host.ts` | `acquireVsCodeApi()` 封装，唯一的 `post()` 出口 | protocol |
-| webview/transcript | `src/webview/transcript.ts` | 消息区：气泡、work block、思考/工具/通知卡片（含技能徽章）、diff 渲染、粘底滚动、运行指示器 | bubble, collapsible, dom, format, host, markdown, resources-view, shell, spinner, store |
+| webview/transcript | `src/webview/transcript.ts` | 消息区：气泡、work block、思考/工具/通知卡片（含技能徽章）、diff 渲染、粘底滚动、运行指示器；并为搜索提供「逐层展开」（reveal 注册表）与未渲染懒加载 body 的可搜索文本（`collectHiddenBodies`） | bubble, collapsible, dom, format, host, markdown, resources-view, shell, spinner, store |
 | webview/composer | `src/webview/composer.ts` | 输入区：发送/steer/follow-up、`/` 命令补全、`@` 文件选择器与引用 chip、拖拽调整高度 | dom, format, host, shell, store, transcript |
 | webview/sessions-view | `src/webview/sessions-view.ts` | 会话列表页渲染与行内操作（恢复/删除/查看父子会话） | dom, format, host, shell, spinner, store, transcript |
 | webview/resources-view | `src/webview/resources-view.ts` | 资源面板（Context / Skills / Prompts / Extensions / Tools；不含 Themes，也不含任何非 pi 官方的资源类型）：header 按钮控制显隐；绿色 = 本会话中生效过（transcript 可见的技能/工具/提示词/扩展命令，并与宿主下发的 `item.used` 取并集），灰斜体 = 已配置但未生效，其余为常规前景色 | collapsible, dom, host, shell |
-| webview/search | `src/webview/search.ts` | transcript 搜索（Ctrl+F / header 按钮）：字面、大小写不敏感、空白归一化的查询对「可见文本语料」匹配（语料构建方式对齐 TUI 全屏搜索），Enter/Shift+Enter 导航；高亮走 CSS Custom Highlight API 不改 DOM（jsdom 降级为仅计数/导航），MutationObserver 防抖重算 | i18n, shell |
+| webview/search | `src/webview/search.ts` | transcript 搜索（header 按钮触发，无键绑定——webview 的 keydown 会被工作台键绑定服务先行转发，拦不住默认的编辑器搜索）：字面、大小写不敏感、空白归一化的查询对语料匹配（语料构建方式对齐 TUI 全屏搜索），Enter/Shift+Enter 导航；语料分两层——DOM 文本（含折叠的卡片与长消息，文本仍在 DOM）与从未渲染过的懒加载卡片 body 的数据层文本（`collectHiddenBodies`），导航命中折叠区域时层层展开（`revealTranscriptElement`）；高亮走 CSS Custom Highlight API 不改 DOM（jsdom 降级为仅计数/导航），MutationObserver 防抖重算 | i18n, shell, transcript |
 | webview/statusline | `src/webview/statusline.ts` | CLI 风格底部状态行（tokens / 缓存 / 成本 / 上下文占用），以及扩展经 `ctx.ui.setStatus` 发布的独立状态行（后者不受窄面板整行隐藏规则影响） | dom, format, protocol, shell, store |
 | webview/widgets | `src/webview/widgets.ts` | 扩展经 `ctx.ui.setWidget` 发布的纯文本块，按 `aboveEditor` / `belowEditor` 落在 composer 上下两侧；只渲染 SDK 的 `string[]` 重载，component factory 重载属 TUI-only 不实现 | collapsible, dom, protocol, shell |
 | webview/picker | `src/webview/picker.ts` | composer 的模型 / 思考等级快捷菜单：小弹层对齐 chip 弹出，模型行只有名称 + 供应商（仅常用模型，为空时显示「无」），末尾「其他模型…」交给原生完整 picker | dom, host, i18n, icons, shell, store |
@@ -202,6 +202,7 @@ graph TD
   main --> search
   search --> shell
   search --> i18n
+  search --> transcript
   picker --> shell
   picker --> store
   picker --> hostapi
