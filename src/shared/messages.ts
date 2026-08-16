@@ -33,7 +33,7 @@ export function localize(text: LocalizedText, language: string): string {
 export const sharedMessages = {
   /* Single-session mode ------------------------------------------------ */
 
-  /** Native warning when new / resume / tree is attempted mid-run. */
+  /** Error notice when new / resume / tree is attempted mid-run. */
   singleSessionGuard: {
     en: "Pi Agent Chat is single-session: stop the current run before switching or starting a session.",
     zh: "Pi Agent Chat 仅支持单会话模式：请先停止当前会话的运行，再切换或新建会话。",
@@ -83,7 +83,6 @@ export const sharedMessages = {
   /** Composer menu row that hands over to the full native model picker. */
   otherModels: { en: "Other models...", zh: "其他模型…" },
   defaultModelMarker: { en: "default", zh: "默认" },
-  openExportedHtml: { en: "Open in browser", zh: "在浏览器中打开" },
   modalityText: { en: "text", zh: "文本" },
   modalityImage: { en: "image", zh: "图像" },
   modelReasoning: { en: "reasoning", zh: "思考" },
@@ -214,8 +213,8 @@ export const sharedMessages = {
     zh: "订阅认证可能产生付费额外用量时警告",
   },
   renameRunningSession: {
-    en: "Pi Agent Chat: cannot rename a session while a subagent is writing to it.",
-    zh: "Pi Agent Chat：子代理正在写入该会话，暂时无法重命名。",
+    en: "A subagent is writing to this session; rename it after the run finishes.",
+    zh: "子代理正在写入该会话，运行结束后再重命名。",
   },
   settingsHelpDetail: {
     en: "List built-in slash commands",
@@ -238,8 +237,8 @@ export const sharedMessages = {
     zh: "shell 可执行文件的绝对路径",
   },
   shellPathNotFound: {
-    en: "Pi Agent Chat: that path does not exist.",
-    zh: "Pi Agent Chat：该路径不存在。",
+    en: "That path does not exist.",
+    zh: "该路径不存在。",
   },
   shellPathCleared: {
     en: "shell path reset to system default (applies to new sessions)",

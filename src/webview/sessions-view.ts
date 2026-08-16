@@ -220,6 +220,13 @@ function renameButton(item: SessionListItem): HTMLElement {
     event.stopPropagation();
     post({ type: "renameSession", file: item.file });
   });
-  rename.title = t.sessionRenameTitle;
+  // Same disabled-with-reason pattern as delete: a running subagent appends to
+  // its session file, so renaming it must wait for the run to finish.
+  if (item.delegationRole === "child") {
+    rename.disabled = true;
+    rename.title = t.sessionRenameRunningTitle;
+  } else {
+    rename.title = t.sessionRenameTitle;
+  }
   return rename;
 }

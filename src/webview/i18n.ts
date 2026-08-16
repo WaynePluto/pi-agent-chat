@@ -154,7 +154,7 @@ const en = {
           ]
         : subagent && !subagent.enabled
           ? [
-              "This window's subagent tool — delegating several tasks at once to child sessions that write to your working tree directly — is turned off. " +
+              "The built-in subagent tool is turned off; see the plugin's README for what it does. " +
                 "Turn it on under Settings → Subagent (this session is still empty, so it takes effect right away).",
             ]
           : []),
@@ -171,6 +171,7 @@ const en = {
   sessionDeleteCurrentTitle: "The current session cannot be deleted",
   sessionRename: "Rename",
   sessionRenameTitle: "Set a display name for this session",
+  sessionRenameRunningTitle: "A subagent is writing to this session; rename it after the run finishes",
   sessionResumeTitle: "Resume this session",
   sessionPreviewing: "previewing",
   previewBanner: "Read-only preview",
@@ -332,7 +333,7 @@ const zh: Dict = {
           ]
         : subagent && !subagent.enabled
           ? [
-              "本插件的 subagent 工具未开启：它可以把多个任务并行委派给子会话，直接修改你的工作区。" +
+              "本插件内置的 subagent 工具未开启，具体请查看插件 README。" +
                 "可在“设置 → 子代理”中开启（本会话还是空的，开启后立即生效）。",
             ]
           : []),
@@ -349,6 +350,7 @@ const zh: Dict = {
   sessionDeleteCurrentTitle: "当前会话无法删除",
   sessionRename: "重命名",
   sessionRenameTitle: "设置这个会话的显示名称",
+  sessionRenameRunningTitle: "子代理正在写入该会话，运行结束后再重命名",
   sessionResumeTitle: "恢复这个会话",
   sessionPreviewing: "预览中",
   previewBanner: "只读预览",

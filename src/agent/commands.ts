@@ -243,11 +243,6 @@ async function exportSession(runtime: PiRuntime, argument: string, actions: Buil
     ? runtime.session.exportToJsonl(target)
     : await runtime.session.exportToHtml(target);
   actions.status(tf("exportedSession", exported));
-  if (!exported.endsWith(".jsonl")) {
-    const open = t("openExportedHtml");
-    const answer = await vscode.window.showInformationMessage(tf("exportedSession", exported), open);
-    if (answer === open) await vscode.env.openExternal(vscode.Uri.file(exported));
-  }
 }
 
 function formatSessionStats(stats: {

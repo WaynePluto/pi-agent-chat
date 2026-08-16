@@ -985,7 +985,7 @@ Open in editor" type="button">
         <svg/>
     <main id="messages" class="messages">
       <div class="bubble status empty-session">
-        "No messages in this session yet. Pi can explain its own features and look up its docs. Ask it how to use or extend Pi. This window's subagent tool — delegating several tasks at once to child sessions that write to your working tree directly — is turned off. Turn it on under Settings → Subagent (this session is still empty, so it takes effect right away)."
+        "No messages in this session yet. Pi can explain its own features and look up its docs. Ask it how to use or extend Pi. The built-in subagent tool is turned off; see the plugin's README for what it does. Turn it on under Settings → Subagent (this session is still empty, so it takes effect right away)."
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -7744,7 +7744,7 @@ Open in editor" type="button">
               "delegated child"
           <span class="session-meta">
             "2026-01-03 00:00"
-        <button class="session-rename" title="Set a display name for this session" type="button">
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
           "Rename"
         <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
           "Delete"
@@ -8379,7 +8379,7 @@ Open in editor" type="button">
               "delegated child"
           <span class="session-meta">
             "2026-01-03 00:00"
-        <button class="session-rename" title="Set a display name for this session" type="button">
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
           "Rename"
         <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
           "Delete"
@@ -9014,7 +9014,7 @@ Open in editor" type="button">
               "delegated child"
           <span class="session-meta">
             "2026-01-03 00:00"
-        <button class="session-rename" title="Set a display name for this session" type="button">
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
           "Rename"
         <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
           "Delete"
@@ -9206,7 +9206,7 @@ Open in editor" type="button">
               "delegated child"
           <span class="session-meta">
             "2026-01-03 00:00"
-        <button class="session-rename" title="Set a display name for this session" type="button">
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
           "Rename"
         <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
           "Delete"
@@ -9531,7 +9531,7 @@ Open in editor" type="button">
               "delegated child"
           <span class="session-meta">
             "2026-01-03 00:00"
-        <button class="session-rename" title="Set a display name for this session" type="button">
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
           "Rename"
         <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
           "Delete"
@@ -9784,7 +9784,7 @@ Open in editor" type="button">
               "delegated child"
           <span class="session-meta">
             "2026-01-03 00:00"
-        <button class="session-rename" title="Set a display name for this session" type="button">
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
           "Rename"
         <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
           "Delete"
@@ -10064,7 +10064,7 @@ Open in editor" type="button">
               "delegated child"
           <span class="session-meta">
             "2026-01-03 00:00"
-        <button class="session-rename" title="Set a display name for this session" type="button">
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
           "Rename"
         <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
           "Delete"
@@ -10345,7 +10345,7 @@ Open in editor" type="button">
               "delegated child"
           <span class="session-meta">
             "2026-01-03 00:00"
-        <button class="session-rename" title="Set a display name for this session" type="button">
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
           "Rename"
         <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
           "Delete"
@@ -10598,7 +10598,7 @@ Open in editor" type="button">
               "delegated child"
           <span class="session-meta">
             "2026-01-03 00:00"
-        <button class="session-rename" title="Set a display name for this session" type="button">
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
           "Rename"
         <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
           "Delete"
@@ -10869,7 +10869,7 @@ Open in editor" type="button">
               "delegated child"
           <span class="session-meta">
             "2026-01-03 00:00"
-        <button class="session-rename" title="Set a display name for this session" type="button">
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
           "Rename"
         <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
           "Delete"
@@ -11169,7 +11169,7 @@ Open in editor" type="button">
               "delegated child"
           <span class="session-meta">
             "2026-01-03 00:00"
-        <button class="session-rename" title="Set a display name for this session" type="button">
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
           "Rename"
         <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
           "Delete"
@@ -11451,7 +11451,7 @@ Open in editor" type="button">
               "delegated child"
           <span class="session-meta">
             "2026-01-03 00:00"
-        <button class="session-rename" title="Set a display name for this session" type="button">
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
           "Rename"
         <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
           "Delete"
@@ -11733,7 +11733,7 @@ Open in editor" type="button">
               "delegated child"
           <span class="session-meta">
             "2026-01-03 00:00"
-        <button class="session-rename" title="Set a display name for this session" type="button">
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
           "Rename"
         <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
           "Delete"
@@ -12072,7 +12072,7 @@ Open in editor" type="button">
               "delegated child"
           <span class="session-meta">
             "2026-01-03 00:00"
-        <button class="session-rename" title="Set a display name for this session" type="button">
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
           "Rename"
         <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
           "Delete"

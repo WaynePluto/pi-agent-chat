@@ -986,7 +986,15 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         this.emit(session, { kind: "status", text: `retry ${event.attempt}/${event.maxAttempts}: ${event.errorMessage}` });
         break;
       case "auto_retry_end":
-        this.emit(session, { kind: "status", text: event.success ? "retry succeeded" : `retry failed: ${event.finalError ?? "unknown"}` });
+        // Success is its own evidence: the SDK emits this after the successful
+        // `message_end`, so the retried message has already streamed, and a
+        // notice would open a fresh work block *after* that message — the one
+        // placement that reads wrong. Failure stays: it is the only
+        // explanation for why no message follows, and with no text after it
+        // the notice folds back into the block that holds the retry history.
+        if (!event.success) {
+          this.emit(session, { kind: "status", text: `retry failed: ${event.finalError ?? "unknown"}` });
+        }
         break;
       case "session_info_changed":
         void this.postState();
@@ -1279,6 +1287,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
             await this.login();
           },
           status,
+          error: (text: string) => this.emitCommandError(text),
           help: () => status(formatHelp()),
           manageScopedModels: async () => {
             await manageScopedModels(this.runtime, this.modelPickerUi());
@@ -1333,7 +1342,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    */
   private guardStreaming(): boolean {
     if (!this.runtime.session.isStreaming && !this.runtime.session.isCompacting) return false;
-    vscode.window.showWarningMessage(t("singleSessionGuard"));
+    this.emitCommandError(t("singleSessionGuard"));
     return true;
   }
 
@@ -1654,6 +1663,17 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   }
 
   /**
+   * Rejection of a user action from the webview, as an error notice in the
+   * transcript. Webview-triggered feedback stays in the webview: a native
+   * toast at the window corner would be detached from the view the user
+   * clicked. `scope: "command"` keeps it top-level even mid-run, instead of
+   * folded into the running work block where it would be easy to miss.
+   */
+  private emitCommandError(text: string): void {
+    this.emit(this.runtime.session, { kind: "error", text, scope: "command" });
+  }
+
+  /**
    * The full native picker, opened from "other models" in the composer menu.
    * It can also change the frequently used list and the default model, so the
    * quick menu's contents are rebuilt afterwards.
@@ -1757,7 +1777,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       ? new Set(this.lanes.map((lane) => lane.sessionFile).filter(Boolean) as string[])
       : new Set<string>();
     if (file === this.runtime.session.sessionFile || runningLaneFiles.has(file)) {
-      vscode.window.showWarningMessage(t("deleteActiveSession"));
+      this.emitCommandError(t("deleteActiveSession"));
       return;
     }
     const confirmLabel = t("deleteSessionAction");
@@ -1783,7 +1803,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       ? new Set(this.lanes.map((lane) => lane.sessionFile).filter(Boolean) as string[])
       : new Set<string>();
     if (runningLaneFiles.has(file)) {
-      vscode.window.showWarningMessage(t("renameRunningSession"));
+      this.emitCommandError(t("renameRunningSession"));
       return;
     }
     const isActive = file === this.runtime.session.sessionFile;

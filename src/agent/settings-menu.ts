@@ -20,6 +20,8 @@ import { t, tf } from "./i18n.js";
 export interface SettingsMenuUi {
   login(): Promise<void>;
   status(text: string): void;
+  /** Rejections and validation failures, in the transcript like `status`. */
+  error(text: string): void;
   /** Show the built-in command directory (the /help text). */
   help(): void;
   /** Maintain the frequently used model list (`/scoped-models`). */
@@ -507,7 +509,7 @@ async function firstExisting(paths: string[]): Promise<string | undefined> {
  * Configure `shellPath`: a QuickPick listing detected shells plus manual entry
  * and reset-to-default. Reached from the settings menu.
  */
-async function pickShellPath(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "status">): Promise<void> {
+async function pickShellPath(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "status" | "error">): Promise<void> {
   const settings = runtime.session.settingsManager;
   const current = settings.getShellPath();
 
@@ -554,6 +556,7 @@ async function pickShellPath(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "statu
   if (!target) return;
   const applied = await applyShellPath(settings, target);
   if (applied) ui.status(tf("shellPathSet", target));
+  else ui.error(t("shellPathNotFound"));
 }
 
 interface ShellPathSettings {
@@ -564,7 +567,6 @@ async function applyShellPath(settings: ShellPathSettings, path: string): Promis
   try {
     await fs.access(path.replace(/^~(?=[/\\])/, process.env.HOME ?? process.env.USERPROFILE ?? "~"));
   } catch {
-    vscode.window.showWarningMessage(t("shellPathNotFound"));
     return false;
   }
   settings.setShellPath(path);
