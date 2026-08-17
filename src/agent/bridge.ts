@@ -19,6 +19,7 @@ import { openSettingsMenu } from "./settings-menu.js";
 import type { OriginalContentProvider } from "./diff-view.js";
 import { openEditDiff } from "./diff-view.js";
 import { ProjectFileIndex } from "./project-files.js";
+import { isResumable, resumeAfterError } from "./resume.js";
 import { buildModelCatalog, manageScopedModels, pickModel } from "./model-picker.js";
 import { isModelsConfigPath, repairEmptyModelsConfig } from "./model-config.js";
 import type { PiRuntime } from "./runtime.js";
@@ -527,7 +528,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     // block in the webview; live events keep appending to the same card.
     this.host.post({
       type: "history",
-      events: [...events],
+      events: this.withRetryOffer(session, events),
       live: session.isStreaming,
       transcriptId: session.sessionId,
       systemPromptOverridden,
@@ -703,6 +704,49 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     return buildHistoryEntryEvents(session.sessionManager.getBranch(), this.runtime.cwd, this.skillIndex, this.promptIndex);
   }
 
+  /**
+   * Close a turn that ended on a failed request with the offer to re-issue it.
+   *
+   * Emitted on `agent_settled` rather than on the `auto_retry_end` notice: only
+   * there has everything automatic finished, so the state is stable and every
+   * way of failing is covered by one rule — automatic retry giving up,
+   * automatic retry switched off, an error that was never retriable. One
+   * failure therefore produces exactly one button, always at the end of the
+   * transcript, instead of one per notice that happens to mention an error.
+   *
+   * Only for the session the user talks to: a lane that dies is reported to the
+   * parent agent, whose job it is to decide what to do about it (the user's
+   * only controls over a subagent are "watch" and "stop").
+   */
+  private offerRetry(session: AgentSession): void {
+    if (session !== this.runtime.session || !isResumable(session)) return;
+    this.emit(session, { kind: "status", text: t("retryInterrupted"), retry: true });
+  }
+
+  /**
+   * Re-attach the offer to a transcript that is being replayed.
+   *
+   * The notice above is a transcript *event*, so it only exists in the window
+   * that watched the run fail. Reopen the session in a new window and the
+   * transcript ends on the bare provider error ("Request timed out.") with
+   * nothing to click — while the state that makes a retry meaningful survived
+   * in the session file, since the failed response is still the last message.
+   * So the offer is recomputed at replay time.
+   *
+   * Applied to the copy that goes to the webview, never to the stored history:
+   * a synthetic notice pushed in there would accumulate one entry per attach.
+   */
+  private withRetryOffer(session: AgentSession, events: readonly ChatEvent[]): ChatEvent[] {
+    const copy = [...events];
+    if (this.view.kind !== "live" || session !== this.runtime.session) return copy;
+    if (!isResumable(session)) return copy;
+    // Already offered: this window is the one that saw the run fail, and the
+    // notice is part of its in-memory history.
+    if (copy.some((event) => event.kind === "status" && event.retry)) return copy;
+    copy.push({ kind: "status", text: t("retryInterrupted"), scope: "command", retry: true });
+    return copy;
+  }
+
   private emit(session: AgentSession, event: ChatEvent): void {
     if (this.disposed) return;
     const placed = this.placeNotice(session, event);
@@ -867,6 +911,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       // have settled so the UI receives the current streaming state.
       case "agent_settled":
         this.emit(session, { kind: "agent_settled" });
+        // Everything automatic has finished, so this is the first moment where
+        // "the turn ended on a request that never came back" is a settled fact.
+        this.offerRetry(session);
         // A preview left open after the run finishes would trap the user in a
         // read-only view; the previewed session can now be resumed for real.
         if (this.view.kind === "replay" && !this.activeRun && session === this.runtime.session && !session.isStreaming) {
@@ -992,6 +1039,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         // placement that reads wrong. Failure stays: it is the only
         // explanation for why no message follows, and with no text after it
         // the notice folds back into the block that holds the retry history.
+        // The offer to re-issue the request is deliberately *not* attached
+        // here but on `agent_settled` — see `offerRetry()`.
         if (!event.success) {
           this.emit(session, { kind: "status", text: `retry failed: ${event.finalError ?? "unknown"}` });
         }
@@ -1199,6 +1248,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         await this.abortDisplayedSession();
         await this.postState();
         break;
+      case "retry":
+        await this.retryFailedRequest();
+        break;
       case "dequeue": {
         const session = this.runtime.session;
         const sdkQueued = [...session.getSteeringMessages(), ...session.getFollowUpMessages()].map(collapseSkillInvocation);
@@ -1334,6 +1386,34 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     await this.runtime.subagents.stopAll();
     this.runtime.session.clearQueue();
     await this.runtime.session.abort();
+  }
+
+  /**
+   * Re-issue the request automatic retry gave up on (the retry action on the
+   * "retry failed" notice).
+   *
+   * Only the live parent session can be resumed: the other two views are
+   * read-only, and a lane's failed turn belongs to a run the parent owns.
+   * A click can always be stale — the notice stays in the transcript — so the
+   * decision is taken here, from the session state, and never from the button.
+   */
+  private async retryFailedRequest(): Promise<void> {
+    if (this.view.kind !== "live") return;
+    const session = this.runtime.session;
+    // Something is already running: the click missed, and saying so would be
+    // noise on top of a transcript that is visibly moving again.
+    if (session.isStreaming || session.isCompacting) return;
+    if (!isResumable(session)) {
+      this.emit(session, { kind: "status", text: t("retryUnavailable") });
+      return;
+    }
+    try {
+      await resumeAfterError(session);
+    } catch (error) {
+      this.reportError(session, "retry failed", error);
+    } finally {
+      await this.postState();
+    }
   }
 
   /**

@@ -5372,6 +5372,9 @@ Open in editor" type="button">
           <div class="notice-card flat error">
             <span class="card-label">
               "provider rejected the request"
+          <div class="notice-card flat status">
+            <span class="card-label">
+              "retry failed: Connection error."
       <section class="compaction-boundary collapsed">
         <button class="card-header" title="Expand" aria-expanded="false" type="button">
           <span class="card-label">
@@ -5402,6 +5405,14 @@ Open in editor" type="button">
           <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
             <span>
               <svg/>
+      <div class="notice-card flat status actionable">
+        <span class="card-label">
+          "The last request did not complete, so no reply arrived."
+        <button class="notice-action" title="Send the failed request again, without adding a message to the conversation" type="button">
+          <span>
+            <svg/>
+          <span>
+            "Retry"
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -5891,6 +5902,9 @@ Open in editor" type="button">
           <div class="notice-card flat error">
             <span class="card-label">
               "provider rejected the request"
+          <div class="notice-card flat status">
+            <span class="card-label">
+              "retry failed: Connection error."
       <section class="compaction-boundary">
         <button class="card-header" title="Collapse" aria-expanded="true" type="button">
           <span class="card-label">
@@ -5935,6 +5949,14 @@ Open in editor" type="button">
           <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
             <span>
               <svg/>
+      <div class="notice-card flat status actionable">
+        <span class="card-label">
+          "The last request did not complete, so no reply arrived."
+        <button class="notice-action" title="Send the failed request again, without adding a message to the conversation" type="button">
+          <span>
+            <svg/>
+          <span>
+            "Retry"
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -6424,6 +6446,9 @@ Open in editor" type="button">
           <div class="notice-card flat error">
             <span class="card-label">
               "provider rejected the request"
+          <div class="notice-card flat status">
+            <span class="card-label">
+              "retry failed: Connection error."
       <section class="compaction-boundary">
         <button class="card-header" title="Collapse" aria-expanded="true" type="button">
           <span class="card-label">
@@ -6468,6 +6493,14 @@ Open in editor" type="button">
           <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
             <span>
               <svg/>
+      <div class="notice-card flat status actionable">
+        <span class="card-label">
+          "The last request did not complete, so no reply arrived."
+        <button class="notice-action" title="Send the failed request again, without adding a message to the conversation" type="button">
+          <span>
+            <svg/>
+          <span>
+            "Retry"
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -6959,6 +6992,9 @@ Open in editor" type="button">
           <div class="notice-card flat error">
             <span class="card-label">
               "provider rejected the request"
+          <div class="notice-card flat status">
+            <span class="card-label">
+              "retry failed: Connection error."
       <section class="compaction-boundary">
         <button class="card-header" title="Collapse" aria-expanded="true" type="button">
           <span class="card-label">
@@ -7003,6 +7039,14 @@ Open in editor" type="button">
           <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
             <span>
               <svg/>
+      <div class="notice-card flat status actionable">
+        <span class="card-label">
+          "The last request did not complete, so no reply arrived."
+        <button class="notice-action" title="Send the failed request again, without adding a message to the conversation" type="button">
+          <span>
+            <svg/>
+          <span>
+            "Retry"
       <section class="work-block running collapsed">
         <button class="work-header" title="Expand" aria-expanded="false" type="button">
           <span class="work-label">
@@ -7558,6 +7602,9 @@ Open in editor" type="button">
           <div class="notice-card flat error">
             <span class="card-label">
               "provider rejected the request"
+          <div class="notice-card flat status">
+            <span class="card-label">
+              "retry failed: Connection error."
       <section class="compaction-boundary">
         <button class="card-header" title="Collapse" aria-expanded="true" type="button">
           <span class="card-label">
@@ -7602,6 +7649,14 @@ Open in editor" type="button">
           <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
             <span>
               <svg/>
+      <div class="notice-card flat status actionable">
+        <span class="card-label">
+          "The last request did not complete, so no reply arrived."
+        <button class="notice-action" title="Send the failed request again, without adding a message to the conversation" type="button">
+          <span>
+            <svg/>
+          <span>
+            "Retry"
       <section class="work-block running collapsed">
         <button class="work-header" title="Expand" aria-expanded="false" type="button">
           <span class="work-label">
@@ -8199,6 +8254,9 @@ Open in editor" type="button">
           <div class="notice-card flat error">
             <span class="card-label">
               "provider rejected the request"
+          <div class="notice-card flat status">
+            <span class="card-label">
+              "retry failed: Connection error."
       <section class="compaction-boundary">
         <button class="card-header" title="Collapse" aria-expanded="true" type="button">
           <span class="card-label">
@@ -8243,6 +8301,14 @@ Open in editor" type="button">
           <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
             <span>
               <svg/>
+      <div class="notice-card flat status actionable">
+        <span class="card-label">
+          "The last request did not complete, so no reply arrived."
+        <button class="notice-action" title="Send the failed request again, without adding a message to the conversation" type="button">
+          <span>
+            <svg/>
+          <span>
+            "Retry"
       <section class="work-block running collapsed">
         <button class="work-header" title="Expand" aria-expanded="false" type="button">
           <span class="work-label">
@@ -8835,6 +8901,9 @@ Open in editor" type="button">
           <div class="notice-card flat error">
             <span class="card-label">
               "provider rejected the request"
+          <div class="notice-card flat status">
+            <span class="card-label">
+              "retry failed: Connection error."
       <section class="compaction-boundary">
         <button class="card-header" title="Collapse" aria-expanded="true" type="button">
           <span class="card-label">
@@ -8879,6 +8948,14 @@ Open in editor" type="button">
           <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
             <span>
               <svg/>
+      <div class="notice-card flat status actionable">
+        <span class="card-label">
+          "The last request did not complete, so no reply arrived."
+        <button class="notice-action" title="Send the failed request again, without adding a message to the conversation" type="button">
+          <span>
+            <svg/>
+          <span>
+            "Retry"
       <section class="work-block running collapsed">
         <button class="work-header" title="Expand" aria-expanded="false" type="button">
           <span class="work-label">

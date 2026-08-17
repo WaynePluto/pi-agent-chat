@@ -26,8 +26,9 @@
 | scope | `src/agent/scope.ts` | 子代理写入范围：路径前缀规范化（非 glob，重叠必须可判定）、启动前重叠检查、`ScopeGuard`（越界拒绝 + 写入记账） | node:path |
 | scoped-tools | `src/agent/scoped-tools.ts` | 用 SDK 导出的 `createEditToolDefinition` / `createWriteToolDefinition` 重建同名 `edit`/`write`，仅替换文件操作层以实施范围强制与记账；读不受限；bash 无法覆盖 | node:fs, pi-coding-agent, scope |
 | config | `src/agent/config.ts` | 插件自有能力的 VS Code 配置（并行子代理开关 / 并行上限 / 子代理默认模型），按 workspace folder 解析，并提供按作用域读写（workspace / user）的落盘入口 | vscode |
-| diagnostics | `src/agent/diagnostics.ts` | 冒烟/风险自检：SDK 加载、undici 版本、jiti、clipboard、历史回放、斜杠命令、session 树、子代理工具（开关两态 + 子会话排除）、扩展 `subagent` 屏蔽、范围强制、子会话隔离、**视图状态机**（驱动真实 `ChatBridge` 并断言 `postState()` 的输出）、文件索引、可选的真实 LLM 调用 | pi-coding-agent, bridge, commands, session-tree, subagent, scope, scoped-tools, diff-view, project-files |
+| diagnostics | `src/agent/diagnostics.ts` | 冒烟/风险自检：SDK 加载、undici 版本、jiti、clipboard、历史回放、斜杠命令、手动重试（私有 prompt 路径存在 + 重发不新增用户消息 + 从磁盘重开仍提供重试）、session 树、子代理工具（开关两态 + 子会话排除）、扩展 `subagent` 屏蔽、范围强制、子会话隔离、**视图状态机**（驱动真实 `ChatBridge` 并断言 `postState()` 的输出）、文件索引、可选的真实 LLM 调用 | pi-coding-agent, bridge, commands, session-tree, subagent, scope, scoped-tools, diff-view, project-files, resume |
 | project-files | `src/agent/project-files.ts` | `ProjectFileIndex`：`@` 文件引用的索引/搜索/校验，含缓存、二进制与敏感文件过滤、引用数上限 | node:child_process, node:fs, protocol |
+| resume | `src/agent/resume.ts` | 请求异常中断后的手动重发：判定会话是否停在失败响应上（`stopReason === "error"`）、丢弃该响应（只丢 agent state，会话文件不动）并经 SDK 私有 prompt 路径以空消息批继续；私有入口做特性探测，缺失即不提供该动作。提供时机在 `bridge` 的 `agent_settled`，回放时由 `postHistory()` 重算 | pi-coding-agent |
 | diff-view | `src/agent/diff-view.ts` | `pi-agent-chat-original` URI scheme：反向应用 patch 还原编辑前内容并打开 `vscode.diff` | diff, vscode |
 | http | `src/agent/http.ts` | 代理解析（env > pi `settings.json` 的 `httpProxy` > VS Code `http.proxy`）与全局 undici dispatcher 安装/重建；行为对齐 SDK 未导出的 `core/http-dispatcher.ts` | node:events, vscode, undici, pi-coding-agent |
 | errors | `src/agent/errors.ts` | `describe()` / `describeWithStack()`：宿主侧统一的错误文本提取 | — |
@@ -80,6 +81,7 @@ graph TD
     scopedtools[agent/scoped-tools]
     pluginconfig[agent/config]
     projectfiles[agent/project-files]
+    resume[agent/resume]
     diffview[agent/diff-view]
     http[agent/http]
     errors[agent/errors]
@@ -149,6 +151,7 @@ graph TD
   skills --> protocol
   bridge --> diffview
   bridge --> projectfiles
+  bridge --> resume
   bridge --> subagent
   bridge --> pluginconfig
   bridge --> protocol
@@ -189,6 +192,7 @@ graph TD
   diagnostics --> scopedtools
   diagnostics --> diffview
   diagnostics --> projectfiles
+  diagnostics --> resume
   diagnostics --> sdk
 
   main --> protocol

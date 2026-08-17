@@ -381,6 +381,8 @@ const SCRIPT = [
       { type: "event", event: { kind: "assistant_end" } },
       { type: "event", event: { kind: "status", text: "compaction done" } },
       { type: "event", event: { kind: "error", text: "provider rejected the request" } },
+      // Automatic retry gave up: the notice itself carries no action ...
+      { type: "event", event: { kind: "status", text: "retry failed: Connection error." } },
       {
         type: "event",
         event: {
@@ -391,6 +393,18 @@ const SCRIPT = [
         },
       },
       { type: "event", event: { kind: "agent_settled" } },
+      // ... the offer to re-issue the request closes the turn instead, once
+      // everything automatic has settled. It must stay out of the (collapsed)
+      // work block, or the button would be unreachable.
+      {
+        type: "event",
+        event: {
+          kind: "status",
+          text: "The last request did not complete, so no reply arrived.",
+          scope: "command",
+          retry: true,
+        },
+      },
       { type: "state", state: baseState },
     ],
   },

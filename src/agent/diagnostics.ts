@@ -13,6 +13,7 @@ import { SubagentCoordinator, SUBAGENT_TOOL, planModel, type LaneState, type Sub
 import { findScopeConflict, normalizeScopes, ScopeGuard } from "./scope.js";
 import { createScopedFileTools } from "./scoped-tools.js";
 import { ProjectFileIndex } from "./project-files.js";
+import { isResumable, resumeAfterError, supportsResume } from "./resume.js";
 import type { ChatState, HostMessage } from "../shared/protocol.js";
 
 /** Injected by esbuild (see esbuild.mjs). */
@@ -159,6 +160,140 @@ export async function runHistoryReplayTest(cwd: string): Promise<DiagnosticResul
     ];
   } catch (error) {
     return [{ name: "history replay", ok: false, detail: describe(error) }];
+  }
+}
+
+/**
+ * Offline check (no LLM call): resuming a turn that automatic retry gave up on.
+ *
+ * Two things are pinned. The SDK entry point the resume rides on is private
+ * (`agent/resume.ts` explains why nothing public does the job), so a rename
+ * upstream must show up here rather than as a button that quietly stops
+ * working. And the resume itself must stay non-destructive: it drops the
+ * failed response and *only* that, and re-issues the request with an empty
+ * message batch — inventing a "continue" message is exactly what it exists to
+ * avoid. The run itself is stubbed out; making a real request is the live
+ * test's job.
+ */
+export async function runManualRetryTest(cwd: string): Promise<DiagnosticResult[]> {
+  type Messages = AgentSession["agent"]["state"]["messages"];
+  type Runner = { _runAgentPrompt: (messages: unknown[]) => Promise<void> };
+  const seed = (session: AgentSession, stopReason: string): void => {
+    session.agent.state.messages = [
+      { role: "user", content: [{ type: "text", text: "hi" }], timestamp: Date.now() },
+      { role: "assistant", content: [], stopReason, errorMessage: "Connection error.", timestamp: Date.now() },
+    ] as unknown as Messages;
+  };
+  try {
+    const { session } = await createAgentSession({ cwd, tools: [], sessionManager: SessionManager.inMemory(cwd) });
+    const mechanism = supportsResume(session);
+
+    seed(session, "error");
+    const afterFailure = isResumable(session);
+    // A turn that ended normally is not a retry candidate: re-running it would
+    // throw away the answer on screen.
+    seed(session, "stop");
+    const afterSuccess = isResumable(session);
+
+    seed(session, "error");
+    let batch: unknown[] | undefined;
+    (session as unknown as Runner)._runAgentPrompt = async (messages) => {
+      batch = messages;
+    };
+    const resumed = await resumeAfterError(session);
+    const left = session.agent.state.messages;
+    session.dispose();
+
+    const ok =
+      mechanism &&
+      afterFailure &&
+      !afterSuccess &&
+      resumed &&
+      Array.isArray(batch) &&
+      batch.length === 0 &&
+      left.length === 1 &&
+      left[0]?.role === "user";
+    return [{
+      name: "manual retry",
+      ok,
+      detail: `sdk prompt path=${mechanism ? "present" : "MISSING"}; after failure=${afterFailure ? "resumable" : "NOT OFFERED"}; after success=${afterSuccess ? "WRONGLY OFFERED" : "not offered"}; resumed=${resumed}; re-issued with ${batch?.length ?? "n/a"} new message(s); transcript left with ${left.map((message) => message.role).join(",") || "nothing"}`,
+    }];
+  } catch (error) {
+    return [{ name: "manual retry", ok: false, detail: describe(error) }];
+  }
+}
+
+/**
+ * Offline check (no LLM call): reopening a session that died mid-request must
+ * still offer the retry.
+ *
+ * The live offer is a transcript event, so it exists only in the window that
+ * watched the run fail. A window opening the same session later replays it from
+ * the file, where the failure is just a provider error ("Request timed out.")
+ * with nothing to click — which is exactly what this covers: the whole path,
+ * from a session file that ends on a failed response through `PiRuntime` and a
+ * real `ChatBridge.attach()`, down to the `history` message actually posted.
+ */
+export async function runReplayedRetryOfferTest(cwd: string): Promise<DiagnosticResult[]> {
+  type StoredMessage = Parameters<SessionManager["appendMessage"]>[0];
+  let dir: string | undefined;
+  let runtime: PiRuntime | undefined;
+  try {
+    // A throwaway session directory: this transcript must not show up in the
+    // user's own session list.
+    dir = await mkdtemp(join(tmpdir(), "pi-vscode-retry-replay-"));
+    const manager = SessionManager.create(cwd, dir);
+    manager.appendMessage({ role: "user", content: [{ type: "text", text: "hi" }], timestamp: Date.now() } as StoredMessage);
+    manager.appendMessage({
+      role: "assistant",
+      content: [],
+      api: "anthropic-messages",
+      provider: "probe-provider",
+      model: "probe-model",
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "error",
+      errorMessage: "Request timed out.",
+      timestamp: Date.now(),
+    } as StoredMessage);
+    const file = manager.getSessionFile();
+    if (!file) return [{ name: "replayed retry offer", ok: false, detail: "session file was not written" }];
+
+    const posted: HostMessage[] = [];
+    runtime = await PiRuntime.create({ cwd, startup: { mode: "file", path: file }, log: () => {} });
+    const bridge = new ChatBridge(
+      runtime,
+      { post: (message) => posted.push(message), log: () => {} },
+      new OriginalContentProvider(),
+    );
+    await bridge.attach();
+    const resumable = isResumable(runtime.session);
+    bridge.dispose();
+
+    const replayed = [...posted].reverse().find((message) => message.type === "history");
+    const events = replayed?.type === "history" ? replayed.events : [];
+    const last = events[events.length - 1];
+    const offered = last?.kind === "status" && last.retry === true;
+    // The provider error itself must survive too: the offer explains what to do
+    // next, not what went wrong.
+    const keptError = events.some((event) => event.kind === "error" && event.text.includes("Request timed out."));
+
+    return [{
+      name: "replayed retry offer",
+      ok: resumable && offered && keptError,
+      detail: `reopened from file: state=${resumable ? "resumable" : "NOT RESUMABLE"}; replayed ${events.length} event(s) ending on ${last?.kind ?? "nothing"}${offered ? " with retry" : " WITHOUT retry"}; provider error ${keptError ? "kept" : "LOST"}`,
+    }];
+  } catch (error) {
+    return [{ name: "replayed retry offer", ok: false, detail: describe(error) }];
+  } finally {
+    runtime?.dispose();
+    if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 }
 

@@ -13,7 +13,7 @@ import {
   truncate,
 } from "./format.js";
 import { post } from "./host.js";
-import { BRANCH_ICON, REWIND_ICON, TAG_ICON } from "./icons.js";
+import { BRANCH_ICON, RETRY_ICON, REWIND_ICON, TAG_ICON } from "./icons.js";
 import { getDict } from "./i18n.js";
 import { renderMarkdown } from "./markdown.js";
 import { clearResourceHighlights, markExtensionUsed, markPromptUsed, markSkillActive, markToolUsed } from "./resources-view.js";
@@ -445,7 +445,7 @@ export function applyEvent(event: ChatEvent): void {
       appendCompactionBoundary(event.summary, event.tokensBefore, event.estimatedTokensAfter);
       break;
     case "status":
-      appendNoticeCard("status", event.text, event.scope);
+      appendNoticeCard("status", event.text, event.scope, event.retry);
       break;
     case "error":
       appendNoticeCard("error", event.text, event.scope);
@@ -758,16 +758,21 @@ function createStreamingBubble(role: string): StreamingBubble {
  * into the current work block as collapsed one-line cards. Command-scoped
  * notices (e.g. /session output) are the direct result the user asked for:
  * they render at the top level of the transcript, expanded by default.
+ *
+ * A notice carrying an action (`retry`) also stays at the top level whatever
+ * its scope: work blocks are collapsed by default, and a button the user has
+ * to go hunting for behind a fold is not an offer.
  */
-export function appendNoticeCard(kind: "status" | "error", text: string, scope?: "command"): void {
+export function appendNoticeCard(kind: "status" | "error", text: string, scope?: "command", retry?: boolean): void {
   const command = scope === "command";
-  const parent = command ? sink : ensureWorkBlock().collapsible.body;
+  const parent = command || retry ? sink : ensureWorkBlock().collapsible.body;
   const firstLine = text.split("\n")[0] ?? "";
   const short = firstLine.length > MAX_NOTICE_HEADER_CHARS ? `${firstLine.slice(0, MAX_NOTICE_HEADER_CHARS)}...` : firstLine;
   // Nothing hidden behind the fold: render a flat, non-expandable card.
   if (short === text) {
-    const card = el("div", `notice-card flat ${kind}`);
+    const card = el("div", `notice-card flat ${kind}${retry ? " actionable" : ""}`);
     card.appendChild(el("span", "card-label", text));
+    if (retry) card.appendChild(createRetryButton());
     parent.appendChild(card);
     return;
   }
@@ -779,7 +784,32 @@ export function appendNoticeCard(kind: "status" | "error", text: string, scope?:
     parent,
     render: (body) => body.replaceChildren(el("pre", "notice-body", text)),
   });
+  // The collapsible header is itself a button, so the action goes in a row of
+  // its own below it rather than inside the header.
+  if (retry) {
+    const actions = el("div", "notice-actions");
+    actions.appendChild(createRetryButton());
+    card.root.appendChild(actions);
+  }
   registerHiddenBody(card, () => text);
+}
+
+/**
+ * Re-issue the request that failed, instead of typing "continue".
+ *
+ * One shot per notice: the host decides from the session state whether there is
+ * still anything to re-run, and a second failure arrives as its own notice with
+ * its own button.
+ */
+function createRetryButton(): HTMLButtonElement {
+  const retryButton = button("notice-action", undefined, () => {
+    retryButton.disabled = true;
+    retryButton.replaceChildren(icon(RETRY_ICON), el("span", undefined, t.noticeRetrying));
+    post({ type: "retry" });
+  });
+  retryButton.title = t.noticeRetryTitle;
+  retryButton.append(icon(RETRY_ICON), el("span", undefined, t.noticeRetry));
+  return retryButton;
 }
 
 /**

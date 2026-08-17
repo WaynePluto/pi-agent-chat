@@ -39,6 +39,25 @@ export const sharedMessages = {
     zh: "Pi Agent Chat 仅支持单会话模式：请先停止当前会话的运行，再切换或新建会话。",
   },
 
+  /* Retry -------------------------------------------------------------- */
+
+  /**
+   * Closing notice on a turn whose request never came back, carrying the retry
+   * action. Deliberately neutral about the cause: it covers a connection error
+   * automatic retry gave up on, a timeout with retry switched off, and an
+   * error that was never retriable in the first place.
+   */
+  retryInterrupted: {
+    en: "The last request did not complete, so no reply arrived.",
+    zh: "上一次请求没有完成，未收到回复。",
+  },
+
+  /** The retry action was clicked after the session moved past the failure. */
+  retryUnavailable: {
+    en: "Nothing to retry: this session has moved on since that request failed. Send a message to continue.",
+    zh: "没有可重试的请求：该请求失败后会话已经继续了。发送一条消息即可继续。",
+  },
+
   /* Sessions ----------------------------------------------------------- */
 
   deleteActiveSession: {

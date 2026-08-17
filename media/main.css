@@ -764,6 +764,47 @@ button.bubble-action svg {
   word-break: break-word;
 }
 
+/* A notice that carries an action puts it on the same row as the text. */
+.notice-card.flat.actionable {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notice-card.flat.actionable .card-label {
+  flex: 1 1 auto;
+}
+
+.notice-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 10px 8px;
+}
+
+/* Flat, quiet by default: hover feedback is grey, like every other small
+   button in a card (see the `:where()` note on `button:hover`). */
+button.notice-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: none;
+  color: var(--vscode-foreground);
+  font-size: 0.95em;
+  cursor: pointer;
+}
+
+button.notice-action:hover:not(:disabled) {
+  background: var(--hover-bg-strong);
+}
+
+button.notice-action svg {
+  display: block;
+}
+
 .notice-card.error {
   border-color: var(--vscode-errorForeground);
 }

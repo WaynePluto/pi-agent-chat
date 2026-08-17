@@ -336,7 +336,19 @@ export type ChatEvent =
   | { kind: "queue_update"; steering: string[]; followUp: string[] }
   /** Persistent marker appended when Pi replaces older model context with a summary. */
   | { kind: "compaction_boundary"; summary: string; tokensBefore: number; estimatedTokensAfter?: number }
-  | { kind: "status"; text: string; scope?: "command" }
+  | {
+      kind: "status";
+      text: string;
+      scope?: "command";
+      /**
+       * The notice reports a request automatic retry gave up on, and the
+       * interrupted turn can still be re-issued. The webview draws a retry
+       * action on the card and keeps it out of the (collapsed) work block, so
+       * carrying on costs one click instead of a "continue" message that ends
+       * up in the transcript and in the model context.
+       */
+      retry?: boolean;
+    }
   | { kind: "error"; text: string; scope?: "command" };
 
 /** Extension host -> webview. */
@@ -405,6 +417,8 @@ export type WebviewMessage =
   | { type: "prompt"; text: string; references?: string[]; streamingBehavior?: "steer" | "followUp" }
   | { type: "listProjectFiles"; requestId: number; query: string; includeIgnored: boolean }
   | { type: "abort" }
+  /** Re-issue the request that failed, without adding a user message (see `status.retry`). */
+  | { type: "retry" }
   /** Clear all queued (steer/follow-up) messages; texts return to the composer. */
   | { type: "dequeue" }
   | { type: "newSession" }

@@ -83,6 +83,8 @@ const {
   runSpikeDiagnostics,
   runHistoryReplayTest,
   runSlashCommandTest,
+  runManualRetryTest,
+  runReplayedRetryOfferTest,
   runSessionTreeTest,
   runSubagentToolTest,
   runProjectFilesTest,
@@ -97,6 +99,13 @@ const {
 report(await runSpikeDiagnostics());
 report(await runHistoryReplayTest(root));
 report(await runSlashCommandTest(root));
+// Pins the private SDK entry point the "retry" action on a failed-request
+// notice rides on, and that resuming re-issues the request without inventing a
+// user message.
+report(await runManualRetryTest(root));
+// Pins the same offer on a transcript replayed from disk: a window that reopens
+// a session which died mid-request must not leave the user with a dead end.
+report(await runReplayedRetryOfferTest(root));
 report(await runSessionTreeTest(root));
 report(await runSubagentToolTest(root));
 report(await runProjectFilesTest(root));

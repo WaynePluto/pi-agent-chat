@@ -6,6 +6,9 @@ export const CHEVRON_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fil
 
 /** Magnifier: transcript search. */
 export const SEARCH_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M11.2 10.1a4.6 4.6 0 1 0-1.1 1.1l3.2 3.2 1.1-1.1-3.2-3.2zM6.7 10a3.3 3.3 0 1 1 0-6.6 3.3 3.3 0 0 1 0 6.6z"/></svg>`;
+
+/** Circular arrow: re-issue the request a failed turn died on. */
+export const RETRY_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8.5 3.05V1.4l3.2 2.1-3.2 2.1V3.95a4.05 4.05 0 1 0 4.05 4.05h1.35A5.4 5.4 0 1 1 8.5 3.05z"/></svg>`;
 /* Codicon paths, embedded verbatim from microsoft/vscode-codicons
  * (src/icons/arrow-up.svg, arrow-down.svg, close.svg): the same glyphs the
  * workbench find widget uses. Do not hand-simplify them — the geometry is
