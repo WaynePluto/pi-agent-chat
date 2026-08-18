@@ -236,6 +236,16 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* The cursor again, at a specificity that class-only rules cannot beat: flat
+   buttons re-declare `cursor: pointer` in their own (0,1,1) rule further down
+   the file, which ties with `button:disabled` and wins by order — a disabled
+   button would keep showing the hand and inviting clicks that do nothing (a
+   spent retry action being the visible case). `[disabled]` matches exactly the
+   same buttons; it is there only to raise specificity to (0,2,1). */
+button[disabled]:disabled {
+  cursor: not-allowed;
+}
+
 button.secondary {
   color: var(--vscode-button-secondaryForeground);
   background: var(--vscode-button-secondaryBackground);
