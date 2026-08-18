@@ -154,7 +154,7 @@ const SCRIPT = [
     ],
   },
   {
-    label: "empty state: overridden system prompt warning",
+    label: "empty state: overridden system prompt drops the docs hint",
     messages: [{ type: "history", events: [], systemPromptOverridden: true }],
   },
   {

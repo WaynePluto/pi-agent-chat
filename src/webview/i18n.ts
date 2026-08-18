@@ -145,10 +145,12 @@ const en = {
   emptySession: (systemPromptOverridden: boolean, subagent?: SubagentSetup) =>
     [
       "No messages in this session yet.",
-      "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.",
+      // The docs hint describes what Pi's default prompt teaches the model. Once
+      // SYSTEM.md replaces that prompt the ability is gone, so the line is
+      // dropped: whoever wrote that file does not need to be told about it.
       ...(systemPromptOverridden
-        ? ["The default system prompt has been overridden, so the model may not know where Pi's bundled docs are."]
-        : []),
+        ? []
+        : ["Pi can explain its own features and look up its docs. Ask it how to use or extend Pi."]),
       ...(subagent?.shadowedExtension
         ? [
             `The "subagent" tool registered by the extension at ${subagent.shadowedExtension} is disabled here because ` +
@@ -331,8 +333,7 @@ const zh: Dict = {
   emptySession: (systemPromptOverridden: boolean, subagent?: SubagentSetup) =>
     [
       "当前会话还没有消息。",
-      "Pi 可以解释自身功能并查阅其文档。你可以询问如何使用或扩展 Pi。",
-      ...(systemPromptOverridden ? ["默认 system prompt 已被覆盖，因此模型可能不知道 Pi 随附文档的位置。"] : []),
+      ...(systemPromptOverridden ? [] : ["Pi 可以解释自身功能并查阅其文档。你可以询问如何使用或扩展 Pi。"]),
       ...(subagent?.shadowedExtension
         ? [
             `扩展 ${subagent.shadowedExtension} 注册的“subagent”工具在这里已被禁用：本窗口自带同名的 subagent 工具。` +
