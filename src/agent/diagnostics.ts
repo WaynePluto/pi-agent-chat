@@ -176,38 +176,67 @@ export async function runHistoryReplayTest(cwd: string): Promise<DiagnosticResul
  * test's job.
  */
 export async function runManualRetryTest(cwd: string): Promise<DiagnosticResult[]> {
-  type Messages = AgentSession["agent"]["state"]["messages"];
+  type StoredMessage = Parameters<SessionManager["appendMessage"]>[0];
   type Runner = { _runAgentPrompt: (messages: unknown[]) => Promise<void> };
-  const seed = (session: AgentSession, stopReason: string): void => {
-    session.agent.state.messages = [
-      { role: "user", content: [{ type: "text", text: "hi" }], timestamp: Date.now() },
-      { role: "assistant", content: [], stopReason, errorMessage: "Connection error.", timestamp: Date.now() },
-    ] as unknown as Messages;
+  const user = (text: string): StoredMessage => ({
+    role: "user",
+    content: [{ type: "text", text }],
+    timestamp: Date.now(),
+  }) as StoredMessage;
+  const assistant = (stopReason: string): StoredMessage => ({
+    role: "assistant",
+    content: [],
+    stopReason,
+    errorMessage: stopReason === "error" ? "Connection error." : undefined,
+    timestamp: Date.now(),
+  }) as unknown as StoredMessage;
+  const open = async (messages: StoredMessage[]): Promise<AgentSession> => {
+    const manager = SessionManager.inMemory(cwd);
+    for (const message of messages) manager.appendMessage(message);
+    return (await createAgentSession({ cwd, tools: [], sessionManager: manager })).session;
   };
+  const sessions: AgentSession[] = [];
   try {
-    const { session } = await createAgentSession({ cwd, tools: [], sessionManager: SessionManager.inMemory(cwd) });
-    const mechanism = supportsResume(session);
+    const failed = await open([user("first"), assistant("error")]);
+    sessions.push(failed);
+    const mechanism = supportsResume(failed);
+    const afterFailure = isResumable(failed);
 
-    seed(session, "error");
-    const afterFailure = isResumable(session);
     // A turn that ended normally is not a retry candidate: re-running it would
     // throw away the answer on screen.
-    seed(session, "stop");
-    const afterSuccess = isResumable(session);
+    const succeeded = await open([user("first"), assistant("stop")]);
+    sessions.push(succeeded);
+    const afterSuccess = isResumable(succeeded);
 
-    seed(session, "error");
+    // Regression: error -> user -> error must still offer retry even if Pi's
+    // automatic retry already removed the last error from agent state. The
+    // active SessionManager branch is what the transcript shows and therefore
+    // the source of truth for whether the turn is interrupted.
+    const repeated = await open([user("first"), assistant("error"), user("second"), assistant("error")]);
+    sessions.push(repeated);
+    repeated.agent.state.messages = repeated.agent.state.messages.slice(0, -1);
+    const afterRepeatedFailure = isResumable(repeated);
+
+    // A prompt that throws before producing any assistant message leaves the
+    // user at the branch tail; the host error card still represents a request
+    // that can be re-issued through the same empty-batch path.
+    const thrown = await open([user("first"), assistant("error"), user("second")]);
+    sessions.push(thrown);
+    const afterThrownFailure = isResumable(thrown);
+
     let batch: unknown[] | undefined;
-    (session as unknown as Runner)._runAgentPrompt = async (messages) => {
+    (failed as unknown as Runner)._runAgentPrompt = async (messages) => {
       batch = messages;
     };
-    const resumed = await resumeAfterError(session);
-    const left = session.agent.state.messages;
-    session.dispose();
+    const resumed = await resumeAfterError(failed);
+    const left = failed.agent.state.messages;
 
     const ok =
       mechanism &&
       afterFailure &&
       !afterSuccess &&
+      afterRepeatedFailure &&
+      afterThrownFailure &&
       resumed &&
       Array.isArray(batch) &&
       batch.length === 0 &&
@@ -216,10 +245,12 @@ export async function runManualRetryTest(cwd: string): Promise<DiagnosticResult[
     return [{
       name: "manual retry",
       ok,
-      detail: `sdk prompt path=${mechanism ? "present" : "MISSING"}; after failure=${afterFailure ? "resumable" : "NOT OFFERED"}; after success=${afterSuccess ? "WRONGLY OFFERED" : "not offered"}; resumed=${resumed}; re-issued with ${batch?.length ?? "n/a"} new message(s); transcript left with ${left.map((message) => message.role).join(",") || "nothing"}`,
+      detail: `sdk prompt path=${mechanism ? "present" : "MISSING"}; failed=${afterFailure ? "resumable" : "NOT OFFERED"}; completed=${afterSuccess ? "WRONGLY OFFERED" : "not offered"}; error-user-error=${afterRepeatedFailure ? "resumable" : "NOT OFFERED"}; dangling user=${afterThrownFailure ? "resumable" : "NOT OFFERED"}; resumed=${resumed}; re-issued with ${batch?.length ?? "n/a"} new message(s); agent state left with ${left.map((message) => message.role).join(",") || "nothing"}`,
     }];
   } catch (error) {
     return [{ name: "manual retry", ok: false, detail: describe(error) }];
+  } finally {
+    for (const session of sessions) session.dispose();
   }
 }
 
@@ -279,7 +310,7 @@ export async function runReplayedRetryOfferTest(cwd: string): Promise<Diagnostic
     const replayed = [...posted].reverse().find((message) => message.type === "history");
     const events = replayed?.type === "history" ? replayed.events : [];
     const last = events[events.length - 1];
-    const offered = last?.kind === "status" && last.retry === true;
+    const offered = last?.kind === "status" && last.retry === "offered";
     // The provider error itself must survive too: the offer explains what to do
     // next, not what went wrong.
     const keptError = events.some((event) => event.kind === "error" && event.text.includes("Request timed out."));
@@ -295,6 +326,119 @@ export async function runReplayedRetryOfferTest(cwd: string): Promise<Diagnostic
     runtime?.dispose();
     if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+/**
+ * Offline check (no LLM call): the retry offer must resolve on the transcript.
+ *
+ * The button is drawn from the state the host puts on the notice, so the whole
+ * lifecycle is host-side and invisible to the webview smoke test. Two failures
+ * this pins, both reported from real use: a retry that succeeds leaving the
+ * button reading "Retrying..." forever (nothing rebuilds that card on its
+ * own), and the offer coming back clickable after a transcript replay, because
+ * the outcome lived in the clicked button instead of in the history. The
+ * request itself is stubbed out; making a real one is the live test's job.
+ */
+export async function runRetryOfferLifecycleTest(cwd: string): Promise<DiagnosticResult[]> {
+  type StoredMessage = Parameters<SessionManager["appendMessage"]>[0];
+  type Runner = { _runAgentPrompt: (messages: unknown[]) => Promise<void> };
+  const name = "retry offer lifecycle";
+  let dir: string | undefined;
+  let runtime: PiRuntime | undefined;
+  try {
+    dir = await mkdtemp(join(tmpdir(), "pi-vscode-retry-lifecycle-"));
+    const manager = SessionManager.create(cwd, dir);
+    manager.appendMessage({ role: "user", content: [{ type: "text", text: "hi" }], timestamp: Date.now() } as StoredMessage);
+    manager.appendMessage({
+      role: "assistant",
+      content: [],
+      api: "anthropic-messages",
+      provider: "probe-provider",
+      model: "probe-model",
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "error",
+      errorMessage: "Request timed out.",
+      timestamp: Date.now(),
+    } as StoredMessage);
+    const file = manager.getSessionFile();
+    if (!file) return [{ name, ok: false, detail: "session file was not written" }];
+
+    const posted: HostMessage[] = [];
+    runtime = await PiRuntime.create({ cwd, startup: { mode: "file", path: file }, log: () => {} });
+    const bridge = new ChatBridge(
+      runtime,
+      { post: (message) => posted.push(message), log: () => {} },
+      new OriginalContentProvider(),
+    );
+    await bridge.attach();
+    // A successful re-issue: append the terminal response the real agent loop
+    // would emit, so both agent state and the persisted active branch move past
+    // the failed response.
+    (runtime.session as unknown as Runner)._runAgentPrompt = async () => {
+      const response = {
+        role: "assistant",
+        content: [{ type: "text", text: "done" }],
+        api: "anthropic-messages",
+        provider: "probe-provider",
+        model: "probe-model",
+        usage: {
+          input: 0,
+          output: 1,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 1,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: "stop",
+        timestamp: Date.now(),
+      } as unknown as StoredMessage;
+      runtime!.session.agent.state.messages.push(response);
+      runtime!.session.sessionManager.appendMessage(response);
+    };
+    posted.length = 0;
+    await bridge.handleMessage({ type: "retry" });
+    const duringRun = retryStates(posted).includes("running");
+    const afterRun = lastRetryState(posted);
+
+    // The reported regression: leaving the session and coming back rebuilt the
+    // transcript, and the spent offer came back clickable.
+    posted.length = 0;
+    await bridge.attach();
+    const afterReplay = lastRetryState(posted);
+    bridge.dispose();
+
+    const ok = duringRun && afterRun === "succeeded" && afterReplay === "succeeded";
+    return [{
+      name,
+      ok,
+      detail: `while running=${duringRun ? "running" : "NOT MARKED"}; after success=${afterRun ?? "nothing"}; after replay=${afterReplay ?? "nothing"}`,
+    }];
+  } catch (error) {
+    return [{ name, ok: false, detail: describe(error) }];
+  } finally {
+    runtime?.dispose();
+    if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/** Retry states carried by every transcript the host posted, in order. */
+function retryStates(posted: readonly HostMessage[]): string[] {
+  return posted.flatMap((message) => {
+    const events = message.type === "history" ? message.events : message.type === "event" ? [message.event] : [];
+    return events.flatMap((event) => (event.kind === "status" && event.retry ? [event.retry] : []));
+  });
+}
+
+function lastRetryState(posted: readonly HostMessage[]): string | undefined {
+  const states = retryStates(posted);
+  return states[states.length - 1];
 }
 
 /**

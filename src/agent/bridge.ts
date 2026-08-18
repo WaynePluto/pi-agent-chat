@@ -6,7 +6,7 @@ import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-
 import type { ModelsRefreshResult } from "@earendil-works/pi-ai";
 import { sessionEntryToContextMessages, SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, HostMessage, ResourceItem, ResourceScope, ResourceSection, SessionListItem, SubagentSetup, WebviewMessage } from "../shared/protocol.js";
+import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, HostMessage, ResourceItem, ResourceScope, ResourceSection, RetryOfferState, SessionListItem, SubagentSetup, WebviewMessage } from "../shared/protocol.js";
 import { formatLocalTimestamp } from "../shared/time.js";
 import { loginFlow, logoutFlow } from "./auth.js";
 import { ActivityTracker, type ResourceActivity } from "./activity.js";
@@ -134,6 +134,14 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private availabilityProbe?: AbortController;
   /** Replay buffers keep parent and child transcripts intact while viewing either. */
   private readonly histories = new Map<string, ChatEvent[]>();
+  /**
+   * Latest spent retry action per session, kept outside `histories` so an
+   * attach/session switch can rebuild persisted messages without resurrecting
+   * the offer as clickable. It is UI state only — never written to the shared
+   * Pi session file — and is shown only while its source leaf remains on the
+   * active branch.
+   */
+  private readonly retryOutcomes = new Map<string, { sourceLeafId: string; event: Extract<ChatEvent, { kind: "status" }> }>();
   /**
    * Extension-owned status entries and widgets per session (`ctx.ui.setStatus`,
    * `ctx.ui.setWidget`). Cleared on attach: rebinding extensions re-runs their
@@ -400,6 +408,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.skillIndex = buildSkillIndex(session);
     this.promptIndex = buildPromptIndex(session);
     const events = this.buildHistory(session);
+    const retryOutcome = this.retryOutcomes.get(session.sessionId);
+    if (retryOutcome && session.sessionManager.getBranch().some((entry) => entry.id === retryOutcome.sourceLeafId)) {
+      events.push(retryOutcome.event);
+    }
     // Replayed assistant output proves the system prompt — context files
     // included — already went to the model in this session.
     this.activity.noteHistory(events);
@@ -720,7 +732,64 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    */
   private offerRetry(session: AgentSession): void {
     if (session !== this.runtime.session || !isResumable(session)) return;
-    this.emit(session, { kind: "status", text: t("retryInterrupted"), retry: true });
+    this.emit(session, { kind: "status", text: t("retryInterrupted"), retry: "offered" });
+  }
+
+  /**
+   * Record what became of the offer the user clicked, on the stored history
+   * event itself.
+   *
+   * The action's whole lifecycle belongs to the host: the webview rebuilds the
+   * transcript from scratch on every replay (session switch, preview,
+   * re-attach), so a button that only knew it had been clicked would come back
+   * clickable mid-retry, and a finished retry would keep claiming it is still
+   * running because nothing ever rebuilds that card again.
+   *
+   * Takes the index captured before the run: a retry that fails again appends
+   * a *new* offer below this one (see `offerRetry`), and marking the last one
+   * would resolve the wrong card.
+   */
+  private markRetryOffer(
+    session: AgentSession,
+    index: number,
+    state: RetryOfferState,
+    sourceLeafId: string,
+  ): void {
+    const history = this.histories.get(session.sessionId);
+    const event = history?.[index];
+    if (!history || event?.kind !== "status" || !event.retry) return;
+    const updated = { ...event, retry: state };
+    history[index] = updated;
+    this.retryOutcomes.set(session.sessionId, { sourceLeafId, event: updated });
+    if (this.isDisplayed(session)) this.postHistory();
+  }
+
+  /** Index of the offer a retry click acts on: the last one still clickable. */
+  private liveRetryOffer(session: AgentSession): number {
+    const history = this.histories.get(session.sessionId) ?? [];
+    for (let index = history.length - 1; index >= 0; index -= 1) {
+      const event = history[index];
+      if (event?.kind === "status" && event.retry === "offered") return index;
+    }
+    return -1;
+  }
+
+  /**
+   * Give the offer synthesized for a replayed transcript (see `withRetryOffer`)
+   * a real place in the history, so its outcome has somewhere to live.
+   *
+   * A window that reopens a session that died mid-request shows an offer that
+   * exists only in the copy sent to the webview; without this, clicking it
+   * would resolve nothing and the button would be stuck mid-retry. Appending
+   * on click rather than on every replay keeps the accumulation the synthetic
+   * offer avoids: from here on `withRetryOffer` finds this one and adds none.
+   * Not posted on its own — the caller follows with a full replay.
+   */
+  private materializeRetryOffer(session: AgentSession): number {
+    const events = this.histories.get(session.sessionId) ?? this.buildHistory(session);
+    events.push({ kind: "status", text: t("retryInterrupted"), scope: "command", retry: "offered" });
+    this.histories.set(session.sessionId, events);
+    return events.length - 1;
   }
 
   /**
@@ -742,8 +811,12 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     if (!isResumable(session)) return copy;
     // Already offered: this window is the one that saw the run fail, and the
     // notice is part of its in-memory history.
-    if (copy.some((event) => event.kind === "status" && event.retry)) return copy;
-    copy.push({ kind: "status", text: t("retryInterrupted"), scope: "command", retry: true });
+    if (
+      copy.some(
+        (event) => event.kind === "status" && (event.retry === "offered" || event.retry === "running"),
+      )
+    ) return copy;
+    copy.push({ kind: "status", text: t("retryInterrupted"), scope: "command", retry: "offered" });
     return copy;
   }
 
@@ -1396,6 +1469,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    * read-only, and a lane's failed turn belongs to a run the parent owns.
    * A click can always be stale — the notice stays in the transcript — so the
    * decision is taken here, from the session state, and never from the button.
+   *
+   * The clicked offer is then resolved on the transcript: `running` while the
+   * request is in flight, and `succeeded` / `failed` once it is over. Both
+   * refusals below leave the offer clickable, since nothing was re-issued.
    */
   private async retryFailedRequest(): Promise<void> {
     if (this.view.kind !== "live") return;
@@ -1405,12 +1482,27 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     if (session.isStreaming || session.isCompacting) return;
     if (!isResumable(session)) {
       this.emit(session, { kind: "status", text: t("retryUnavailable") });
+      await this.postState();
       return;
     }
+    const known = this.liveRetryOffer(session);
+    const offer = known >= 0 ? known : this.materializeRetryOffer(session);
+    const sourceLeafId = session.sessionManager.getLeafId();
+    if (!sourceLeafId) return;
+    this.markRetryOffer(session, offer, "running", sourceLeafId);
     try {
       await resumeAfterError(session);
+      // Thinking/tool activity proves the retry started, but only a settled
+      // branch that moved past an interrupted tail proves it succeeded.
+      this.markRetryOffer(
+        session,
+        offer,
+        isResumable(session) ? "failed" : "succeeded",
+        sourceLeafId,
+      );
     } catch (error) {
       this.reportError(session, "retry failed", error);
+      this.markRetryOffer(session, offer, "failed", sourceLeafId);
     } finally {
       await this.postState();
     }

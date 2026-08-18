@@ -346,10 +346,24 @@ export type ChatEvent =
        * action on the card and keeps it out of the (collapsed) work block, so
        * carrying on costs one click instead of a "continue" message that ends
        * up in the transcript and in the model context.
+       *
+       * The whole lifecycle of that action lives in this one field, owned by
+       * the host: the button is drawn from it and never from local click
+       * state, so leaving the session and coming back mid-retry shows the
+       * same thing the user left behind.
        */
-      retry?: boolean;
+      retry?: RetryOfferState;
     }
   | { kind: "error"; text: string; scope?: "command" };
+
+/**
+ * State of the "re-issue the failed request" action carried by a notice.
+ *
+ * `offered` is the only clickable state; the other three are outcomes of a
+ * click, and a click can only ever happen once per offer (a request that fails
+ * again closes its turn with a fresh offer of its own).
+ */
+export type RetryOfferState = "offered" | "running" | "succeeded" | "failed";
 
 /** Extension host -> webview. */
 export type HostMessage =

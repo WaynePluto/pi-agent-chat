@@ -402,7 +402,7 @@ const SCRIPT = [
           kind: "status",
           text: "The last request did not complete, so no reply arrived.",
           scope: "command",
-          retry: true,
+          retry: "offered",
         },
       },
       { type: "state", state: baseState },
@@ -836,6 +836,25 @@ const SCRIPT = [
       // Close again so later sections do not carry the open bar.
       document.getElementById("search-close").click();
     },
+  },
+  {
+    // A spent offer keeps its outcome on the button, drawn from the state the
+    // host records on the notice: nothing rebuilds these cards on their own, so
+    // a click that only changed the button locally would freeze on "Retrying".
+    // The next step replaces the transcript, keeping this fixture isolated.
+    label: "retry offer outcomes",
+    messages: [
+      {
+        type: "history",
+        transcriptId: "retry-outcomes",
+        events: [
+          { kind: "status", text: "The last request did not complete, so no reply arrived.", scope: "command", retry: "running" },
+          { kind: "status", text: "The last request did not complete, so no reply arrived.", scope: "command", retry: "succeeded" },
+          { kind: "status", text: "The last request did not complete, so no reply arrived.", scope: "command", retry: "failed" },
+        ],
+      },
+      { type: "state", state: baseState },
+    ],
   },
   // Near the end, because it replaces the transcript: steering splits the
   // execution process. The bubble floats while it is queued (the block above

@@ -1,4 +1,4 @@
-import type { ChatEvent, JsonValue, SkillRef, SubagentSetup } from "../shared/protocol.js";
+import type { ChatEvent, JsonValue, RetryOfferState, SkillRef, SubagentSetup } from "../shared/protocol.js";
 import { SUBAGENT_TOOL } from "../shared/protocol.js";
 import { createMessageBubble, type MessageBubble } from "./bubble.js";
 import { CARD_CLASSES, WORK_CLASSES, createCollapsible, type Collapsible } from "./collapsible.js";
@@ -763,7 +763,7 @@ function createStreamingBubble(role: string): StreamingBubble {
  * its scope: work blocks are collapsed by default, and a button the user has
  * to go hunting for behind a fold is not an offer.
  */
-export function appendNoticeCard(kind: "status" | "error", text: string, scope?: "command", retry?: boolean): void {
+export function appendNoticeCard(kind: "status" | "error", text: string, scope?: "command", retry?: RetryOfferState): void {
   const command = scope === "command";
   const parent = command || retry ? sink : ensureWorkBlock().collapsible.body;
   const firstLine = text.split("\n")[0] ?? "";
@@ -772,7 +772,7 @@ export function appendNoticeCard(kind: "status" | "error", text: string, scope?:
   if (short === text) {
     const card = el("div", `notice-card flat ${kind}${retry ? " actionable" : ""}`);
     card.appendChild(el("span", "card-label", text));
-    if (retry) card.appendChild(createRetryButton());
+    if (retry) card.appendChild(createRetryButton(retry));
     parent.appendChild(card);
     return;
   }
@@ -788,7 +788,7 @@ export function appendNoticeCard(kind: "status" | "error", text: string, scope?:
   // its own below it rather than inside the header.
   if (retry) {
     const actions = el("div", "notice-actions");
-    actions.appendChild(createRetryButton());
+    actions.appendChild(createRetryButton(retry));
     card.root.appendChild(actions);
   }
   registerHiddenBody(card, () => text);
@@ -797,19 +797,37 @@ export function appendNoticeCard(kind: "status" | "error", text: string, scope?:
 /**
  * Re-issue the request that failed, instead of typing "continue".
  *
- * One shot per notice: the host decides from the session state whether there is
- * still anything to re-run, and a second failure arrives as its own notice with
- * its own button.
+ * The button is drawn from the state the host put on the notice, never from
+ * local click state: the transcript is rebuilt from scratch on every replay
+ * (session switch, preview, re-attach), so anything the button remembered on
+ * its own would be lost there — and a card nobody rebuilds afterwards would
+ * keep claiming a finished retry is still running.
+ *
+ * One shot per offer: a request that fails again closes its turn with a fresh
+ * offer of its own, so a spent one stays on screen as its outcome.
  */
-function createRetryButton(): HTMLButtonElement {
+function createRetryButton(state: RetryOfferState): HTMLButtonElement {
   const retryButton = button("notice-action", undefined, () => {
-    retryButton.disabled = true;
-    retryButton.replaceChildren(icon(RETRY_ICON), el("span", undefined, t.noticeRetrying));
+    // Optimistic: the host answers with a rebuilt transcript, which is what
+    // actually decides how this button looks from here on.
+    paintRetryButton(retryButton, "running");
     post({ type: "retry" });
   });
-  retryButton.title = t.noticeRetryTitle;
-  retryButton.append(icon(RETRY_ICON), el("span", undefined, t.noticeRetry));
+  paintRetryButton(retryButton, state);
   return retryButton;
+}
+
+function paintRetryButton(retryButton: HTMLButtonElement, state: RetryOfferState): void {
+  const label = state === "running"
+    ? t.noticeRetrying
+    : state === "succeeded"
+      ? t.noticeRetrySucceeded
+      : state === "failed"
+        ? t.noticeRetryFailed
+        : t.noticeRetry;
+  retryButton.disabled = state !== "offered";
+  retryButton.title = state === "offered" ? t.noticeRetryTitle : label;
+  retryButton.replaceChildren(icon(RETRY_ICON), el("span", undefined, label));
 }
 
 /**

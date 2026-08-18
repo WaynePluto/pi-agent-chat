@@ -104,6 +104,9 @@ const en = {
   noticeRetry: "Retry",
   noticeRetryTitle: "Send the failed request again, without adding a message to the conversation",
   noticeRetrying: "Retrying...",
+  /* Outcome of a retry, left on the spent button: the offer is used up. */
+  noticeRetrySucceeded: "Retry succeeded",
+  noticeRetryFailed: "Retry failed",
   expand: "Expand",
   collapse: "Collapse",
   copyMessage: "Copy message",
@@ -289,6 +292,8 @@ const zh: Dict = {
   noticeRetry: "重试",
   noticeRetryTitle: "重新发送失败的那次请求，不会在对话里多出一条消息",
   noticeRetrying: "重试中...",
+  noticeRetrySucceeded: "重试成功",
+  noticeRetryFailed: "重试失败",
   expand: "展开",
   collapse: "收起",
   copyMessage: "复制消息",

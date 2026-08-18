@@ -48,29 +48,45 @@ export function supportsResume(session: AgentSession): boolean {
 }
 
 /**
- * Whether the session is sitting on a failed response right now.
+ * Whether the active branch ends on a turn that was sent but never completed.
  *
- * Only a response the provider failed on may be dropped; a turn that ended
- * normally is not a retry candidate, and re-running it would silently discard
- * the answer the user is reading.
+ * The persisted active branch is the fact the user sees. It deliberately does
+ * not always equal `agent.state.messages`: Pi removes an assistant error from
+ * agent state before an automatic retry but keeps it in the session history,
+ * and a request that throws before producing an assistant response can leave a
+ * user/tool-result as the branch tail while the host reports the exception as
+ * an error card. Both are resumable with the same empty-batch prompt path.
+ *
+ * A completed/aborted assistant response is never a candidate: re-running it
+ * would silently discard an answer (or undo the user's explicit stop).
  */
 export function isResumable(session: AgentSession): boolean {
   if (session.isStreaming || session.isCompacting) return false;
   if (!supportsResume(session)) return false;
-  const messages = session.agent.state.messages;
+  const messages = session.sessionManager.buildSessionContext().messages;
   const last = messages[messages.length - 1];
-  return last?.role === "assistant" && last.stopReason === "error";
+  return (
+    (last?.role === "assistant" && last.stopReason === "error") ||
+    last?.role === "user" ||
+    last?.role === "toolResult"
+  );
 }
 
 /**
- * Re-issue the failed request. Resolves when the resumed run has settled;
+ * Re-issue the interrupted turn. Resolves when the resumed run has settled;
  * returns false when the session has meanwhile moved past the failure.
  */
 export async function resumeAfterError(session: AgentSession): Promise<boolean> {
   const run = runner(session);
   if (!run || !isResumable(session)) return false;
   const messages = session.agent.state.messages;
-  session.agent.state.messages = messages.slice(0, -1);
+  const last = messages[messages.length - 1];
+  // The provider cannot continue from an empty failed assistant response. Pi's
+  // automatic retry may already have removed it, or a thrown request may have
+  // produced none; only drop it when it is actually the agent-state tail.
+  if (last?.role === "assistant" && last.stopReason === "error") {
+    session.agent.state.messages = messages.slice(0, -1);
+  }
   await run.call(session, []);
   return true;
 }

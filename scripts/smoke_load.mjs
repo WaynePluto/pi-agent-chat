@@ -85,6 +85,7 @@ const {
   runSlashCommandTest,
   runManualRetryTest,
   runReplayedRetryOfferTest,
+  runRetryOfferLifecycleTest,
   runSessionTreeTest,
   runSubagentToolTest,
   runProjectFilesTest,
@@ -106,6 +107,10 @@ report(await runManualRetryTest(root));
 // Pins the same offer on a transcript replayed from disk: a window that reopens
 // a session which died mid-request must not leave the user with a dead end.
 report(await runReplayedRetryOfferTest(root));
+// Pins what becomes of the offer once it is clicked: the button is drawn from
+// the state the host records on the notice, so a finished retry stops claiming
+// it is running, and a transcript replay does not resurrect a spent offer.
+report(await runRetryOfferLifecycleTest(root));
 report(await runSessionTreeTest(root));
 report(await runSubagentToolTest(root));
 report(await runProjectFilesTest(root));
