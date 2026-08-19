@@ -605,7 +605,14 @@ function appendUserBubble(text: string, mode?: "steer" | "followUp", skill?: str
   // them from the submitted text; light up their resource rows here, the way a
   // model-initiated load lights up a skill.
   if (prompt) markPromptUsed(prompt);
-  if (extension) markExtensionUsed(extension);
+  if (extension) {
+    markExtensionUsed(extension);
+    // Extension commands never reach the session file, so the host's
+    // `userEntryIds` has no entry for this bubble. Mark it so `assignEntryIds`
+    // skips it when mapping ids by position — otherwise every later bubble
+    // shifts by one and the latest user message loses its action buttons.
+    wrapper.dataset.noEntry = "";
+  }
   if (skill) {
     // `/skill:<name>` is expanded by the SDK before the agent runs, so no tool
     // card will ever report it; mark the bubble instead, and light up the skill
@@ -672,10 +679,14 @@ function entryActionButton(
  *
  * The host sends one id per user bubble it can act on; bubbles beyond that
  * (a message still queued, or any bubble in a read-only transcript) stay
- * unbound and therefore show no actions.
+ * unbound and therefore show no actions. Extension-command bubbles are
+ * skipped (`data-no-entry`): they have no session entry, so counting them
+ * would shift every later bubble's index and hide its actions.
  */
 export function assignEntryIds(ids: string[], labels: (string | undefined)[]): void {
-  const bubbles = messagesEl.querySelectorAll<HTMLElement>(".bubble.user");
+  const bubbles = [...messagesEl.querySelectorAll<HTMLElement>(".bubble.user")].filter(
+    (bubble) => bubble.dataset.noEntry === undefined,
+  );
   bubbles.forEach((bubble, index) => {
     const id = ids[index];
     if (id) bubble.dataset.entryId = id;

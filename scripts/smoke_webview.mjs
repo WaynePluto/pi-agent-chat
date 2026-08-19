@@ -261,6 +261,33 @@ const SCRIPT = [
       { type: "state", state: baseState },
     ],
   },
+  // Extension commands never reach the session file, so `userEntryIds` has
+  // no entry for them. The extension-command bubble must be skipped when
+  // mapping ids by position, otherwise the real message after it shifts by
+  // one and loses its action buttons.
+  {
+    label: "extension-command bubble skipped when binding entry ids",
+    messages: [
+      {
+        type: "history",
+        events: [
+          { kind: "user_message", text: "/ext-command", extension: "/workspace/.pi/extensions/ext.ts" },
+          { kind: "user_message", text: "real prompt" },
+        ],
+      },
+      { type: "entryIds", ids: ["entry-real"], labels: [undefined] },
+      { type: "state", state: baseState },
+    ],
+    beforeSnapshot: (window) => {
+      const bubbles = [...window.document.querySelectorAll(".bubble.user")];
+      const problems = [];
+      if (bubbles.length !== 2) throw new Error(`expected 2 user bubbles, got ${bubbles.length}`);
+      if (bubbles[0].dataset.noEntry === undefined) problems.push("extension bubble should have data-no-entry");
+      if (bubbles[0].dataset.entryId) problems.push(`extension bubble should not get an entry id, got "${bubbles[0].dataset.entryId}"`);
+      if (bubbles[1].dataset.entryId !== "entry-real") problems.push(`real bubble should get entry-real, got "${bubbles[1].dataset.entryId}"`);
+      if (problems.length > 0) throw new Error(`entry id binding: ${problems.join("; ")}`);
+    },
+  },
   // Folding: only the newest message of each role stays open, and only long
   // messages fold at all (a folded one-liner would cost a click and save
   // nothing). The length test runs on the Markdown source precisely so that it
