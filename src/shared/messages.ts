@@ -304,14 +304,14 @@ export const sharedMessages = {
     zh: "$(edit) 自定义供应商（models.json）…",
   },
   customProviderDetail: {
-    en: "Add your own endpoint, models and API key by editing the shared models.json (a fresh template is inserted each time)",
-    zh: "编辑共享的 models.json，自定义接入地址、模型与 API key（每次都会插入一份新模板）",
+    en: "Add your own endpoint, models and API key by editing the shared models.json (a template is inserted when you have none configured yet)",
+    zh: "编辑共享的 models.json，自定义接入地址、模型与 API key（尚无供应商配置时会插入一份模板）",
   },
   customProviderOpened: {
     en: "Edit models.json and save it - Pi Agent Chat reloads the file on save.",
     zh: "编辑 models.json 并保存 — 保存后 Pi Agent Chat 会自动重新加载。",
   },
-  /** A second (third, ...) provider template was inserted into an existing models.json. */
+  /** A provider template was inserted into a models.json that defined no providers yet. */
   customProviderAppended: {
     en: "A new provider template was inserted at the top of models.json (not saved yet - undo with Ctrl+Z). Edit it and save; Pi Agent Chat reloads the file on save.",
     zh: "已在 models.json 顶部插入一份新的供应商模板（尚未保存，Ctrl+Z 可撤销）。改完保存即可 — 保存后 Pi Agent Chat 会自动重新加载。",
@@ -423,7 +423,7 @@ export const sharedMessages = {
  *
  * This is the unit the sidebar writes: it seeds the whole file when models.json
  * is empty (`modelsConfigTemplate` below) and is inserted on its own when the
- * file already defines providers. pi parses the file with `stripJsonComments`,
+ * file defines no providers yet. pi parses the file with `stripJsonComments`,
  * so the comments are part of the supported format and carry the documentation
  * this flow would otherwise need a wizard for.
  *
@@ -455,8 +455,23 @@ export const modelsConfigProviderEntry: LocalizedText = {
           "id": "my-model",
           // Human-readable label, used for matching and as detail text.
           "name": "My Model",
-          // Whether the model supports extended thinking.
-          "reasoning": false,
+          // Whether the model supports extended thinking (on, so the
+          // thinkingLevelMap below takes effect; set to false for a plain model).
+          "reasoning": true,
+          // Optional: map pi thinking levels to the values your endpoint
+          // understands (e.g. OpenAI reasoning effort strings, sent verbatim).
+          // When reasoning is on, off/minimal/low/medium/high are always
+          // offered - set a key to null to hide it. "xhigh"/"max" need a
+          // value here before they appear at all.
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": "xhigh",
+            "max": "max"
+          },
           // Accepted input: ["text"] or ["text", "image"].
           "input": ["text"],
           // Context window, in tokens.
@@ -487,8 +502,22 @@ export const modelsConfigProviderEntry: LocalizedText = {
           "id": "my-model",
           // 供人阅读的名称，用于模型匹配与详情行展示。
           "name": "My Model",
-          // 该模型是否支持深度思考。
-          "reasoning": false,
+          // 该模型是否支持深度思考（开启后下面的 thinkingLevelMap 才生效；
+          // 普通模型设回 false 即可）。
+          "reasoning": true,
+          // 可选：把 pi 的思考等级映射成你接口认识的取值（如 OpenAI 的
+          // reasoning effort 字符串，原样发送）。开启 reasoning 后默认就会
+          // 提供 off/minimal/low/medium/high；把某键设为 null 即隐藏。
+          // "xhigh"/"max" 需要在这里给值才会出现。
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": "xhigh",
+            "max": "max"
+          },
           // 接受的输入类型：["text"] 或 ["text", "image"]。
           "input": ["text"],
           // 上下文窗口大小（token 数）。
@@ -499,9 +528,6 @@ export const modelsConfigProviderEntry: LocalizedText = {
       ]
     }`,
 };
-
-/** Provider id used by `modelsConfigProviderEntry`; replaced when it is already taken. */
-export const modelsConfigTemplateProviderId = "my-provider";
 
 /** Whole-file seed for an empty `~/.pi/agent/models.json`. */
 export const modelsConfigTemplate: LocalizedText = {
