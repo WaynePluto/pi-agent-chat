@@ -927,6 +927,71 @@ const SCRIPT = [
       { type: "state", state: baseState },
     ],
   },
+  // Also last: input history is asserted in-script because the serializer
+  // does not capture textarea values — a programmatic .value write never
+  // becomes DOM text. The step drives the real keydown handlers through
+  // sending, recalling, editing and sending again.
+  {
+    label: "composer input history via ArrowUp / ArrowDown",
+    messages: [{ type: "state", state: baseState }],
+    beforeSnapshot: (window) => {
+      const input = window.document.getElementById("input");
+      const type = (text) => {
+        input.value = text;
+        input.setSelectionRange(text.length, text.length);
+      };
+      const press = (key, init = {}) =>
+        input.dispatchEvent(new window.KeyboardEvent("keydown", { key, ...init }));
+      const problems = [];
+      const expectValue = (label, expected) => {
+        if (input.value !== expected) problems.push(`${label}: got "${input.value}", expected "${expected}"`);
+      };
+
+      type("first message");
+      press("Enter");
+      type("second message");
+      press("Enter");
+
+      // IME composition owns the arrows; jsdom only carries `isComposing`
+      // through on versions that implement the full init dict.
+      if (new window.KeyboardEvent("keydown", { isComposing: true }).isComposing === true) {
+        press("ArrowUp", { isComposing: true });
+        expectValue("ime composition ignored", "");
+      }
+
+      press("ArrowUp");
+      expectValue("recall newest", "second message");
+      press("ArrowUp");
+      expectValue("recall older", "first message");
+      press("ArrowUp");
+      expectValue("no wrap past the oldest", "first message");
+      press("ArrowDown");
+      expectValue("forward to newest", "second message");
+      press("ArrowDown");
+      expectValue("back to the draft", "");
+      press("ArrowDown");
+      expectValue("nothing below live input", "");
+
+      type("half-written draft");
+      press("ArrowUp");
+      expectValue("draft saved when leaving live input", "second message");
+      press("ArrowDown");
+      expectValue("draft restored", "half-written draft");
+
+      // Edits made to a recalled entry survive browsing away and back.
+      press("ArrowUp");
+      type("second message, edited");
+      press("ArrowUp");
+      expectValue("one older", "first message");
+      press("ArrowDown");
+      expectValue("edit kept on return", "second message, edited");
+      press("Enter");
+      press("ArrowUp");
+      expectValue("after sending, newest first", "second message, edited");
+
+      if (problems.length > 0) throw new Error(`input history: ${problems.join("; ")}`);
+    },
+  },
 ];
 
 /* ------------------------------------------------------------------ */

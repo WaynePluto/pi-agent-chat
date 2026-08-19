@@ -13745,8 +13745,366 @@ Open in editor" type="button">
         <span>
           "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
 
+===== composer input history via ArrowUp / ArrowDown =====
+<div id="root">
+  <header id="header" class="header">
+    <div id="header-title" class="header-title" title="New session">
+      "New session"
+    <div id="header-actions" class="header-actions">
+      <span class="overflow-slot">
+      <button id="btn-new" title="Start a new session">
+        "New"
+      <span class="overflow-slot">
+      <button id="btn-sessions" title="Browse, resume or delete sessions">
+        "Sessions"
+      <span class="overflow-slot">
+      <button id="btn-tree" title="Navigate the session tree (switch branch, fork, label)">
+        "Session tree"
+      <span class="overflow-slot">
+      <button id="btn-search" title="Search the transcript">
+        "Search"
+      <span class="overflow-slot">
+      <button id="btn-resources" class="active" title="Show or hide the loaded resources panel" aria-pressed="true">
+        "Resources"
+      <span class="overflow-slot">
+      <button id="btn-settings" title="Providers, shell path and other Pi settings">
+        "Settings"
+      <button id="btn-header-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <div id="header-menu" class="overflow-menu hidden">
+  <div id="sessions" class="sessions hidden">
+    <div class="sessions-header">
+      <span>
+        "Sessions"
+    <input class="sessions-search" placeholder="Search sessions by title..." type="text">
+    <div class="sessions-list">
+      <div class="session-row current" title="/workspace/a.jsonl">
+        <button class="session-main" title="Resume this session" type="button">
+          <span class="session-title">
+            <span class="session-title-text">
+              "current session"
+          <span class="session-meta">
+            "2026-01-02 03:04"
+        <button class="session-rename" title="Set a display name for this session" type="button">
+          "Rename"
+        <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
+          "Delete"
+      <div class="session-row" title="/workspace/b.jsonl">
+        <button class="session-main" title="Resume this session" type="button">
+          <span class="session-title">
+            <span class="session-title-text">
+              "older session"
+          <span class="session-meta">
+            "2026-01-01 00:00"
+        <button class="session-rename" title="Set a display name for this session" type="button">
+          "Rename"
+        <button class="session-delete" title="Delete this session file" type="button">
+          "Delete"
+      <div class="session-row delegation-child" title="/workspace/c.jsonl">
+        <button class="session-main" title="Resume this session" type="button">
+          <span class="session-title">
+            <span class="session-badge">
+              <span class="working-spinner">
+                "⠋"
+              "subagent"
+            <span class="session-title-text">
+              "delegated child"
+          <span class="session-meta">
+            "2026-01-03 00:00"
+        <button class="session-rename" title="A subagent is writing to this session; rename it after the run finishes" disabled type="button">
+          "Rename"
+        <button class="session-delete" title="The current session cannot be deleted" disabled type="button">
+          "Delete"
+  <div id="auth" class="auth-page hidden">
+    <div class="auth-title">
+      "No model provider configured"
+    <div class="auth-body">
+      "Sign in to a provider (OAuth or API key) before starting a chat. Credentials are stored in ~/.pi/agent/auth.json, shared with the pi CLI."
+    <div class="auth-actions">
+      <button id="btn-login">
+        "Sign in / configure provider"
+      <button id="btn-logout" class="secondary">
+        "Remove stored credential"
+  <div id="resources" class="resources">
+    <div class="resources-panel">
+      <button class="resources-toggle" title="Collapse" aria-expanded="true" type="button">
+        <span class="resources-title">
+          "Loaded resources"
+        <span class="resources-counts">
+          "Context 1 · Skills 2 · Prompts 1 · Extensions 3 · Tools 4"
+        <span class="resources-chevron">
+          <svg/>
+      <div class="resources-body">
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Context]"
+            <span class="resource-summary">
+              <span class="resource-used">
+                "AGENTS.md"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file resource-used" title="Sent to the model with this session's system prompt
+/workspace/AGENTS.md
+Open in editor" type="button">
+              "AGENTS.md"
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Skills]"
+            <span class="resource-summary">
+              "demo, helper"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.agents/skills/helper/SKILL.md
+Open in editor" type="button">
+              "helper"
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/.agents/skills/demo/SKILL.md
+Open in editor" type="button">
+              "demo"
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Prompts]"
+            <span class="resource-summary">
+              "/review"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Project"
+            <button class="resource-file" title="/workspace/.pi/prompts/review.md
+Open in editor" type="button">
+              "/review"
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Extensions]"
+            <span class="resource-summary">
+              <span class="resource-inactive">
+                "broken.ts (load failed)"
+              ","
+              <span class="resource-used">
+                "ext.ts"
+              ","
+              "notify.ts"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="/home/me/.pi/agent/extensions/notify.ts
+Open in editor" type="button">
+              "notify.ts"
+            <div class="resource-scope">
+              "Project"
+            <div class="resource-inactive" title="Configured, but not in effect in this session">
+              "broken.ts: parse failed"
+            <button class="resource-file resource-used" title="Took effect in this session (a command, a tool or an event handler of it ran)
+/workspace/.pi/extensions/ext.ts
+Open in editor" type="button">
+              "ext.ts"
+        <div class="resource-section">
+          <button class="resource-header" title="Collapse" aria-expanded="true" type="button">
+            <span class="resource-name">
+              "[Tools]"
+            <span class="resource-summary">
+              "bash"
+              ","
+              <span class="resource-inactive">
+                "grep"
+              ","
+              "notify"
+              ","
+              "subagent"
+            <span class="resource-chevron">
+              <svg/>
+          <div class="resource-details">
+            <div class="resource-scope">
+              "Built-in"
+            <div title="Execute a bash command">
+              "bash"
+            <div class="resource-inactive" title="Search file contents
+Configured, but not in effect in this session">
+              "grep"
+            <div title="Delegate one task to a child agent session">
+              "subagent"
+            <div class="resource-scope">
+              "Global"
+            <button class="resource-file" title="Send a desktop notification
+/home/me/.pi/agent/extensions/notify.ts
+Open in editor" type="button">
+              "notify"
+  <div id="delegation-bar" class="delegation-bar hidden">
+    <span id="delegation-label">
+      "Subagent: Python version"
+    <button id="delegation-peer" class="secondary">
+      "Back to the parent agent"
+  <div id="messages-wrap" class="messages-wrap">
+    <div id="search-bar" class="search-bar hidden">
+      <div class="search-field">
+        <input id="search-input" placeholder="Search the transcript..." type="text">
+        <span id="search-count" class="search-count">
+          "1 of 1"
+      <button id="search-prev" class="icon-button" title="Previous match (Shift+Enter)">
+        <svg/>
+      <button id="search-next" class="icon-button" title="Next match (Enter)">
+        <svg/>
+      <button id="search-close" class="icon-button" title="Close search (Esc)">
+        <svg/>
+    <main id="messages" class="messages">
+      <div class="bubble markdown user foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail. Refactor the transcript renderer and explain every step in detail."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant foldable folded">
+        <div class="bubble-content">
+          <p>
+            "Here is the plan."
+          <div class="code-block">
+            <pre>
+              <code class="language-ts hljs">
+                <span class="hljs-keyword">
+                  "const"
+                "a ="
+                <span class="hljs-number">
+                  "1"
+                ";"
+                <span class="hljs-keyword">
+                  "const"
+                "b ="
+                <span class="hljs-number">
+                  "2"
+                ";"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <div class="code-block">
+            <pre>
+              <code>
+                "an unlabelled block stays plain text"
+            <button class="copy-button code-copy" title="Copy code" type="button">
+              <span>
+                <svg/>
+          <ul>
+            <li>
+              "read the current renderer"
+            <li>
+              "extract the bubble into its own module"
+            <li>
+              "fold long messages"
+            <li>
+              "add the copy buttons"
+            <li>
+              "update the styles"
+            <li>
+              "rebuild the snapshot"
+            <li>
+              "review the diff"
+          <p>
+            "That is all."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="false" type="button">
+            "Show more"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown user">
+        <div class="bubble-content">
+          <p>
+            "and the second file?"
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+        <div class="bubble-actions">
+          <button class="bubble-action switch" title="Rewind here — Move the session back to this message and put its text back in the input box. The abandoned branch is kept and stays reachable from the session tree." type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action fork" title="Fork — Copy the branch up to this message into a new session file" type="button">
+            <span>
+              <svg/>
+          <button class="bubble-action label" title="Label — Bookmark this message for later navigation" type="button">
+            <span>
+              <svg/>
+      <div class="bubble markdown assistant">
+        <div class="bubble-content">
+          <p>
+            "Same change, applied."
+        <div class="bubble-footer">
+          <button class="bubble-fold" aria-expanded="true" type="button">
+            "Show less"
+          <button class="copy-button bubble-copy" title="Copy message" type="button">
+            <span>
+              <svg/>
+    <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
+      <svg/>
+  <div id="widgets-above" class="widgets hidden">
+  <footer id="composer" class="composer">
+    <div id="autocomplete" class="autocomplete hidden">
+    <div id="file-refs" class="file-refs hidden">
+    <div id="resize-handle" class="resize-handle">
+    <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files)">
+    <div id="composer-actions" class="composer-actions">
+      <span class="overflow-slot">
+      <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
+        "test-model"
+      <span class="overflow-slot">
+      <button id="btn-thinking" class="chip" title="Switch thinking level">
+        "medium"
+      <span class="spacer">
+      <span class="overflow-slot">
+      <button id="btn-steer" class="secondary hidden" title="Interrupt with new instructions">
+        "Steer"
+      <span class="overflow-slot">
+      <button id="btn-followup" class="secondary hidden" title="Queue for after this run">
+        "Follow up"
+      <span class="overflow-slot">
+      <button id="btn-recall" class="secondary hidden" title="Return queued messages to the input box for editing">
+        "Recall"
+      <button id="btn-composer-more" class="overflow-toggle hidden" title="More actions" aria-expanded="false">
+        <svg/>
+      <button id="btn-send" class="icon-button" title="Send (Enter)">
+        <svg/>
+      <div id="composer-menu" class="overflow-menu hidden">
+      <div id="picker" class="picker hidden">
+    <div id="widgets-below" class="widgets hidden">
+    <div id="statusline" class="statusline">
+      <div class="statusline-row stats">
+        <span>
+          "↑12k ↓678 R1.0k W2.0k CH7.5% $0.012 42.5%/200k"
+
 ===== posted to host =====
 {"type":"ready"}
 {"type":"listModels"}
 {"type":"listModels"}
 {"type":"sessionsVisible","visible":true}
+{"type":"prompt","text":"first message"}
+{"type":"prompt","text":"second message"}
+{"type":"prompt","text":"second message, edited"}

@@ -83,6 +83,7 @@ export function send(streamingBehavior?: "steer" | "followUp"): void {
   const text = inputEl.value.trim();
   const references = fileRefs.map((item) => item.path);
   if (!text && references.length === 0) return;
+  pushInputHistory({ text, references: fileRefs.map((item) => ({ ...item })) });
   inputEl.value = "";
   fileRefs.length = 0;
   renderFileRefs();
@@ -94,6 +95,10 @@ export function send(streamingBehavior?: "steer" | "followUp"): void {
 
 /** Replace the composer content, e.g. after forking away from a user message. */
 export function setInput(text: string): void {
+  // A programmatic replacement ends any history navigation: whatever is on
+  // screen now is the new live composition.
+  historyIndex = undefined;
+  draft = { text: "", references: [] };
   inputEl.value = text;
   closeAutocomplete();
   inputEl.focus();
@@ -131,6 +136,33 @@ function onKeyDown(event: KeyboardEvent): void {
       return;
     }
   }
+  // Shell-style input history. The arrows are claimed on the outer lines of
+  // the text: on the first line ↑ has no line above it and on the last line ↓
+  // has none below, so a single-line composer behaves exactly like readline —
+  // every ↑ one entry back, every ↓ one forward. Deeper inside a multi-line
+  // draft the arrows keep moving the caret, so editing is never hijacked.
+  // Never during IME composition: the arrows belong to the candidate window.
+  if (
+    (event.key === "ArrowUp" || event.key === "ArrowDown") &&
+    !event.isComposing &&
+    !event.shiftKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey
+  ) {
+    const caret = inputEl.selectionStart;
+    if (caret !== null && caret === inputEl.selectionEnd) {
+      const onFirstLine = !inputEl.value.slice(0, caret).includes("\n");
+      const onLastLine = !inputEl.value.slice(caret).includes("\n");
+      if (event.key === "ArrowUp" && onFirstLine) {
+        event.preventDefault();
+        navigateInputHistory(-1);
+      } else if (event.key === "ArrowDown" && onLastLine) {
+        event.preventDefault();
+        navigateInputHistory(1);
+      }
+    }
+  }
   if (event.key === "Enter") {
     // Ctrl+Enter inserts a newline (Shift+Enter does so natively); only a
     // plain Enter sends.
@@ -146,6 +178,96 @@ function onKeyDown(event: KeyboardEvent): void {
       send(state.isStreaming || state.isCompacting ? "followUp" : undefined);
     }
   }
+}
+
+/* ---------------------------------------------------------------- */
+/* Input history                                                     */
+/* ---------------------------------------------------------------- */
+
+/** One previously sent prompt: the text as typed plus its `@` references. */
+interface InputHistoryEntry {
+  text: string;
+  references: ProjectFileItem[];
+}
+
+/** Ring size; the oldest entry is dropped, at a shell's scale. */
+const INPUT_HISTORY_LIMIT = 100;
+
+/**
+ * Sent prompts of this window, newest last. Kept webview-side because the
+ * history must hold what the user typed, not the expanded text a session
+ * file stores (`/skill:` invocations, prompt templates). Shared by every
+ * session — ↑/↓ is shell muscle memory, and a per-session ring would make
+ * the keys feel broken right after switching. In memory only, the same
+ * lifetime a shell gives its history.
+ */
+const inputHistory: InputHistoryEntry[] = [];
+/** Position while navigating; undefined means live composition (the draft). */
+let historyIndex: number | undefined;
+/** What the composer held when navigation started, restored on the way down. */
+let draft: InputHistoryEntry = { text: "", references: [] };
+
+/**
+ * Record a sent prompt and end any navigation. Consecutive duplicates are
+ * skipped (bash `ignoredups`): re-sending the same line must not fill the
+ * ring with copies of itself.
+ */
+function pushInputHistory(entry: InputHistoryEntry): void {
+  const last = inputHistory[inputHistory.length - 1];
+  if (!last || last.text !== entry.text || !sameReferences(last.references, entry.references)) {
+    inputHistory.push(entry);
+    if (inputHistory.length > INPUT_HISTORY_LIMIT) inputHistory.shift();
+  }
+  historyIndex = undefined;
+  draft = { text: "", references: [] };
+}
+
+function sameReferences(a: ProjectFileItem[], b: ProjectFileItem[]): boolean {
+  return a.length === b.length && a.every((item, index) => item.path === b[index]?.path);
+}
+
+/**
+ * ↑/↓ through the history. Leaving a position writes the composer back to
+ * it first, so an edit made to a recalled prompt survives the round trip —
+ * readline does the same. An emptied composer is not written back: clearing
+ * a recalled line reads as "discard", and the original is the friendlier
+ * thing to find on the way back.
+ */
+function navigateInputHistory(direction: -1 | 1): void {
+  if (historyIndex === undefined) {
+    if (direction >= 0 || inputHistory.length === 0) return;
+    draft = composerEntry();
+    historyIndex = inputHistory.length - 1;
+    fillComposer(inputHistory[historyIndex]!);
+    return;
+  }
+  const current = composerEntry();
+  if (current.text.trim() || current.references.length > 0) inputHistory[historyIndex] = current;
+  const next = historyIndex + direction;
+  if (next < 0) return; // At the oldest entry: stay there, no wrap-around.
+  if (next >= inputHistory.length) {
+    // Past the newest entry: back to live composition, the draft returns.
+    historyIndex = undefined;
+    fillComposer(draft);
+    return;
+  }
+  historyIndex = next;
+  fillComposer(inputHistory[next]!);
+}
+
+/** Snapshot of the composer as a history entry. */
+function composerEntry(): InputHistoryEntry {
+  return { text: inputEl.value, references: fileRefs.map((item) => ({ ...item })) };
+}
+
+/** Replace the composer with a history entry; the caret lands at the end. */
+function fillComposer(entry: InputHistoryEntry): void {
+  inputEl.value = entry.text;
+  fileRefs.length = 0;
+  fileRefs.push(...entry.references.map((item) => ({ ...item })));
+  renderFileRefs();
+  closeAutocomplete();
+  inputEl.setSelectionRange(entry.text.length, entry.text.length);
 }
 
 /* ---------------------------------------------------------------- */
