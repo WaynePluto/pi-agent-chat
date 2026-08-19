@@ -93,6 +93,7 @@ const {
   runExtensionReloadTest,
   runExtensionCommandContextTest,
   runResourceListingTest,
+  runViewStateTest,
   runStartupSessionTest,
   runLiveToolCallTest,
   formatDiagnostics,
@@ -124,6 +125,12 @@ report(await runExtensionReloadTest(root));
 // (`ctx.newSession()` and friends are host-supplied, not SDK defaults).
 report(await runExtensionCommandContextTest(root));
 report(await runResourceListingTest(root));
+// Pins the host-side view state machine through the real ChatBridge: what the
+// webview shows (live / lane / preview) and every flag derived from it, plus
+// the extras a session switch must deliver (fold threshold, the input-history
+// populate flag and where it must NOT appear). A hand-built ChatState snapshot
+// cannot see bugs in the code that builds it.
+report(await runViewStateTest(root));
 // Pins which session a window opens with: the remembered one, including the
 // new-and-still-empty state that leaves no file on disk.
 report(await runStartupSessionTest(root));

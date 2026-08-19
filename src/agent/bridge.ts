@@ -469,7 +469,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     // Get the transcript on screen first: binding extensions and collecting
     // resources are the slow parts and the webview needs none of them to
     // render history. Until this arrives the webview shows a loading row.
-    this.postHistory();
+    // Populate: attach is the moment a session becomes the live one, so its
+    // user messages enter the ↑ history here (CLI initial-render parity).
+    this.postHistory(true);
     const posted = Date.now();
     await this.runtime.bindExtensions();
     // session_start (and resources_discover) have fired by now.
@@ -557,8 +559,16 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     }
   }
 
-  /** Replay the persisted transcript so a resumed session is not shown empty. */
-  postHistory(): void {
+  /**
+   * Replay the persisted transcript so a resumed session is not shown empty.
+   *
+   * `populateInputHistory` marks the replay as "a session just became the live
+   * one", telling the webview to feed the replayed user messages into the
+   * composer's ↑/↓ history the way the CLI's initial render does. Only
+   * `attach()` and the `ready` handshake pass true; every other replay (view
+   * switches, retry refreshes) is a round trip and must not re-add anything.
+   */
+  postHistory(populateInputHistory = false): void {
     const session = this.displayedSession;
     // SYSTEM.md replaces the SDK's default prompt, including the absolute paths
     // that teach the model where Pi's bundled docs and examples live.
@@ -570,6 +580,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       enabled: this.runtime.subagentEnabled,
       shadowedExtension: this.runtime.shadowedSubagentExtension,
     };
+    // The flag is meaningless on a replayed file: that path never runs from
+    // attach(), and defending here keeps a future caller from populating a
+    // preview by accident.
+    const populate = populateInputHistory && this.view.kind !== "replay";
     if (this.view.kind === "replay") {
       this.host.post({
         type: "history",
@@ -592,6 +606,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       transcriptId: session.sessionId,
       systemPromptOverridden,
       subagent,
+      populateInputHistory: populate,
     });
     // Every replay rebuilds the bubbles, so their entry bindings must follow.
     this.postEntryIds();
@@ -1354,9 +1369,11 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     switch (message.type) {
       case "ready":
         // First the threshold, then the history: bubbles fold-decide at build
-        // time, so the value must be in place before the first replay.
+        // time, so the value must be in place before the first replay. The
+        // webview may also have been (re)loaded with an empty input history —
+        // its own per-transcript memory decides whether this re-populates.
         this.postFoldThreshold();
-        this.postHistory();
+        this.postHistory(true);
         this.postCommands();
         this.postResources();
         await this.postState();

@@ -1073,6 +1073,41 @@ export async function runViewStateTest(cwd: string): Promise<DiagnosticResult[]>
       if (!ok) failures.push(label);
     };
 
+    // Scanning helpers, not `.map().at()`: the latest posted message is usually
+    // a `state`, so mapping first would read `undefined` off the tail.
+    const firstHistoryFlag = (): boolean | undefined => {
+      for (let i = 0; i < posted.length; i += 1) {
+        const message = posted[i];
+        if (message?.type === "history") return message.populateInputHistory;
+      }
+      return undefined;
+    };
+    const lastHistoryFlag = (): boolean | undefined => {
+      for (let i = posted.length - 1; i >= 0; i -= 1) {
+        const message = posted[i];
+        if (message?.type === "history") return message.populateInputHistory;
+      }
+      return undefined;
+    };
+
+    /**
+     * View changes fire their state snapshot without awaiting it
+     * (`void postState()`), so reading `lastState()` right after an action
+     * races it. Poll until the expected shape lands — history and flag posts
+     * are synchronous and need no waiting.
+     */
+    const waitForState = async (predicate: (snapshot: ChatState | undefined) => boolean): Promise<void> => {
+      for (let attempt = 0; attempt < 500 && !predicate(lastState()); attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+    };
+
+    // A session becoming the live one feeds its replayed user messages into
+    // the composer's ↑ history (CLI initial-render parity); view round trips
+    // must not. The host always re-flags `ready` — a reloaded webview starts
+    // with an empty history — and the webview dedupes per transcript.
+    expect("attach: replay populates input history", firstHistoryFlag() === true);
+
     // `ready` must hand the webview its fold threshold before the first
     // history replay: bubbles decide whether they fold while being built, and
     // the webview cannot read VS Code settings itself.
@@ -1082,6 +1117,7 @@ export async function runViewStateTest(cwd: string): Promise<DiagnosticResult[]>
       "ready: fold threshold delivered",
       foldThreshold !== undefined && foldThreshold.type === "foldThreshold" && foldThreshold.maxLines === readFoldLines(),
     );
+    expect("ready: replay populates input history", lastHistoryFlag() === true);
 
     // Live: the parent is writable and is not "inside" anything.
     const live = lastState();
@@ -1110,18 +1146,25 @@ export async function runViewStateTest(cwd: string): Promise<DiagnosticResult[]>
     bridge.onRunStarted(run);
     bridge.onLaneStarted(run, lane, child);
     await bridge.handleMessage({ type: "showLane", laneId: lane.id });
+    await waitForState((s) => s?.delegation?.role === "child" && s?.inputDisabled === true);
     const inLane = lastState();
     expect("lane: role is child", inLane?.delegation?.role === "child");
     expect("lane: names the lane", inLane?.delegation?.currentLaneId === lane.id);
     expect("lane: read-only", inLane?.inputDisabled === true);
     expect("lane: own transcript", lastTranscriptId() === child.sessionId);
+    expect("lane: replay does not re-populate input history", !lastHistoryFlag());
 
-    // Back to the parent, by the same route the banner's button uses.
+    // Back to the parent, by the same route the banner's button uses. The
+    // wait is what makes "writable again" meaningful: the pre-lane state was
+    // writable too, and only the waited-for child state in between rules it
+    // out as a stale match.
     await bridge.handleMessage({ type: "showLane" });
+    await waitForState((s) => s?.inputDisabled !== true);
     const back = lastState();
     expect("back: role is parent", back?.delegation?.role === "parent");
     expect("back: writable again", back?.inputDisabled !== true);
     expect("back: parent transcript", lastTranscriptId() === parentTranscript);
+    expect("back to live: replay does not re-populate input history", !lastHistoryFlag());
 
     // The regression that took three rounds: a subagent whose live session is
     // gone is shown by replaying its file, and *both* flags must be set. A
@@ -1131,6 +1174,7 @@ export async function runViewStateTest(cwd: string): Promise<DiagnosticResult[]>
     let replayDetail = "skipped (no other session on disk)";
     if (other) {
       await bridge.handleMessage({ type: "showLane", laneId: "gone", sessionFile: other.path, title: "Node version" });
+      await waitForState((s) => s?.preview?.file === other.path && s?.delegation?.role === "child");
       const replayed = lastState();
       expect("replayed lane: is a preview", replayed?.preview?.file === other.path);
       expect("replayed lane: still a subagent", replayed?.delegation?.role === "child");
@@ -1141,6 +1185,7 @@ export async function runViewStateTest(cwd: string): Promise<DiagnosticResult[]>
       // opened during a run would grow a bogus "back to the parent" banner.
       await bridge.handleMessage({ type: "closePreview" });
       await bridge.handleMessage({ type: "previewSession", file: other.path });
+      await waitForState((s) => s?.preview?.file === other.path && s?.delegation?.role !== "child");
       const plain = lastState();
       expect("plain preview: is a preview", plain?.preview?.file === other.path);
       expect("plain preview: not a subagent", plain?.delegation?.role !== "child");

@@ -1,4 +1,4 @@
-import { MAX_FILE_REFERENCES, type ProjectFileItem, type SlashCommand } from "../shared/protocol.js";
+import { MAX_FILE_REFERENCES, type ChatEvent, type ProjectFileItem, type SlashCommand } from "../shared/protocol.js";
 import { button, el } from "./dom.js";
 import { MAX_COMMAND_MATCHES } from "./format.js";
 import { post } from "./host.js";
@@ -103,6 +103,44 @@ export function setInput(text: string): void {
   closeAutocomplete();
   inputEl.focus();
   inputEl.setSelectionRange(text.length, text.length);
+}
+
+/**
+ * Transcripts already fed into the history, by id. A live transcript is posted
+ * twice at window start (attach, then `ready`) and re-posted on every lane or
+ * preview round trip; without this memory each re-post would stack another
+ * copy of the same messages — consecutive-dedup only guards adjacent
+ * duplicates, so the copies would interleave. A reloaded webview starts with
+ * an empty set and an empty history, and populates once again, which is
+ * exactly what `ready` re-flagging is for.
+ */
+const populatedTranscripts = new Set<string>();
+const POPULATED_TRANSCRIPT_LIMIT = 16;
+
+/**
+ * Feed a replayed transcript's user messages into the ↑/↓ history, the way
+ * the CLI's initial render does (`populateHistory: true`). Called only for
+ * replays the host marked `populateInputHistory` — a session becoming the
+ * live one — so lane tasks (written by the parent agent) never land here.
+ *
+ * The texts are what the session file holds: prompt templates expanded,
+ * `/skill:` invocations collapsed back to their command form. The original
+ * keystrokes only exist for prompts sent in this window, which the send path
+ * records itself; the two sources share one ring, as in the CLI.
+ */
+export function populateInputHistoryFromEvents(transcriptId: string | undefined, events: ChatEvent[]): void {
+  const key = transcriptId ?? "";
+  if (populatedTranscripts.has(key)) return;
+  populatedTranscripts.delete(key);
+  populatedTranscripts.add(key);
+  for (const oldest of populatedTranscripts) {
+    if (populatedTranscripts.size <= POPULATED_TRANSCRIPT_LIMIT) break;
+    populatedTranscripts.delete(oldest);
+  }
+  for (const event of events) {
+    if (event.kind !== "user_message") continue;
+    pushInputHistory({ text: event.text, references: [] });
+  }
 }
 
 export function clearFileRefs(): void {

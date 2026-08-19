@@ -400,6 +400,17 @@ export type HostMessage =
        * every time the user steps into a subagent and back out.
        */
       transcriptId?: string;
+      /**
+       * The replayed user messages enter the composer's ↑/↓ input history,
+       * matching the CLI's initial render (`populateHistory: true`). Set only
+       * when a session becomes the live one — attach and `ready` — never on
+       * lane or preview round trips: those would re-add the same entries, and
+       * a lane's opening "user message" is the task the parent agent wrote,
+       * not something the user typed. The webview additionally remembers per
+       * transcript, so the double post of a window start (attach, then ready)
+       * still populates only once per webview lifetime.
+       */
+      populateInputHistory?: boolean;
       /** True when SYSTEM.md replaces Pi's default prompt and its bundled-docs guidance. */
       systemPromptOverridden?: boolean;
       /**

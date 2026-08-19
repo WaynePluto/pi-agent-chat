@@ -1,5 +1,5 @@
 import type { ChatState, HostMessage } from "../shared/protocol.js";
-import { clearFileRefs, initComposer, onProjectFiles, send, setInput, setSlashCommands } from "./composer.js";
+import { clearFileRefs, initComposer, onProjectFiles, populateInputHistoryFromEvents, send, setInput, setSlashCommands } from "./composer.js";
 import { post } from "./host.js";
 import { setFoldMaxLines } from "./bubble.js";
 import { getDict } from "./i18n.js";
@@ -370,7 +370,12 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   else if (message.type === "event") {
     applyEvent(message.event);
     updateRecallButton();
-  } else if (message.type === "history") applyHistory(message.events, message.live, message.systemPromptOverridden, message.subagent, message.transcriptId);
+  } else if (message.type === "history") {
+    applyHistory(message.events, message.live, message.systemPromptOverridden, message.subagent, message.transcriptId);
+    // Only replays the host marked as "a session became live" feed the
+    // composer's ↑ history; the composer dedupes per transcript.
+    if (message.populateInputHistory) populateInputHistoryFromEvents(message.transcriptId, message.events);
+  }
   else if (message.type === "entryIds") assignEntryIds(message.ids, message.labels);
   else if (message.type === "sessions") renderSessions(message.items);
   else if (message.type === "models") setModelCatalog(message.catalog);

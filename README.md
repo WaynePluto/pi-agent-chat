@@ -53,7 +53,7 @@ Overall, this extension bets on simplicity and on the continued progress of the 
 - Resource listing pinned above the transcript (Context / Skills / Prompts / Extensions), same as the CLI startup listing
 - Reopens the session the sidebar was last showing (a fresh, still-empty session included), falling back to the workspace's most recent session when there is nothing to restore or the file is gone
 - `@` project file references: type `@` in the composer to fuzzy-search workspace files (respecting `.gitignore`; `Ctrl+→` toggles showing ignored files, which are labeled along with potentially sensitive ones); selected files become removable chips and are sent as plain relative paths for the model to `read` itself
-- Shell-style input history: `↑` / `↓` recall previously sent prompts (references restored as chips; the half-written draft is kept while browsing), claimed on the outer lines of the text so multi-line editing keeps its arrows; never during IME composition
+- Shell-style input history: `↑` / `↓` recall previously sent prompts (references restored as chips; the half-written draft is kept while browsing), claimed on the outer lines of the text so multi-line editing keeps its arrows; never during IME composition. Opening a session also seeds the history with its earlier questions, like the Pi CLI
 - Subagent (opt-in): one call fans out into several child sessions that each write directly to your working tree within a declared path range, shown as live rows in the parent's transcript
 
 ### Subagent (off by default)

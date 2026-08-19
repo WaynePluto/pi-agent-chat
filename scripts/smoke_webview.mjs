@@ -992,6 +992,83 @@ const SCRIPT = [
       if (problems.length > 0) throw new Error(`input history: ${problems.join("; ")}`);
     },
   },
+  // Opening a session feeds its user messages into the ↑ history (CLI
+  // `populateHistory` parity); round trips and re-plays of the same transcript
+  // must not stack a second copy. Asserted in-script: textarea values never
+  // reach the DOM snapshot.
+  {
+    label: "input history populated from an opened session",
+    messages: [
+      {
+        type: "history",
+        transcriptId: "populate-1",
+        populateInputHistory: true,
+        events: [
+          { kind: "user_message", text: "alpha question" },
+          { kind: "assistant_message", text: "alpha answer" },
+          // Queued/steered messages enter the history too, exactly as live sends do.
+          { kind: "user_message", text: "beta question", mode: "followUp" },
+          { kind: "assistant_message", text: "beta answer" },
+        ],
+      },
+      { type: "state", state: baseState },
+    ],
+    beforeSnapshot: (window) => {
+      const input = window.document.getElementById("input");
+      const press = (key) =>
+        input.dispatchEvent(new window.KeyboardEvent("keydown", { key, bubbles: true }));
+      const replay = (data) =>
+        window.dispatchEvent(new window.MessageEvent("message", { data }));
+      const problems = [];
+      const expectValue = (label, expected) => {
+        if (input.value !== expected) problems.push(`${label}: got "${input.value}", expected "${expected}"`);
+      };
+
+      // Start from an empty live composer: the previous step left a recalled
+      // entry in it, and that text would otherwise become the saved draft.
+      input.value = "";
+
+      // Newest populated entry first, then the older one, then the ring that
+      // was already there from the live sends of the previous step.
+      press("ArrowUp");
+      expectValue("populated newest", "beta question");
+      press("ArrowUp");
+      expectValue("populated older", "alpha question");
+      press("ArrowUp");
+      expectValue("pre-existing ring below", "second message, edited");
+
+      // The same transcript re-played with the flag again (window start posts
+      // attach, then ready): the per-transcript memory must keep the ring as
+      // is — without it, consecutive-dedup would drop the duplicate "beta
+      // question" and stack "alpha question" on top, so ↑ would land wrong.
+      press("ArrowDown");
+      expectValue("forward one", "alpha question");
+      press("ArrowDown");
+      expectValue("forward two", "beta question");
+      press("ArrowDown");
+      expectValue("back to live", "");
+      replay({ type: "history", transcriptId: "populate-1", populateInputHistory: true, events: [] });
+      press("ArrowUp");
+      expectValue("re-played transcript did not stack", "beta question");
+      press("ArrowUp");
+      expectValue("older entry still in place", "alpha question");
+
+      // A different transcript without the flag is a view round trip (lane /
+      // preview): it never adds anything, agent-written lane tasks least of all.
+      press("ArrowDown");
+      press("ArrowDown");
+      expectValue("back to live again", "");
+      replay({
+        type: "history",
+        transcriptId: "populate-2",
+        events: [{ kind: "user_message", text: "lane task written by the parent" }],
+      });
+      press("ArrowUp");
+      expectValue("unflagged replay added nothing", "beta question");
+
+      if (problems.length > 0) throw new Error(`history populate: ${problems.join("; ")}`);
+    },
+  },
 ];
 
 /* ------------------------------------------------------------------ */
