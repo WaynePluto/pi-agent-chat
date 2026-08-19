@@ -22,10 +22,12 @@ export const MAX_NOTICE_HEADER_CHARS = 80;
 /** One subagent row stays a glance, not a transcript of its own. */
 export const MAX_LANE_DETAIL_CHARS = 240;
 /* A message bubble folds to a preview only once it is long enough to be worth
-   folding: collapsing one-liners would cost a click and save no space. Either
-   limit alone is enough — a wall of short lines is as tall as a long paragraph. */
-export const MAX_UNFOLDED_BUBBLE_CHARS = 700;
-export const MAX_UNFOLDED_BUBBLE_LINES = 14;
+   folding: collapsing one-liners would cost a click and save no space. The
+   budget is one number — the line threshold of `piAgentChat.transcript.foldLines` —
+   expressed in two shapes: a wall of short lines and a long unbroken paragraph
+   are the same amount of text, so text without line breaks counts at this many
+   characters per line. The built-in default is 14 lines at 50 characters. */
+export const BUBBLE_FOLD_CHARS_PER_LINE = 50;
 /* Syntax highlighting runs again on every frame of a streaming answer, so a
    pasted-file-sized block is left as plain text rather than tokenized 60x/s. */
 export const MAX_HIGHLIGHT_CHARS = 20_000;

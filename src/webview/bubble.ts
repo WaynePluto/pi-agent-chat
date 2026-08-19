@@ -14,11 +14,27 @@
 
 import { copyButton } from "./clipboard.js";
 import { button, el } from "./dom.js";
-import { MAX_UNFOLDED_BUBBLE_CHARS, MAX_UNFOLDED_BUBBLE_LINES } from "./format.js";
+import { BUBBLE_FOLD_CHARS_PER_LINE } from "./format.js";
 import { getDict } from "./i18n.js";
 import { renderMarkdown } from "./markdown.js";
+import { DEFAULT_FOLD_LINES } from "../shared/protocol.js";
 
 const t = getDict();
+
+/**
+ * Fold threshold currently in effect, in lines
+ * (`piAgentChat.transcript.foldLines`; 0 disables folding). Starts at the
+ * documented default so a webview that has not heard from the host yet — the
+ * smoke harness, or a `ready` message still in flight — renders exactly the
+ * default behavior; the host pushes the configured value on `ready` and on
+ * every change.
+ */
+let foldMaxLines = DEFAULT_FOLD_LINES;
+
+/** Apply a new fold threshold. Followed by a history replay from the host. */
+export function setFoldMaxLines(lines: number): void {
+  foldMaxLines = Number.isFinite(lines) ? Math.max(0, Math.round(lines)) : DEFAULT_FOLD_LINES;
+}
 
 export interface MessageBubble {
   /** The `.bubble` element: badges, action bar and classes still go here. */
@@ -108,12 +124,14 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
  * as it does on screen, and a measured decision would silently differ there.
  */
 function isLongMessage(text: string): boolean {
-  if (text.length > MAX_UNFOLDED_BUBBLE_CHARS) return true;
+  // 0 is the setting's "never fold" value: no message qualifies.
+  if (foldMaxLines === 0) return false;
+  if (text.length > foldMaxLines * BUBBLE_FOLD_CHARS_PER_LINE) return true;
   let lines = 1;
   for (let i = 0; i < text.length; i += 1) {
     if (text.charCodeAt(i) !== 10) continue;
     lines += 1;
-    if (lines > MAX_UNFOLDED_BUBBLE_LINES) return true;
+    if (lines > foldMaxLines) return true;
   }
   return false;
 }

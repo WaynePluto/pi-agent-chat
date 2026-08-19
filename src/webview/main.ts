@@ -1,6 +1,7 @@
 import type { ChatState, HostMessage } from "../shared/protocol.js";
 import { clearFileRefs, initComposer, onProjectFiles, send, setInput, setSlashCommands } from "./composer.js";
 import { post } from "./host.js";
+import { setFoldMaxLines } from "./bubble.js";
 import { getDict } from "./i18n.js";
 import { SEND_ICON, STOP_ICON } from "./icons.js";
 import { hasResources, isResourcesShown, renderResources, toggleResources } from "./resources-view.js";
@@ -363,6 +364,9 @@ delegationPeerBtn.addEventListener("click", () => {
 window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   const message = event.data;
   if (message.type === "state") applyState(message.state);
+  // No re-render of our own: the host always follows a threshold change with
+  // a history replay, which is how bubbles that already exist re-decide.
+  else if (message.type === "foldThreshold") setFoldMaxLines(message.maxLines);
   else if (message.type === "event") {
     applyEvent(message.event);
     updateRecallButton();

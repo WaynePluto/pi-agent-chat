@@ -20,6 +20,16 @@ export type JsonValue = string | number | boolean | null | JsonValue[] | { [key:
  */
 export const MAX_FILE_REFERENCES = 10;
 
+/**
+ * Default of `piAgentChat.transcript.foldLines`. Lives here because three
+ * places must agree on it: the manifest default, the host that pushes the
+ * value to the webview, and the webview's fallback before the first push. A
+ * message bubble folds to a preview once it exceeds this many lines
+ * (unbroken text counts at a fixed chars-per-line rate, see
+ * `webview/format.ts`); `0` disables folding.
+ */
+export const DEFAULT_FOLD_LINES = 14;
+
 /** CLI-style footer statistics (mirrors the pi TUI status line). */
 export interface ChatStats {
   inputTokens: number;
@@ -368,6 +378,15 @@ export type RetryOfferState = "offered" | "running" | "succeeded" | "failed";
 /** Extension host -> webview. */
 export type HostMessage =
   | { type: "state"; state: ChatState }
+  /**
+   * Fold threshold for message bubbles (`piAgentChat.transcript.foldLines`),
+   * pushed on `ready` and whenever the setting changes, always followed by a
+   * history replay: a bubble decides whether it folds while being built, so
+   * the transcript must be rebuilt for a new threshold to reach bubbles that
+   * already exist. Display config rather than runtime state, which is why it
+   * travels outside `ChatState` and only when it changes.
+   */
+  | { type: "foldThreshold"; maxLines: number }
   | { type: "event"; event: ChatEvent }
   /** Full transcript replay after startup or a session switch. */
   | {

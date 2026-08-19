@@ -14,6 +14,7 @@ import { findScopeConflict, normalizeScopes, ScopeGuard } from "./scope.js";
 import { createScopedFileTools } from "./scoped-tools.js";
 import { ProjectFileIndex } from "./project-files.js";
 import { isResumable, resumeAfterError, supportsResume } from "./resume.js";
+import { readFoldLines } from "./config.js";
 import type { ChatState, HostMessage } from "../shared/protocol.js";
 
 /** Injected by esbuild (see esbuild.mjs). */
@@ -1071,6 +1072,16 @@ export async function runViewStateTest(cwd: string): Promise<DiagnosticResult[]>
     const expect = (label: string, ok: boolean) => {
       if (!ok) failures.push(label);
     };
+
+    // `ready` must hand the webview its fold threshold before the first
+    // history replay: bubbles decide whether they fold while being built, and
+    // the webview cannot read VS Code settings itself.
+    await bridge.handleMessage({ type: "ready" });
+    const foldThreshold = [...posted].reverse().find((message) => message?.type === "foldThreshold");
+    expect(
+      "ready: fold threshold delivered",
+      foldThreshold !== undefined && foldThreshold.type === "foldThreshold" && foldThreshold.maxLines === readFoldLines(),
+    );
 
     // Live: the parent is writable and is not "inside" anything.
     const live = lastState();

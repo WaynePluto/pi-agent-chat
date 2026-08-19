@@ -58,6 +58,13 @@
           "default": "",
           "scope": "resource",
           "markdownDescription": "%configuration.subagent.defaultModel%"
+        },
+        "piAgentChat.transcript.foldLines": {
+          "type": "number",
+          "default": 14,
+          "minimum": 0,
+          "scope": "window",
+          "markdownDescription": "%configuration.transcript.foldLines%"
         }
       }
     },

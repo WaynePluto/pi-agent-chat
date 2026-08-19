@@ -5,6 +5,7 @@
   "configuration.subagent.enabled": "Offer the `subagent` tool, which lets the agent delegate several tasks at once to child sessions that **write to your working tree directly**. Each task must declare the paths it may write to; writes outside that range are refused. Failed tasks are reported, not rolled back — use a git repository so partial work can be inspected and discarded. Off by default.",
   "configuration.subagent.maxSubagents": "Largest number of subagents one `subagent` call may start. This value is published to the model as the schema limit, so it also caps what the model can ask for. Higher values cost proportionally more and get harder to follow.",
   "configuration.subagent.defaultModel": "Model for subagents that do not name one themselves, as `provider/modelId`. Leave empty to inherit the parent session's model. A cheaper, faster model here is usually the right trade: subagents execute well-scoped changes rather than plan them.",
+  "configuration.transcript.foldLines": "A message longer than this many lines folds to a preview once a newer message of the same role arrives, so older long messages stop dominating the scroll. Text without line breaks counts towards the same budget at about 50 characters per line, so a long paragraph folds too. Set `0` to never fold message text. Folds you undo by hand always stay undone.",
   "command.newSession.title": "Pi Agent Chat: New Session",
   "command.focus.title": "Pi Agent Chat: Focus Chat"
 }

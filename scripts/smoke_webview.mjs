@@ -884,6 +884,49 @@ const SCRIPT = [
     messages: [],
     beforeSnapshot: (window) => window.document.getElementById("btn-new").click(),
   },
+  // Truly last: these two swap the module-level fold threshold, so they must
+  // have nothing after them to disturb. The fold threshold is a VS Code
+  // setting the webview cannot read, so the host pushes it (`foldThreshold`)
+  // and then replays the transcript — the only way a bubble that already
+  // exists re-decides whether it folds. 0 is the setting's "never fold"
+  // value, from the issue that asked for the setting in the first place.
+  {
+    label: "fold threshold 0: superseded long messages stay open",
+    messages: [
+      { type: "foldThreshold", maxLines: 0 },
+      {
+        type: "history",
+        transcriptId: "fold-off",
+        events: [
+          { kind: "user_message", text: LONG_PROMPT },
+          { kind: "assistant_message", text: LONG_ANSWER },
+          { kind: "user_message", text: "and the second file?" },
+          { kind: "assistant_message", text: "Same change, applied." },
+        ],
+      },
+      { type: "state", state: baseState },
+    ],
+  },
+  {
+    // Back at the default the same transcript folds again — and ends the run
+    // with the threshold at its default, which is what every other step
+    // assumes.
+    label: "fold threshold restored: folding resumes",
+    messages: [
+      { type: "foldThreshold", maxLines: 14 },
+      {
+        type: "history",
+        transcriptId: "fold-off",
+        events: [
+          { kind: "user_message", text: LONG_PROMPT },
+          { kind: "assistant_message", text: LONG_ANSWER },
+          { kind: "user_message", text: "and the second file?" },
+          { kind: "assistant_message", text: "Same change, applied." },
+        ],
+      },
+      { type: "state", state: baseState },
+    ],
+  },
 ];
 
 /* ------------------------------------------------------------------ */

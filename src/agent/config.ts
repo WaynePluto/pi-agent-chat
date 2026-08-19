@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { DEFAULT_FOLD_LINES } from "../shared/protocol.js";
 
 /**
  * The plugin's own VS Code settings.
@@ -7,9 +8,10 @@ import * as vscode from "vscode";
  * CLI also has stays in the shared `~/.pi/agent/` config, so a single settings
  * file cannot make the two hosts behave differently. See AGENTS.md, "配置项归属".
  *
- * Everything below is read per resource (workspace folder), because whether a
- * repository tolerates parallel writing agents is a property of the repository,
- * not of the user.
+ * The subagent settings are read per resource (workspace folder), because
+ * whether a repository tolerates parallel writing agents is a property of the
+ * repository, not of the user; the transcript fold threshold below is a pure
+ * user preference and is window-scoped instead.
  */
 const SECTION = "piAgentChat.subagent";
 
@@ -75,5 +77,27 @@ export function affectsSubagentConfig(event: vscode.ConfigurationChangeEvent, cw
  */
 export function subagentSettingId(): string {
   return SECTION;
+}
+
+/* -- Message folding ----------------------------------------------------- */
+
+const TRANSCRIPT_SECTION = "piAgentChat.transcript";
+
+/**
+ * Line threshold at which a message bubble may fold to a preview. A pure
+ * presentation preference of this host, so it lives here rather than in the
+ * shared `~/.pi/agent/` config. `0` means "never fold"; anything not a usable
+ * number falls back to the documented default rather than silently disabling
+ * the feature.
+ */
+export function readFoldLines(): number {
+  const raw = vscode.workspace.getConfiguration(TRANSCRIPT_SECTION).get<number>("foldLines");
+  if (raw === undefined || !Number.isFinite(raw)) return DEFAULT_FOLD_LINES;
+  return Math.max(0, Math.round(raw));
+}
+
+/** Whether a settings change event touches the fold threshold. */
+export function affectsFoldConfig(event: vscode.ConfigurationChangeEvent): boolean {
+  return event.affectsConfiguration(`${TRANSCRIPT_SECTION}.foldLines`);
 }
 

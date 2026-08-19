@@ -10,7 +10,7 @@ import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, 
 import { formatLocalTimestamp } from "../shared/time.js";
 import { loginFlow, logoutFlow } from "./auth.js";
 import { ActivityTracker, type ResourceActivity } from "./activity.js";
-import { affectsSubagentConfig, readSubagentConfig } from "./config.js";
+import { affectsFoldConfig, affectsSubagentConfig, readFoldLines, readSubagentConfig } from "./config.js";
 import { collectSlashCommands, formatHelp, runBuiltinCommand } from "./commands.js";
 import { describe } from "./errors.js";
 import { t, tf } from "./i18n.js";
@@ -55,13 +55,15 @@ interface CompactionQueuedPrompt {
 const REPLAYED_LANE_ID = "replayed";
 
 /**
- * How long to wait after a subagent setting changes before acting on it.
+ * How long to wait after a settings change before acting on it.
  *
  * The Settings editor writes one key per edit, so filling in the section fires
- * several events in a row; without this, changing three values on an empty
- * session would rebuild it three times.
+ * several events in a row — and its number spinner fires one per step. Without
+ * this, changing three subagent values on an empty session would rebuild it
+ * three times, and scrubbing the fold threshold would replay the transcript
+ * just as often.
  */
-const SUBAGENT_SETTING_DEBOUNCE_MS = 300;
+const SETTINGS_DEBOUNCE_MS = 300;
 
 /**
  * How long a manual catalogue refresh may take before it falls back to the
@@ -167,6 +169,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private settingsWatcher?: vscode.Disposable;
   /** Pending debounced reaction to a subagent settings change. */
   private subagentConfigTimer?: ReturnType<typeof setTimeout>;
+  /** Pending debounced reaction to a fold-threshold settings change. */
+  private foldConfigTimer?: ReturnType<typeof setTimeout>;
+  /** Fold threshold last pushed to the webview; absent until the first push. */
+  private foldLines?: number;
   /** Last reported models.json problem, so the same one is not repeated on every attach. */
   private modelsConfigError?: string;
 
@@ -228,16 +234,26 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     });
     // The delegation tool is built into the session's tool set at construction
     // time, and `reload()` keeps the host's `customTools`, so a changed setting
-    // cannot reach a conversation already under way. Debounced because the
-    // Settings editor fires per edited key, and three edits must not mean three
-    // session rebuilds.
+    // cannot reach a conversation already under way.
+    //
+    // The Settings editor fires per edited key, and the reactions below must
+    // not run once per keystroke: one rebuilds a session, the other replays
+    // the whole transcript. Each setting gets its own debounced reaction.
     this.settingsWatcher = vscode.workspace.onDidChangeConfiguration((event) => {
-      if (!affectsSubagentConfig(event, this.runtime.cwd)) return;
-      if (this.subagentConfigTimer) clearTimeout(this.subagentConfigTimer);
-      this.subagentConfigTimer = setTimeout(() => {
-        this.subagentConfigTimer = undefined;
-        void this.applySubagentConfigChange();
-      }, SUBAGENT_SETTING_DEBOUNCE_MS);
+      if (affectsSubagentConfig(event, this.runtime.cwd)) {
+        if (this.subagentConfigTimer) clearTimeout(this.subagentConfigTimer);
+        this.subagentConfigTimer = setTimeout(() => {
+          this.subagentConfigTimer = undefined;
+          void this.applySubagentConfigChange();
+        }, SETTINGS_DEBOUNCE_MS);
+      }
+      if (affectsFoldConfig(event)) {
+        if (this.foldConfigTimer) clearTimeout(this.foldConfigTimer);
+        this.foldConfigTimer = setTimeout(() => {
+          this.foldConfigTimer = undefined;
+          this.applyFoldConfigChange();
+        }, SETTINGS_DEBOUNCE_MS);
+      }
     });
   }
 
@@ -291,6 +307,37 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     // A delegation run outlives the parent's turn; rebuilding under it would
     // leave lanes writing on behalf of a session that is gone.
     return !this.runtime.subagents.isRunning;
+  }
+
+  /**
+   * Push the configured fold threshold to the webview.
+   *
+   * The webview cannot read VS Code settings, so the host owns the value. It
+   * must arrive before any history does: a bubble decides whether it folds
+   * while it is being built.
+   */
+  private postFoldThreshold(): void {
+    const lines = readFoldLines();
+    this.foldLines = lines;
+    this.host.post({ type: "foldThreshold", maxLines: lines });
+  }
+
+  /**
+   * A changed fold threshold reaches existing bubbles through a full replay:
+   * fold decisions are baked in when a bubble is built. The replay is also
+   * what restores the user's reading position and any fold they undid by
+   * hand, so re-deciding costs nothing that was not already recoverable.
+   *
+   * Pure presentation, so no session rebuild and no transcript notice — unlike
+   * a subagent setting change, nothing about the conversation changes.
+   */
+  private applyFoldConfigChange(): void {
+    if (this.disposed) return;
+    const lines = readFoldLines();
+    // Re-saving the same value must not replay the transcript.
+    if (lines === this.foldLines) return;
+    this.postFoldThreshold();
+    this.postHistory();
   }
 
   /**
@@ -1306,6 +1353,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   async handleMessage(message: WebviewMessage): Promise<void> {
     switch (message.type) {
       case "ready":
+        // First the threshold, then the history: bubbles fold-decide at build
+        // time, so the value must be in place before the first replay.
+        this.postFoldThreshold();
         this.postHistory();
         this.postCommands();
         this.postResources();
@@ -2020,6 +2070,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     if (this.subagentConfigTimer) {
       clearTimeout(this.subagentConfigTimer);
       this.subagentConfigTimer = undefined;
+    }
+    if (this.foldConfigTimer) {
+      clearTimeout(this.foldConfigTimer);
+      this.foldConfigTimer = undefined;
     }
     this.availabilityProbe?.abort();
     this.availabilityProbe = undefined;
