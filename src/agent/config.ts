@@ -68,6 +68,16 @@ export function affectsSubagentConfig(event: vscode.ConfigurationChangeEvent, cw
 /* -- Deep link ----------------------------------------------------------- */
 
 /**
+ * Top-level section prefix for every setting this plugin contributes, for
+ * opening the Settings editor with the full plugin scope visible (subagent,
+ * transcript folding, …). Same mechanism as {@link subagentSettingId}, just
+ * one level broader.
+ */
+export function pluginSettingId(): string {
+  return "piAgentChat";
+}
+
+/**
  * Fully qualified section id, for opening the Settings editor on it.
  *
  * The sidebar has no form of its own for these: they are ordinary VS Code

@@ -5,7 +5,7 @@ import { applyEdits, modify } from "jsonc-parser";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { PiRuntime } from "./runtime.js";
 import { configureHttpDispatcher } from "./http.js";
-import { subagentSettingId } from "./config.js";
+import { pluginSettingId, subagentSettingId } from "./config.js";
 import { t, tf } from "./i18n.js";
 
 /**
@@ -221,6 +221,7 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
         description: defaultToolsSummary(runtime),
         detail: t("settingsDefaultToolsDetail"),
       },
+      { id: "pluginSettings", label: t("settingsPluginSettings"), detail: t("settingsPluginSettingsDetail") },
       { id: "subagent", label: t("settingsSubagent"), detail: t("settingsSubagentDetail") },
       { id: "shellPath", label: t("settingsShellPath"), detail: t("settingsShellPathDetail") },
       { id: "openFile", label: t("settingsOpenFile"), detail: t("settingsOpenFileDetail") },
@@ -241,11 +242,16 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
     if (picked.id === "scopedModels") return void (await ui.manageScopedModels());
     if (picked.id === "defaultTools") return void (await manageDefaultTools(runtime, ui));
     if (picked.id === "shellPath") return void (await pickShellPath(runtime, ui));
-    // The subagent switches are this host's own VS Code settings, so the
-    // Settings editor is where they belong: it already renders their
-    // descriptions, the workspace/user tabs and the "modified elsewhere"
-    // markers that a QuickPick form can only re-implement badly. Return rather
-    // than redraw — this menu would cover what the user just asked to see.
+    // Plugin-only switches (subagent, transcript folding, …) are this host's
+    // own VS Code settings, so the Settings editor is where they belong: it
+    // already renders their descriptions, the workspace/user tabs and the
+    // "modified elsewhere" markers that a QuickPick form can only re-implement
+    // badly. Return rather than redraw — this menu would cover what the user
+    // just asked to see.
+    if (picked.id === "pluginSettings") {
+      await vscode.commands.executeCommand("workbench.action.openSettings", pluginSettingId());
+      return;
+    }
     if (picked.id === "subagent") {
       await vscode.commands.executeCommand("workbench.action.openSettings", subagentSettingId());
       return;
