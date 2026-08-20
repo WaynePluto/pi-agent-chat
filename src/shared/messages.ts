@@ -162,13 +162,8 @@ export const sharedMessages = {
   settingsHelp: { en: "Command help", zh: "命令帮助" },
   settingsPluginSettings: { en: "Plugin settings", zh: "插件设置" },
   settingsPluginSettingsDetail: {
-    en: "Open the VS Code settings for this plugin (subagent, transcript folding, etc.)",
-    zh: "打开本插件的 VS Code 设置（子代理、消息折叠等）",
-  },
-  settingsSubagent: { en: "Subagent", zh: "子代理" },
-  settingsSubagentDetail: {
-    en: "Open the VS Code settings for the subagent tool (this window only, not shared with the pi CLI)",
-    zh: "打开 subagent 工具的 VS Code 设置（仅本插件，不与终端 pi 共用）",
+    en: "Open the VS Code settings for this plugin (subagent, integrated terminal, transcript folding, etc.)",
+    zh: "打开本插件的 VS Code 设置（子代理、集成终端、消息折叠等）",
   },
   settingsSectionOptions: { en: "Options (shared with the pi CLI)", zh: "选项（与终端 pi 共用）" },
   settingsOpenFile: { en: "Edit Pi global settings file", zh: "编辑 Pi 全局设置文件" },

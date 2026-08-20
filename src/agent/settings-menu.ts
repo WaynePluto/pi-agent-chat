@@ -5,7 +5,7 @@ import { applyEdits, modify } from "jsonc-parser";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { PiRuntime } from "./runtime.js";
 import { configureHttpDispatcher } from "./http.js";
-import { pluginSettingId, subagentSettingId } from "./config.js";
+import { pluginSettingId } from "./config.js";
 import { t, tf } from "./i18n.js";
 
 /**
@@ -222,7 +222,6 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
         detail: t("settingsDefaultToolsDetail"),
       },
       { id: "pluginSettings", label: t("settingsPluginSettings"), detail: t("settingsPluginSettingsDetail") },
-      { id: "subagent", label: t("settingsSubagent"), detail: t("settingsSubagentDetail") },
       { id: "shellPath", label: t("settingsShellPath"), detail: t("settingsShellPathDetail") },
       { id: "openFile", label: t("settingsOpenFile"), detail: t("settingsOpenFileDetail") },
       { id: "help", label: t("settingsHelp"), detail: t("settingsHelpDetail") },
@@ -250,10 +249,6 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
     // just asked to see.
     if (picked.id === "pluginSettings") {
       await vscode.commands.executeCommand("workbench.action.openSettings", pluginSettingId());
-      return;
-    }
-    if (picked.id === "subagent") {
-      await vscode.commands.executeCommand("workbench.action.openSettings", subagentSettingId());
       return;
     }
     if (picked.id === "help") return ui.help();

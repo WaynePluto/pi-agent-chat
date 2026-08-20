@@ -61,7 +61,7 @@ Overall, this extension bets on simplicity and on the continued progress of the 
 
 One `subagent` call starts several isolated child sessions at once. Each is given a task and a **write range**, works on its own with a fresh context, and reports back; the parent waits for all of them and receives one report. The gain is throughput.
 
-It is **off by default** because it is genuinely aggressive: children write to your real working tree, and nothing is rolled back. Turn it on from the header **Settings → Subagent**, which opens the VS Code settings for the three values below — or edit them yourself:
+It is **off by default** because it is genuinely aggressive: children write to your real working tree, and nothing is rolled back. Turn it on from the header **Settings → Plugin settings**, which opens the VS Code settings for this plugin (the three values below live there) — or edit them yourself:
 
 | Setting | Default | Meaning |
 | --- | --- | --- |

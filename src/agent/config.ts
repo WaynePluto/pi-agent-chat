@@ -71,23 +71,17 @@ export function affectsSubagentConfig(event: vscode.ConfigurationChangeEvent, cw
 /**
  * Top-level section prefix for every setting this plugin contributes, for
  * opening the Settings editor with the full plugin scope visible (subagent,
- * transcript folding, …). Same mechanism as {@link subagentSettingId}, just
- * one level broader.
+ * terminal tool, transcript folding, …).
+ *
+ * This is the *only* deep link the sidebar offers: the settings have no form of
+ * their own here, because they are ordinary VS Code settings and the Settings
+ * editor already gives them their descriptions, the user/workspace tabs and the
+ * "also set elsewhere" markers. Per-feature entries were dropped as well — one
+ * search field over the whole plugin scope beats several menu rows that each
+ * land one filter narrower.
  */
 export function pluginSettingId(): string {
   return "piAgentChat";
-}
-
-/**
- * Fully qualified section id, for opening the Settings editor on it.
- *
- * The sidebar has no form of its own for these: they are ordinary VS Code
- * settings, and the Settings editor already gives them their descriptions, the
- * user/workspace tabs and the "also set elsewhere" markers. A QuickPick form
- * can only re-implement that, worse and behind extra clicks.
- */
-export function subagentSettingId(): string {
-  return SECTION;
 }
 
 /* -- Integrated terminal ------------------------------------------------ */

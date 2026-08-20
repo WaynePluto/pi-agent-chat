@@ -159,12 +159,12 @@ const en = {
               ? "Delegation in this session goes through this window's subagent tool, which is enabled here. " +
                 "Each subagent is given its task and the paths it may write to; it has no role file behind it."
               : "This window's own subagent tool is currently turned off, so this session has no delegation tool at all. " +
-                "Turn it on under Settings → Subagent (this session is still empty, so it takes effect right away).",
+                "Turn it on under Settings → Plugin settings (this session is still empty, so it takes effect right away).",
           ]
         : subagent && !subagent.enabled
           ? [
               "The built-in subagent tool is turned off; see the plugin's README for what it does. " +
-                "Turn it on under Settings → Subagent (this session is still empty, so it takes effect right away).",
+                "Turn it on under Settings → Plugin settings (this session is still empty, so it takes effect right away).",
             ]
           : []),
       ...(terminal?.shadowedExtension
@@ -359,12 +359,12 @@ const zh: Dict = {
               ? "本会话经本窗口的 subagent 工具委派（已开启）。每个子代理只拿到任务描述和可写入的路径范围，" +
                 "背后没有角色文件。"
               : "本窗口内置的 subagent 工具当前未开启，因此本会话没有任何委派工具。" +
-                "可在“设置 → 子代理”中开启（本会话还是空的，开启后立即生效）。",
+                "可在“设置 → 插件设置”中开启（本会话还是空的，开启后立即生效）。",
           ]
         : subagent && !subagent.enabled
           ? [
               "本插件内置的 subagent 工具未开启，具体请查看插件 README。" +
-                "可在“设置 → 子代理”中开启（本会话还是空的，开启后立即生效）。",
+                "可在“设置 → 插件设置”中开启（本会话还是空的，开启后立即生效）。",
             ]
           : []),
       ...(terminal?.shadowedExtension

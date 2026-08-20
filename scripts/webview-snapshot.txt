@@ -578,7 +578,7 @@ Open in editor" type="button">
         <svg/>
     <main id="messages" class="messages">
       <div class="bubble status empty-session">
-        "No messages in this session yet. Pi can explain its own features and look up its docs. Ask it how to use or extend Pi. The "subagent" tool registered by the extension at /home/u/.pi/agent/extensions/subagent/index.ts is disabled here because this window has its own subagent tool under that name. The extension keeps working in the Pi CLI. This window's own subagent tool is currently turned off, so this session has no delegation tool at all. Turn it on under Settings → Subagent (this session is still empty, so it takes effect right away)."
+        "No messages in this session yet. Pi can explain its own features and look up its docs. Ask it how to use or extend Pi. The "subagent" tool registered by the extension at /home/u/.pi/agent/extensions/subagent/index.ts is disabled here because this window has its own subagent tool under that name. The extension keeps working in the Pi CLI. This window's own subagent tool is currently turned off, so this session has no delegation tool at all. Turn it on under Settings → Plugin settings (this session is still empty, so it takes effect right away)."
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
@@ -990,7 +990,7 @@ Open in editor" type="button">
         <svg/>
     <main id="messages" class="messages">
       <div class="bubble status empty-session">
-        "No messages in this session yet. Pi can explain its own features and look up its docs. Ask it how to use or extend Pi. The built-in subagent tool is turned off; see the plugin's README for what it does. Turn it on under Settings → Subagent (this session is still empty, so it takes effect right away)."
+        "No messages in this session yet. Pi can explain its own features and look up its docs. Ask it how to use or extend Pi. The built-in subagent tool is turned off; see the plugin's README for what it does. Turn it on under Settings → Plugin settings (this session is still empty, so it takes effect right away)."
     <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
       <svg/>
   <div id="widgets-above" class="widgets hidden">
