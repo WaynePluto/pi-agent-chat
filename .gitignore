@@ -18,6 +18,9 @@ todo.md
 # and the process logs it tails). Machine-local, never shared.
 .pi/
 
-.vscode
+# Exclude the *contents* of .vscode, not the directory itself: git cannot
+# re-include a file whose parent directory is excluded, so a bare `.vscode`
+# would make the two negations below dead letters.
+.vscode/*
 !.vscode/launch.json
 !.vscode/tasks.json
