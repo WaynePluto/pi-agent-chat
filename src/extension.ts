@@ -26,6 +26,7 @@ import { OriginalContentProvider, ORIGINAL_SCHEME } from "./agent/diff-view.js";
 import { describeWithStack } from "./agent/errors.js";
 import { configureHttpProxy } from "./agent/http.js";
 import { PiRuntime, type StartupSession } from "./agent/runtime.js";
+import { runTerminalIntegrationSpike } from "./agent/terminal-spike.js";
 import type { HostMessage, WebviewMessage } from "./shared/protocol.js";
 
 const VIEW_ID = "piAgentChat.view";
@@ -106,6 +107,22 @@ export function activate(context: vscode.ExtensionContext): void {
       const report = formatDiagnostics(results);
       output.appendLine(report);
       output.show(true);
+    }),
+    vscode.commands.registerCommand("piAgentChat.runTerminalSpike", async () => {
+      const confirm = await vscode.window.showWarningMessage(
+        "Probe VS Code shell integration for the proposed `terminal` tool? A terminal opens and one probe asks you to type a token into it.",
+        { modal: true },
+        "Run",
+      );
+      if (confirm !== "Run") return;
+      output.show(true);
+      const results = await runTerminalIntegrationSpike(resolveWorkspaceCwd(), (message) =>
+        output.appendLine(message),
+      );
+      const report = formatDiagnostics(results);
+      output.appendLine(report);
+      const doc = await vscode.workspace.openTextDocument({ content: report, language: "markdown" });
+      await vscode.window.showTextDocument(doc, { preview: true });
     }),
     provider,
   );

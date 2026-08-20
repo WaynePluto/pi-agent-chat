@@ -23,7 +23,7 @@
     "coding-agent"
   ],
   "engines": {
-    "vscode": "^1.90.0",
+    "vscode": "^1.99.0",
     "node": ">=20"
   },
   "categories": [
@@ -103,6 +103,10 @@
       {
         "command": "piAgentChat.runSpikeLiveTest",
         "title": "Pi Agent Chat: Run Spike Live Test (uses API tokens)"
+      },
+      {
+        "command": "piAgentChat.runTerminalSpike",
+        "title": "Pi Agent Chat: Run Terminal Shell Integration Spike"
       }
     ]
   },
@@ -130,7 +134,7 @@
   },
   "devDependencies": {
     "@types/node": "26.2.0",
-    "@types/vscode": "1.90.0",
+    "@types/vscode": "1.99.0",
     "@vscode/vsce": "3.9.2",
     "esbuild": "0.28.2",
     "husky": "9.1.7",
