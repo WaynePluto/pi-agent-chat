@@ -536,6 +536,19 @@ export async function runSubagentToolTest(cwd: string): Promise<DiagnosticResult
   const coordinator = new SubagentCoordinator(() => {});
   const tool = coordinator.createTool({ enabled: true, maxSubagents: 3 });
   try {
+    // What this window activates *without* the host tool, which is the only
+    // honest baseline: which of pi's tools are on is the user's decision
+    // (`defaultTools` in the shared settings, extensions that re-activate
+    // more), so naming them here would report a red for a configuration
+    // choice rather than for a defect — and a self-check that is red by
+    // default is one nobody reads.
+    const baselineResult = await createAgentSession({
+      cwd,
+      sessionManager: SessionManager.inMemory(cwd),
+    });
+    const baselineActive = new Set(baselineResult.session.getActiveToolNames());
+    baselineResult.session.dispose();
+
     const parentResult = await createAgentSession({
       cwd,
       customTools: [tool],
@@ -571,15 +584,16 @@ export async function runSubagentToolTest(cwd: string): Promise<DiagnosticResult
     offResult.session.dispose();
     await coordinator.dispose();
 
-    const missingCore = ["read", "bash", "edit", "write"].filter((name) => !parentActive.has(name));
+    // Adding a custom tool must displace nothing that was active without it.
+    const displaced = [...baselineActive].filter((name) => !parentActive.has(name));
     return [{
       name: "subagent tool",
       ok:
         parentActive.has(SUBAGENT_TOOL) &&
         !childHasTool &&
         !offActive.has(SUBAGENT_TOOL) &&
-        missingCore.length === 0,
-      detail: `active: ${[...parentActive].sort().join(", ") || "(none)"}; child=${childHasTool ? "unexpectedly enabled" : "excluded"}; disabled=${offActive.has(SUBAGENT_TOOL) ? "still present" : "absent"}`,
+        displaced.length === 0,
+      detail: `active: ${[...parentActive].sort().join(", ") || "(none)"}; child=${childHasTool ? "unexpectedly enabled" : "excluded"}; disabled=${offActive.has(SUBAGENT_TOOL) ? "still present" : "absent"}; displaced=${displaced.join(", ") || "(none)"}`,
     }, ...(await checkSubagentShadow(cwd, tool)), ...(await checkScopeEnforcement(cwd)), checkSubagentModelSelection(), ...(await checkSubagentIsolation(cwd))];
   } catch (error) {
     await coordinator.dispose();
@@ -967,7 +981,11 @@ export async function runExtensionReloadTest(cwd: string): Promise<DiagnosticRes
     session.dispose();
     await coordinator.dispose();
 
-    const dropped = ["read", "bash", "edit", "write", SUBAGENT_TOOL].filter((name) => !after.includes(name));
+    // Everything that was there before the reload, except the probe that was
+    // deliberately rewritten away. Naming pi's tools here instead would make
+    // this check red for anyone whose `defaultTools` differs from the default
+    // set — a configuration choice, not a defect.
+    const dropped = before.filter((name) => name !== "reload_probe_before" && !after.includes(name));
     const ok = before.includes("reload_probe_before") &&
       after.includes("reload_probe_after") &&
       !after.includes("reload_probe_before") &&
