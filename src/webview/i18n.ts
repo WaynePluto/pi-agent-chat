@@ -11,7 +11,7 @@
  */
 
 import { isChinese, sharedMessages } from "../shared/messages.js";
-import type { SubagentSetup } from "../shared/protocol.js";
+import type { SubagentSetup, ToolSetup } from "../shared/protocol.js";
 
 const en = {
   newSessionLabel: "New session",
@@ -142,7 +142,7 @@ const en = {
   streaming: "Working...",
   compacting: "Compacting context...",
   queued: (n: number) => `${n} queued message(s)`,
-  emptySession: (systemPromptOverridden: boolean, subagent?: SubagentSetup) =>
+  emptySession: (systemPromptOverridden: boolean, subagent?: SubagentSetup, terminal?: ToolSetup) =>
     [
       "No messages in this session yet.",
       // The docs hint describes what Pi's default prompt teaches the model. Once
@@ -165,6 +165,23 @@ const en = {
           ? [
               "The built-in subagent tool is turned off; see the plugin's README for what it does. " +
                 "Turn it on under Settings → Subagent (this session is still empty, so it takes effect right away).",
+            ]
+          : []),
+      ...(terminal?.shadowedExtension
+        ? [
+            `The "vscode_terminal" tool registered by the extension at ${terminal.shadowedExtension} is disabled here ` +
+              "because this window has its own terminal tool under that name. The extension keeps working in the Pi CLI.",
+            terminal.enabled
+              ? "Commands under that name in this session run in this window's own terminal tool, which is enabled here: " +
+                "a visible VS Code terminal you can type into while a command runs."
+              : "This window's own terminal tool is currently turned off, so nothing answers to that name in this session. " +
+                "Turn it on under Settings → Plugin settings (this session is still empty, so it takes effect right away).",
+          ]
+        : terminal && !terminal.enabled
+          ? [
+              "The built-in vscode_terminal tool is turned off; it runs commands in a visible VS Code terminal you can " +
+                "type into while they run. Turn it on under Settings → Plugin settings (this session is still empty, so " +
+                "it takes effect right away).",
             ]
           : []),
     ].join("\n\n"),
@@ -330,7 +347,7 @@ const zh: Dict = {
   streaming: "工作中...",
   compacting: "正在压缩上下文……",
   queued: (n: number) => `${n} 条消息排队中`,
-  emptySession: (systemPromptOverridden: boolean, subagent?: SubagentSetup) =>
+  emptySession: (systemPromptOverridden: boolean, subagent?: SubagentSetup, terminal?: ToolSetup) =>
     [
       "当前会话还没有消息。",
       ...(systemPromptOverridden ? [] : ["Pi 可以解释自身功能并查阅其文档。你可以询问如何使用或扩展 Pi。"]),
@@ -348,6 +365,22 @@ const zh: Dict = {
           ? [
               "本插件内置的 subagent 工具未开启，具体请查看插件 README。" +
                 "可在“设置 → 子代理”中开启（本会话还是空的，开启后立即生效）。",
+            ]
+          : []),
+      ...(terminal?.shadowedExtension
+        ? [
+            `扩展 ${terminal.shadowedExtension} 注册的“vscode_terminal”工具在这里已被禁用：本窗口自带同名的终端工具。` +
+              "该扩展在 Pi CLI 中仍然正常工作。",
+            terminal.enabled
+              ? "本会话中该名字解析到本窗口自带的终端工具（已开启）：命令在你看得见的 VS Code 终端中执行，" +
+                "运行期间你可以直接键入。"
+              : "本窗口内置的终端工具当前未开启，因此本会话中这个名字不对应任何工具。" +
+                "可在“设置 → 插件设置”中开启（本会话还是空的，开启后立即生效）。",
+          ]
+        : terminal && !terminal.enabled
+          ? [
+              "本插件内置的 vscode_terminal 工具未开启：它在你看得见、也能直接键入的 VS Code 终端中执行命令。" +
+                "可在“设置 → 插件设置”中开启（本会话还是空的，开启后立即生效）。",
             ]
           : []),
     ].join("\n\n"),

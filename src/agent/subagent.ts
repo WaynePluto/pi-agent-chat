@@ -13,11 +13,23 @@ import type { SubagentConfig } from "./config.js";
 import { describe } from "./errors.js";
 import { findScopeConflict, normalizeScopes, ScopeGuard, type ScopePrefix } from "./scope.js";
 import { createScopedFileTools, SCOPED_TOOL_NAMES } from "./scoped-tools.js";
+import { VSCODE_TERMINAL_TOOL } from "./vscode-terminal.js";
 
 export const SUBAGENT_TOOL = "subagent";
 
-/** Tool names a child session may never reach, whatever else it is given. */
-const NEVER_IN_CHILD = [SUBAGENT_TOOL];
+/**
+ * Tool names a child session may never reach, whatever else it is given.
+ *
+ * Both are names this window owns. `subagent` keeps a child from recursing.
+ * `vscode_terminal` is excluded because the terminal it would drive is a
+ * *shared, visible* surface with one user in front of it: several lanes typing
+ * into the same terminals — or opening one each — would interleave into
+ * something nobody can follow, and the user has no way to answer a prompt when
+ * they cannot tell which lane is asking. Children still run commands through
+ * `bash`, which needs no audience. Excluding the names also means an extension
+ * that registers either one cannot slip in through a child session.
+ */
+const NEVER_IN_CHILD = [SUBAGENT_TOOL, VSCODE_TERMINAL_TOOL];
 
 export type LaneStatus = "running" | "completed" | "failed" | "stopped";
 

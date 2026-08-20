@@ -6,11 +6,11 @@ import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-
 import type { ModelsRefreshResult } from "@earendil-works/pi-ai";
 import { sessionEntryToContextMessages, SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, HostMessage, ResourceItem, ResourceScope, ResourceSection, RetryOfferState, SessionListItem, SubagentSetup, WebviewMessage } from "../shared/protocol.js";
+import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, HostMessage, ResourceItem, ResourceScope, ResourceSection, RetryOfferState, SessionListItem, SubagentSetup, ToolSetup, WebviewMessage } from "../shared/protocol.js";
 import { formatLocalTimestamp } from "../shared/time.js";
 import { loginFlow, logoutFlow } from "./auth.js";
 import { ActivityTracker, type ResourceActivity } from "./activity.js";
-import { affectsFoldConfig, affectsSubagentConfig, readFoldLines, readSubagentConfig } from "./config.js";
+import { affectsFoldConfig, affectsSubagentConfig, affectsTerminalConfig, readFoldLines, readSubagentConfig, readTerminalConfig } from "./config.js";
 import { collectSlashCommands, formatHelp, runBuiltinCommand } from "./commands.js";
 import { describe } from "./errors.js";
 import { t, tf } from "./i18n.js";
@@ -169,6 +169,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private settingsWatcher?: vscode.Disposable;
   /** Pending debounced reaction to a subagent settings change. */
   private subagentConfigTimer?: ReturnType<typeof setTimeout>;
+  /** Pending debounced reaction to a terminal-tool settings change. */
+  private terminalConfigTimer?: ReturnType<typeof setTimeout>;
   /** Pending debounced reaction to a fold-threshold settings change. */
   private foldConfigTimer?: ReturnType<typeof setTimeout>;
   /** Fold threshold last pushed to the webview; absent until the first push. */
@@ -247,6 +249,13 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
           void this.applySubagentConfigChange();
         }, SETTINGS_DEBOUNCE_MS);
       }
+      if (affectsTerminalConfig(event, this.runtime.cwd)) {
+        if (this.terminalConfigTimer) clearTimeout(this.terminalConfigTimer);
+        this.terminalConfigTimer = setTimeout(() => {
+          this.terminalConfigTimer = undefined;
+          void this.applyTerminalConfigChange();
+        }, SETTINGS_DEBOUNCE_MS);
+      }
       if (affectsFoldConfig(event)) {
         if (this.foldConfigTimer) clearTimeout(this.foldConfigTimer);
         this.foldConfigTimer = setTimeout(() => {
@@ -282,24 +291,49 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     if (now.enabled === before.enabled && now.maxSubagents === before.maxSubagents && now.defaultModel === before.defaultModel) {
       return;
     }
-    if (!this.canRebuildForSubagentConfig()) {
-      this.emitCommandStatus(t("subagentSettingChanged"));
+    await this.applyToolConfigChange("subagentSettingChanged", "subagentSettingApplied", "subagent settings rebuild failed");
+  }
+
+  /**
+   * The same reaction for the terminal tool's settings.
+   *
+   * Kept as its own comparison rather than merged with the subagent one: the
+   * two describe different tools and say so in different words. Whichever
+   * fires first rebuilds the session for *both*, so the second finds its own
+   * values already built and returns without a second rebuild.
+   */
+  private async applyTerminalConfigChange(): Promise<void> {
+    if (this.disposed) return;
+    const before = this.runtime.builtTerminalConfig;
+    const now = readTerminalConfig(this.runtime.cwd);
+    if (now.enabled === before.enabled && now.maxTerminals === before.maxTerminals) return;
+    await this.applyToolConfigChange("terminalSettingChanged", "terminalSettingApplied", "terminal settings rebuild failed");
+  }
+
+  /** Rebuild an empty session for a changed tool setting, or say why not. */
+  private async applyToolConfigChange(
+    changedMessage: "subagentSettingChanged" | "terminalSettingChanged",
+    appliedMessage: "subagentSettingApplied" | "terminalSettingApplied",
+    errorLabel: string,
+  ): Promise<void> {
+    if (!this.canRebuildForToolConfig()) {
+      this.emitCommandStatus(t(changedMessage));
       return;
     }
     try {
       await this.runtime.newSession();
       await this.attach();
     } catch (error) {
-      this.reportError(this.runtime.session, "subagent settings rebuild failed", error, "command");
+      this.reportError(this.runtime.session, errorLabel, error, "command");
       return;
     }
     // After `attach()`, so it lands in the transcript of the session that was
     // built, not the one that was just replaced.
-    this.emitCommandStatus(t("subagentSettingApplied"));
+    this.emitCommandStatus(t(appliedMessage));
   }
 
   /** Whether the displayed session can be rebuilt without losing anything. */
-  private canRebuildForSubagentConfig(): boolean {
+  private canRebuildForToolConfig(): boolean {
     if (this.view.kind !== "live") return false;
     const session = this.runtime.session;
     if (session.messages.length > 0) return false;
@@ -580,6 +614,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       enabled: this.runtime.subagentEnabled,
       shadowedExtension: this.runtime.shadowedSubagentExtension,
     };
+    const terminal: ToolSetup = {
+      enabled: this.runtime.terminalEnabled,
+      shadowedExtension: this.runtime.shadowedTerminalExtension,
+    };
     // The flag is meaningless on a replayed file: that path never runs from
     // attach(), and defending here keeps a future caller from populating a
     // preview by accident.
@@ -591,6 +629,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         transcriptId: this.view.file,
         systemPromptOverridden,
         subagent,
+        terminal,
       });
       this.postEntryIds();
       return;
@@ -606,6 +645,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       transcriptId: session.sessionId,
       systemPromptOverridden,
       subagent,
+      terminal,
       populateInputHistory: populate,
     });
     // Every replay rebuilds the bubbles, so their entry bindings must follow.
@@ -2087,6 +2127,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     if (this.subagentConfigTimer) {
       clearTimeout(this.subagentConfigTimer);
       this.subagentConfigTimer = undefined;
+    }
+    if (this.terminalConfigTimer) {
+      clearTimeout(this.terminalConfigTimer);
+      this.terminalConfigTimer = undefined;
     }
     if (this.foldConfigTimer) {
       clearTimeout(this.foldConfigTimer);

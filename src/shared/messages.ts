@@ -398,6 +398,20 @@ export const sharedMessages = {
     zh: "子代理设置已更改。当前会话还是空的，已重建并立即生效。",
   },
 
+  /**
+   * The same pair for the terminal tool. Separate strings rather than one
+   * shared wording: the message has to name the tool the user just changed,
+   * otherwise it reads as a report about something else.
+   */
+  terminalSettingChanged: {
+    en: "Terminal tool settings changed. This session keeps its current tools; the new values take effect after you start or switch to another session (its history is kept), or reload the window.",
+    zh: "终端工具设置已更改。当前会话仍沿用原有工具；新建会话、切换到其他会话（历史不丢）或重载窗口后生效。",
+  },
+  terminalSettingApplied: {
+    en: "Terminal tool settings changed. This session was still empty, so it was rebuilt and the new values are already in effect.",
+    zh: "终端工具设置已更改。当前会话还是空的，已重建并立即生效。",
+  },
+
   /** Fills the source slot of `subagentModelFallback`. */
   subagentModelSourceSetting: {
     en: "the default subagent model setting",

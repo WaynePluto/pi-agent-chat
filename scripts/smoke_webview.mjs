@@ -196,6 +196,35 @@ const SCRIPT = [
     messages: [{ type: "history", events: [], subagent: { enabled: true } }],
   },
   {
+    // The terminal tool gets the same treatment, and both notices can appear
+    // at once: two independent tools, each with its own wording, so a session
+    // that shadows one and disables the other must say both things.
+    label: "empty state: extension terminal shadowed, terminal off",
+    messages: [
+      {
+        type: "history",
+        events: [],
+        terminal: { enabled: false, shadowedExtension: "/home/u/.pi/agent/extensions/vscode-terminal.ts" },
+      },
+    ],
+  },
+  {
+    label: "empty state: extension terminal shadowed, terminal on",
+    messages: [
+      {
+        type: "history",
+        events: [],
+        terminal: { enabled: true, shadowedExtension: "/home/u/.pi/agent/extensions/vscode-terminal.ts" },
+      },
+    ],
+  },
+  {
+    // Both tools off and nothing shadowed: the default state of a fresh
+    // install, and the only place either feature is discoverable.
+    label: "empty state: subagent and terminal both off",
+    messages: [{ type: "history", events: [], subagent: { enabled: false }, terminal: { enabled: false } }],
+  },
+  {
     label: "history replay: user + thinking + tool + assistant",
     messages: [
       {

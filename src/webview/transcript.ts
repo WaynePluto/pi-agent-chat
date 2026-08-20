@@ -1,4 +1,4 @@
-import type { ChatEvent, JsonValue, RetryOfferState, SkillRef, SubagentSetup } from "../shared/protocol.js";
+import type { ChatEvent, JsonValue, RetryOfferState, SkillRef, SubagentSetup, ToolSetup } from "../shared/protocol.js";
 import { SUBAGENT_TOOL } from "../shared/protocol.js";
 import { createMessageBubble, type MessageBubble } from "./bubble.js";
 import { CARD_CLASSES, WORK_CLASSES, createCollapsible, type Collapsible } from "./collapsible.js";
@@ -285,6 +285,7 @@ let placeholderEl: HTMLElement | undefined;
 /** Last flags seen with a history, reused by the new-session placeholder. */
 let systemPromptOverridden = false;
 let subagent: SubagentSetup | undefined;
+let terminal: ToolSetup | undefined;
 
 /* ---------------------------------------------------------------- */
 /* Sticky auto-scroll                                                */
@@ -470,10 +471,12 @@ export function applyHistory(
   systemPromptOverriddenNow = false,
   subagentNow?: SubagentSetup,
   transcriptId?: string,
+  terminalNow?: ToolSetup,
 ): void {
   const started = performance.now();
   systemPromptOverridden = systemPromptOverriddenNow;
   subagent = subagentNow;
+  terminal = terminalNow;
   // Order matters: `clearMessages()` captures where the user was in the
   // transcript being replaced, so the switch to the new one comes after it.
   clearMessages();
@@ -533,7 +536,7 @@ export function showNewSession(): void {
 }
 
 function appendEmptySessionPlaceholder(): void {
-  placeholderEl = appendBubble("status", t.emptySession(systemPromptOverridden, subagent));
+  placeholderEl = appendBubble("status", t.emptySession(systemPromptOverridden, subagent, terminal));
   placeholderEl.classList.add("empty-session");
 }
 

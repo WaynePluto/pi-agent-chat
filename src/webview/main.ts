@@ -371,7 +371,7 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
     applyEvent(message.event);
     updateRecallButton();
   } else if (message.type === "history") {
-    applyHistory(message.events, message.live, message.systemPromptOverridden, message.subagent, message.transcriptId);
+    applyHistory(message.events, message.live, message.systemPromptOverridden, message.subagent, message.transcriptId, message.terminal);
     // Only replays the host marked as "a session became live" feed the
     // composer's ↑ history; the composer dedupes per transcript.
     if (message.populateInputHistory) populateInputHistoryFromEvents(message.transcriptId, message.events);

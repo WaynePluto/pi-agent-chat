@@ -19,10 +19,11 @@ import {
   type WidgetPlacement,
 } from "@earendil-works/pi-coding-agent";
 import { SubagentCoordinator, SUBAGENT_TOOL } from "./subagent.js";
-import { readSubagentConfig, type SubagentConfig } from "./config.js";
+import { readSubagentConfig, readTerminalConfig, type SubagentConfig, type TerminalConfig } from "./config.js";
 import { describe } from "./errors.js";
 import { configureHttpDispatcher } from "./http.js";
 import { t } from "./i18n.js";
+import { VsCodeTerminalPool, VSCODE_TERMINAL_TOOL } from "./vscode-terminal.js";
 
 /**
  * Which session a fresh runtime opens with.
@@ -84,23 +85,27 @@ function createSessionManager(
 interface ToolSetupRef {
   /** Extension whose `subagent` tool was suppressed, if any. */
   shadowedSubagent?: string;
+  /** Extension whose `vscode_terminal` tool was suppressed, if any. */
+  shadowedTerminal?: string;
   /** The configuration this session's tool set was actually built from. */
   subagent: SubagentConfig;
+  /** Likewise for the terminal tool. */
+  terminal: TerminalConfig;
 }
 
 /**
- * Path of a loaded pi extension that registers a tool named `subagent`.
+ * Path of a loaded pi extension that registers a tool under `toolName`.
  *
- * Such a tool is always suppressed here, whether or not this window's own
- * `subagent` tool is enabled, because the plugin owns that name: it cannot
- * know how an arbitrary extension implements its `subagent` (or which host
- * capabilities it relies on), and one name must not mean two things in one
- * window. When the setting is on, the SDK's tool registry makes the host
- * tool win outright — a custom tool overrides an extension tool of the same
- * name (`core/agent-session.ts`, `_refreshToolRegistry()`) — and when it is
- * off the name is excluded. Either way the user is never offered an
- * extension `subagent` whose arguments would not match the call shape their
- * session history records.
+ * Every name this plugin claims for a tool of its own is suppressed for
+ * extensions, whether or not the plugin's tool is currently enabled: it cannot
+ * know how an arbitrary extension implements a same-named tool (or which host
+ * capabilities that implementation relies on), and one name must not mean two
+ * things in one window. When the setting is on, the SDK's tool registry makes
+ * the host tool win outright — a custom tool overrides an extension tool of
+ * the same name (`core/agent-session.ts`, `_refreshToolRegistry()`) — and when
+ * it is off the name is excluded. Either way the user is never offered an
+ * extension tool whose arguments would not match the call shape their session
+ * history records.
  *
  * Only the tool *name* is matched. No extension is identified by name, path
  * or capability, and nothing here inspects how an extension is implemented.
@@ -109,10 +114,10 @@ interface ToolSetupRef {
  * `resourceLoader.reload()` internally, so extension tool names are known
  * before the session (and its tool set) is built.
  */
-export function findShadowedSubagentExtension(services: AgentSessionServices): string | undefined {
+export function findShadowedExtensionTool(services: AgentSessionServices, toolName: string): string | undefined {
   try {
     const { extensions } = services.resourceLoader.getExtensions();
-    return extensions.find((extension) => extension.tools.has(SUBAGENT_TOOL))?.path;
+    return extensions.find((extension) => extension.tools.has(toolName))?.path;
   } catch {
     return undefined;
   }
@@ -200,6 +205,7 @@ export class PiRuntime implements vscode.Disposable {
   private constructor(
     readonly runtime: AgentSessionRuntime,
     readonly subagents: SubagentCoordinator,
+    readonly terminals: VsCodeTerminalPool,
     /** Aborted on dispose; cancels every auth/model call this runtime started. */
     private readonly lifetime: AbortController,
     private readonly log: (message: string) => void,
@@ -242,6 +248,25 @@ export class PiRuntime implements vscode.Disposable {
     return this.toolSetupRef.subagent;
   }
 
+  /**
+   * Path of a pi extension whose `vscode_terminal` tool is suppressed here.
+   * Same rule and same mechanism as the subagent one above: the plugin owns
+   * every name it gives a tool of its own.
+   */
+  get shadowedTerminalExtension(): string | undefined {
+    return this.toolSetupRef.shadowedTerminal;
+  }
+
+  /** Whether this host's terminal tool is part of *this* session's tool set. */
+  get terminalEnabled(): boolean {
+    return this.toolSetupRef.terminal.enabled;
+  }
+
+  /** The terminal configuration this session's tool set was built from. */
+  get builtTerminalConfig(): TerminalConfig {
+    return this.toolSetupRef.terminal;
+  }
+
   /** Injected by `ChatBridge`; routes extension notifications to a transcript. */
   private extensionNotice?: (session: AgentSession, notice: ExtensionNotice) => void;
 
@@ -270,45 +295,65 @@ export class PiRuntime implements vscode.Disposable {
     const { cwd, log } = options;
     const subagents = new SubagentCoordinator(log);
     const lifetime = new AbortController();
-
-    const toolSetup: ToolSetupRef = { subagent: readSubagentConfig(cwd) };
+    const toolSetup: ToolSetupRef = { subagent: readSubagentConfig(cwd), terminal: readTerminalConfig(cwd) };
+    // Annotated because the pool asks the wrapper for the current cwd while the
+    // wrapper owns the pool: without the annotations the two infer through each
+    // other and land on `any`.
+    const terminals: VsCodeTerminalPool = new VsCodeTerminalPool(() => wrapper.cwd, log);
 
     const createRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd: effectiveCwd, sessionManager, sessionStartEvent }) => {
       // modelRuntimeSignal cancels the create-time credential restore and
       // availability probe when the view is closed mid-startup.
       const services = await createAgentSessionServices({ cwd: effectiveCwd, modelRuntimeSignal: lifetime.signal });
-      toolSetup.shadowedSubagent = findShadowedSubagentExtension(services);
-      if (toolSetup.shadowedSubagent) {
-        log(`shadowing the subagent tool registered by extension ${toolSetup.shadowedSubagent}: this window owns that name`);
+      toolSetup.shadowedSubagent = findShadowedExtensionTool(services, SUBAGENT_TOOL);
+      toolSetup.shadowedTerminal = findShadowedExtensionTool(services, VSCODE_TERMINAL_TOOL);
+      for (const [name, path] of [
+        [SUBAGENT_TOOL, toolSetup.shadowedSubagent],
+        [VSCODE_TERMINAL_TOOL, toolSetup.shadowedTerminal],
+      ] as const) {
+        if (path) log(`shadowing the ${name} tool registered by extension ${path}: this window owns that name`);
       }
       // Read per session, not once at startup: the tool set is fixed when the
       // session is built, so this is the point where a changed setting lands.
       const subagentConfig = readSubagentConfig(effectiveCwd);
       toolSetup.subagent = subagentConfig;
+      const terminalConfig = readTerminalConfig(effectiveCwd);
+      toolSetup.terminal = terminalConfig;
       log(
         subagentConfig.enabled
           ? `subagent enabled (max ${subagentConfig.maxSubagents}${subagentConfig.defaultModel ? `, model ${subagentConfig.defaultModel}` : ""})`
           : "subagent disabled",
+      );
+      log(
+        terminalConfig.enabled
+          ? `vscode_terminal enabled (max ${terminalConfig.maxTerminals} terminals)`
+          : "vscode_terminal disabled",
       );
       return {
         ...(await createAgentSessionFromServices({
           services,
           sessionManager,
           sessionStartEvent,
-          // The only tool this extension adds to pi's own set, and only when the
-          // user asked for it. Everything else the agent can call comes from pi
-          // or from a pi extension in `~/.pi/agent/extensions/`, shared with the
-          // CLI.
-          customTools: subagentConfig.enabled ? [subagents.createTool(subagentConfig)] : [],
-          // The name `subagent` belongs to this window, in both switch states:
-          // enabled, no exclusion is needed — the SDK's tool registry lets a
-          // custom tool override an extension tool of the same name
+          // The only tools this extension adds to pi's own set, and only when
+          // the user asked for them. Everything else the agent can call comes
+          // from pi or from a pi extension in `~/.pi/agent/extensions/`, shared
+          // with the CLI.
+          customTools: [
+            ...(subagentConfig.enabled ? [subagents.createTool(subagentConfig)] : []),
+            ...(terminalConfig.enabled ? [terminals.createTool(terminalConfig)] : []),
+          ],
+          // Both names belong to this window, in either switch state: enabled,
+          // no exclusion is needed — the SDK's tool registry lets a custom tool
+          // override an extension tool of the same name
           // (`core/agent-session.ts`, `_refreshToolRegistry()`), so the model
-          // always resolves the name to this host's tool; disabled, the name
-          // is excluded so the extension's tool is not offered either. The
+          // always resolves the name to this host's tool; disabled, the name is
+          // excluded so the extension's tool is not offered either. The
           // exclusion set (and the custom tools) persist on the session, so
           // `/reload` keeps whichever arrangement the session was built with.
-          excludeTools: subagentConfig.enabled ? [] : [SUBAGENT_TOOL],
+          excludeTools: [
+            ...(subagentConfig.enabled ? [] : [SUBAGENT_TOOL]),
+            ...(terminalConfig.enabled ? [] : [VSCODE_TERMINAL_TOOL]),
+          ],
           scopedModels: await resolveScopedModels(services, log, lifetime.signal),
         })),
         services,
@@ -336,7 +381,7 @@ export class PiRuntime implements vscode.Disposable {
     // creates its runtime.
     configureHttpDispatcher(runtime.services.settingsManager.getHttpIdleTimeoutMs());
 
-    const wrapper = new PiRuntime(runtime, subagents, lifetime, log, toolSetup);
+    const wrapper: PiRuntime = new PiRuntime(runtime, subagents, terminals, lifetime, log, toolSetup);
     // The only place the sidebar hears about a replacement it did not start.
     // Runs once the new session exists and before the extension's `withSession`
     // callback, which is exactly where re-attaching belongs.
@@ -667,6 +712,9 @@ export class PiRuntime implements vscode.Disposable {
 
   dispose(): void {
     this.lifetime.abort();
+    // Terminals themselves are deliberately left open: they belong to the
+    // user's window, and one may be showing output they are still reading.
+    this.terminals.dispose();
     void this.subagents.dispose().finally(() => this.runtime.dispose());
   }
 }

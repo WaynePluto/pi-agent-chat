@@ -8,8 +8,9 @@ import { DEFAULT_FOLD_LINES } from "../shared/protocol.js";
  * CLI also has stays in the shared `~/.pi/agent/` config, so a single settings
  * file cannot make the two hosts behave differently. See AGENTS.md, "配置项归属".
  *
- * The subagent settings are read per resource (workspace folder), because
- * whether a repository tolerates parallel writing agents is a property of the
+ * The subagent and terminal settings are read per resource (workspace
+ * folder), because whether a repository tolerates parallel writing agents — or
+ * a tool that runs commands in a visible shell — is a property of the
  * repository, not of the user; the transcript fold threshold below is a pure
  * user preference and is window-scoped instead.
  */
@@ -87,6 +88,61 @@ export function pluginSettingId(): string {
  */
 export function subagentSettingId(): string {
   return SECTION;
+}
+
+/* -- Integrated terminal ------------------------------------------------ */
+
+const TERMINAL_SECTION = "piAgentChat.terminal";
+
+/**
+ * Ceiling on how many terminals the tool may keep open, enforced here as well
+ * as in `package.json` (whose `maximum` only constrains the settings UI).
+ *
+ * Terminals are a visible, shared surface: past a handful of them the terminal
+ * panel is no longer something the user can follow, and "a terminal you can
+ * watch and type into" — the entire reason this tool exists in a host that
+ * already has `bash` — stops being true.
+ */
+export const TERMINAL_HARD_CAP = 8;
+
+export interface TerminalConfig {
+  /** Whether to offer the tool at all. Off unless the user opted in. */
+  readonly enabled: boolean;
+  /** How many terminals may be open at once. */
+  readonly maxTerminals: number;
+}
+
+/**
+ * Read the current terminal-tool configuration for a working directory.
+ *
+ * Same timing rule as {@link readSubagentConfig}: called when a session's tool
+ * set is built, because that is when a changed setting can land.
+ *
+ * `enabled` is a separate boolean from the count on purpose, rather than
+ * folding "off" into `maxTerminals: 0`. The two answer different questions —
+ * whether the capability exists at all (the model does not even see the tool)
+ * versus how an existing capability behaves — and merging them would lose the
+ * user's tuned value every time they switch the feature off and on, contradict
+ * the `minimum: 1` validation, and hand `0` a meaning opposite to the "no
+ * limit" it carries in most tools.
+ */
+export function readTerminalConfig(cwd: string): TerminalConfig {
+  const config = vscode.workspace.getConfiguration(TERMINAL_SECTION, vscode.Uri.file(cwd));
+  return {
+    enabled: config.get<boolean>("enabled") ?? false,
+    maxTerminals: clampTerminalLimit(config.get<number>("maxTerminals") ?? 3),
+  };
+}
+
+/** Round and clamp a configured count into a usable number of terminals. */
+export function clampTerminalLimit(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(TERMINAL_HARD_CAP, Math.max(1, Math.round(value)));
+}
+
+/** Whether a settings change event touches the terminal tool's settings. */
+export function affectsTerminalConfig(event: vscode.ConfigurationChangeEvent, cwd: string): boolean {
+  return event.affectsConfiguration(TERMINAL_SECTION, vscode.Uri.file(cwd));
 }
 
 /* -- Message folding ----------------------------------------------------- */

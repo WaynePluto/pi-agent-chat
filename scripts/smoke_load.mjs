@@ -88,6 +88,7 @@ const {
   runRetryOfferLifecycleTest,
   runSessionTreeTest,
   runSubagentToolTest,
+  runTerminalToolTest,
   runProjectFilesTest,
   runExtensionSdkImportTest,
   runExtensionReloadTest,
@@ -114,6 +115,11 @@ report(await runReplayedRetryOfferTest(root));
 report(await runRetryOfferLifecycleTest(root));
 report(await runSessionTreeTest(root));
 report(await runSubagentToolTest(root));
+// Pins the terminal tool's refusal paths against a scripted terminal API: no
+// shell integration must refuse rather than report an empty success, an
+// unfinished command must not be killed, and `close` must be unable to reach a
+// terminal the tool did not create.
+report(await runTerminalToolTest(root));
 report(await runProjectFilesTest(root));
 // Must run inside the bundle: it proves the rebuilt `import.meta.url` still
 // lets the SDK hand jiti working aliases (see sdkModuleUrlPlugin in esbuild.mjs).

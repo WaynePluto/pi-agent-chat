@@ -7,11 +7,21 @@ import { buildHistoryEntryEvents, ChatBridge, collectResourceSections } from "./
 import { collectSlashCommands } from "./commands.js";
 import { OriginalContentProvider } from "./diff-view.js";
 import { describe } from "./errors.js";
-import { createSubagentServices, findShadowedSubagentExtension, PiRuntime, type StartupSession } from "./runtime.js";
+import { createSubagentServices, findShadowedExtensionTool, PiRuntime, type StartupSession } from "./runtime.js";
 import { buildTreeChoices } from "./session-tree.js";
 import { SubagentCoordinator, SUBAGENT_TOOL, planModel, type LaneState, type SubagentRun } from "./subagent.js";
 import { findScopeConflict, normalizeScopes, ScopeGuard } from "./scope.js";
 import { createScopedFileTools } from "./scoped-tools.js";
+import {
+  VsCodeTerminalPool,
+  VSCODE_TERMINAL_TOOL,
+  type DisposableLike,
+  type ExecutionLike,
+  type ShellIntegrationLike,
+  type TerminalApi,
+  type TerminalLike,
+  type TerminalTimeouts,
+} from "./vscode-terminal.js";
 import { ProjectFileIndex } from "./project-files.js";
 import { isResumable, resumeAfterError, supportsResume } from "./resume.js";
 import { readFoldLines } from "./config.js";
@@ -640,7 +650,7 @@ async function checkSubagentShadow(cwd: string, tool: ToolDefinition): Promise<D
       cwd,
       resourceLoaderOptions: { additionalExtensionPaths: [dir] },
     });
-    const shadowed = findShadowedSubagentExtension(services);
+    const shadowed = findShadowedExtensionTool(services, SUBAGENT_TOOL);
 
     // Disabled half: exactly what `PiRuntime.create()` does — exclude the name.
     const off = await createAgentSessionFromServices({
@@ -872,6 +882,349 @@ async function checkSubagentIsolation(cwd: string): Promise<DiagnosticResult[]> 
     return [{ name: "subagent isolation", ok: false, detail: describe(error) }];
   } finally {
     if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/* -- vscode_terminal ----------------------------------------------------- */
+
+/** A pi extension that claims the `vscode_terminal` tool name. */
+const TERMINAL_PROBE_EXTENSION = `import { Type } from "typebox";
+export default function (pi) {
+  pi.registerTool({
+    name: "vscode_terminal",
+    label: "VS Code terminal",
+    description: "diagnostic probe",
+    parameters: Type.Object({ command: Type.String() }),
+    execute: async () => ({ content: [{ type: "text", text: "probe" }], details: {} }),
+  });
+}
+`;
+
+/**
+ * Offline checks on the terminal tool.
+ *
+ * Everything here runs against a scripted terminal API rather than a real
+ * window, which is the only way to pin the two behaviours that matter most and
+ * are invisible in normal use: a missing shell integration must *refuse*
+ * rather than report an empty success, and `close` must be unable to touch a
+ * terminal this tool did not create.
+ */
+export async function runTerminalToolTest(cwd: string): Promise<DiagnosticResult[]> {
+  const pool = new VsCodeTerminalPool(() => cwd, () => {}, new ScriptedTerminalApi(), FAST_TIMEOUTS);
+  const tool = pool.createTool({ enabled: true, maxTerminals: 3 });
+  try {
+    const baseline = await createAgentSession({ cwd, sessionManager: SessionManager.inMemory(cwd) });
+    const baselineActive = new Set(baseline.session.getActiveToolNames());
+    baseline.session.dispose();
+
+    const on = await createAgentSession({
+      cwd,
+      customTools: [tool],
+      sessionManager: SessionManager.inMemory(cwd),
+    });
+    const onActive = new Set(on.session.getActiveToolNames());
+    on.session.dispose();
+
+    // Disabled is the default, and must mean the name is simply not there.
+    const off = await createAgentSession({
+      cwd,
+      customTools: [],
+      excludeTools: [VSCODE_TERMINAL_TOOL],
+      sessionManager: SessionManager.inMemory(cwd),
+    });
+    const offActive = new Set(off.session.getActiveToolNames());
+    off.session.dispose();
+
+    const displaced = [...baselineActive].filter((name) => !onActive.has(name));
+    const results: DiagnosticResult[] = [{
+      name: "terminal tool",
+      ok: onActive.has(VSCODE_TERMINAL_TOOL) && !offActive.has(VSCODE_TERMINAL_TOOL) && displaced.length === 0,
+      detail:
+        `enabled=${onActive.has(VSCODE_TERMINAL_TOOL) ? "active" : "MISSING"}; ` +
+        `disabled=${offActive.has(VSCODE_TERMINAL_TOOL) ? "still present" : "absent"}; ` +
+        `displaced=${displaced.join(", ") || "(none)"}`,
+    }];
+    results.push(...(await checkTerminalShadow(cwd, tool)));
+    results.push(...(await checkTerminalBehaviour(cwd)));
+    return results;
+  } catch (error) {
+    return [{ name: "terminal tool", ok: false, detail: describe(error) }];
+  } finally {
+    pool.dispose();
+  }
+}
+
+/**
+ * An extension's `vscode_terminal` must never reach the model here — same rule
+ * and same mechanism as `subagent`, checked the same way: the name belongs to
+ * this window's tool, whether that tool is switched on (registry override) or
+ * off (excluded outright).
+ */
+async function checkTerminalShadow(cwd: string, tool: ToolDefinition): Promise<DiagnosticResult[]> {
+  let dir: string | undefined;
+  try {
+    dir = await mkdtemp(join(tmpdir(), "pi-vscode-terminal-ext-"));
+    await writeFile(join(dir, "index.ts"), TERMINAL_PROBE_EXTENSION, "utf8");
+    const services = await createAgentSessionServices({
+      cwd,
+      resourceLoaderOptions: { additionalExtensionPaths: [dir] },
+    });
+    const shadowed = findShadowedExtensionTool(services, VSCODE_TERMINAL_TOOL);
+
+    const off = await createAgentSessionFromServices({
+      services,
+      sessionManager: SessionManager.inMemory(cwd),
+      excludeTools: [VSCODE_TERMINAL_TOOL],
+    });
+    const offClean = !off.session.getActiveToolNames().includes(VSCODE_TERMINAL_TOOL);
+    off.session.dispose();
+
+    const on = await createAgentSessionFromServices({
+      services,
+      sessionManager: SessionManager.inMemory(cwd),
+      customTools: [tool],
+    });
+    const onOurs = isHostTerminalTool(on.session);
+    await on.session.reload();
+    const reloadOurs = isHostTerminalTool(on.session);
+    on.session.dispose();
+
+    return [{
+      name: "terminal tool shadowing",
+      ok: shadowed === dir && offClean && onOurs && reloadOurs,
+      detail:
+        `detected=${shadowed ?? "(none)"}; off=${offClean ? "absent" : "LEAKED"}; ` +
+        `on=${onOurs ? "host tool wins" : "EXTENSION TOOL EXPOSED"}; ` +
+        `after reload=${reloadOurs ? "host tool wins" : "EXTENSION TOOL EXPOSED"}`,
+    }];
+  } catch (error) {
+    return [{ name: "terminal tool shadowing", ok: false, detail: describe(error) }];
+  } finally {
+    if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+function isHostTerminalTool(session: AgentSession): boolean {
+  const info = session.getAllTools().find((entry) => entry.name === VSCODE_TERMINAL_TOOL);
+  // The host tool's description explains the visible terminal; the probe's does not.
+  return info?.description?.includes("stays visible to the user") ?? false;
+}
+
+/**
+ * The behaviour a real terminal cannot be asked to demonstrate on demand.
+ *
+ * 1. **No shell integration means no command.** Running blind would return an
+ *    empty success, which is exactly the failure mode this host shadows
+ *    extension `subagent`s for, and the terminal created for the attempt must
+ *    not be left behind.
+ * 2. **A command that outruns its timeout is not killed**, and the result says
+ *    so, because it may be waiting for the user to type.
+ * 3. **`read` returns only what is new**, so a progress bar redrawing one line
+ *    cannot re-send the whole screen.
+ * 4. **`close` only touches terminals this tool created.** A terminal opened by
+ *    the user or by another extension must survive whatever id is passed.
+ */
+async function checkTerminalBehaviour(cwd: string): Promise<DiagnosticResult[]> {
+  const failures: string[] = [];
+  const notes: string[] = [];
+
+  // 1. No shell integration.
+  {
+    const api = new ScriptedTerminalApi({ shellIntegration: false });
+    const pool = new VsCodeTerminalPool(() => cwd, () => {}, api, FAST_TIMEOUTS);
+    let refused = false;
+    try {
+      await pool.execute({ action: "run", command: "echo hi" }, { enabled: true, maxTerminals: 3 });
+    } catch {
+      refused = true;
+    }
+    if (!refused) failures.push("a command ran (or reported success) without shell integration");
+    if (api.terminals.some((terminal) => !terminal.disposed)) {
+      failures.push("the terminal created for a refused command was left open");
+    }
+    notes.push(`no integration: ${refused ? "refused" : "RAN ANYWAY"}`);
+    pool.dispose();
+  }
+
+  // 2 & 3. A command that does not finish, then an incremental read.
+  {
+    const api = new ScriptedTerminalApi({ script: { chunks: ["one\r\n", "two\r\n"], end: false } });
+    const pool = new VsCodeTerminalPool(() => cwd, () => {}, api, FAST_TIMEOUTS);
+    const config = { enabled: true, maxTerminals: 3 };
+    const run = await pool.execute({ action: "run", command: "npm install", timeoutSeconds: 1 }, config);
+    const stillRunning = run.text.includes("STILL RUNNING") && run.text.includes("one");
+    if (!stillRunning) failures.push(`an unfinished command was not reported as running: ${oneLine(run.text)}`);
+    if (api.terminals.some((terminal) => terminal.disposed)) {
+      failures.push("a command that timed out had its terminal disposed");
+    }
+    // Nothing new, then one more line: a read must report only the new one.
+    const idle = await pool.execute({ action: "read", terminal: "1" }, config);
+    api.push("three\r\n");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const after = await pool.execute({ action: "read", terminal: "1" }, config);
+    if (idle.text.includes("one")) failures.push("a second read repeated output already delivered");
+    if (!after.text.includes("three") || after.text.includes("one")) {
+      failures.push(`an incremental read did not return exactly the new output: ${oneLine(after.text)}`);
+    }
+    notes.push(`unfinished: ${stillRunning ? "reported running" : "MISREPORTED"}`);
+    pool.dispose();
+  }
+
+  // 4. Closing.
+  {
+    const api = new ScriptedTerminalApi({ script: { chunks: ["done\r\n"], end: true, exitCode: 0 } });
+    const pool = new VsCodeTerminalPool(() => cwd, () => {}, api, FAST_TIMEOUTS);
+    const config = { enabled: true, maxTerminals: 3 };
+    const foreign = api.openForeignTerminal();
+    const finished = await pool.execute({ action: "run", command: "echo done" }, config);
+    if (!finished.text.includes("done") || !finished.text.includes("succeeded")) {
+      failures.push(`a finished command did not report its output and status: ${oneLine(finished.text)}`);
+    }
+    let refusedForeign = false;
+    try {
+      await pool.execute({ action: "close", terminal: "999" }, config);
+    } catch {
+      refusedForeign = true;
+    }
+    if (!refusedForeign) failures.push("close accepted a terminal id this tool never created");
+    if (foreign.disposed) failures.push("close disposed a terminal that belongs to somebody else");
+    await pool.execute({ action: "close", terminal: "1" }, config);
+    const own = api.terminals.find((terminal) => terminal !== foreign);
+    if (!own?.disposed) failures.push("close did not dispose the tool's own terminal");
+    notes.push(`close: foreign ${refusedForeign ? "refused" : "ACCEPTED"}, own ${own?.disposed ? "disposed" : "KEPT"}`);
+    pool.dispose();
+  }
+
+  return [{
+    name: "terminal tool behaviour",
+    ok: failures.length === 0,
+    detail: failures.length === 0 ? notes.join("; ") : failures.join("; "),
+  }];
+}
+
+function oneLine(text: string): string {
+  return text.replace(/\s+/g, " ").slice(0, 160);
+}
+
+/** Short waits: no real shell is involved, so nothing here needs seconds. */
+const FAST_TIMEOUTS: TerminalTimeouts = { shellIntegrationMs: 50, shellTypeMs: 50 };
+
+/** What one scripted command produces. */
+interface TerminalScript {
+  chunks: string[];
+  /** Whether the execution ends by itself (a command that finishes). */
+  end: boolean;
+  exitCode?: number;
+}
+
+class ScriptedTerminal implements TerminalLike {
+  disposed = false;
+  shellIntegration?: ShellIntegrationLike;
+  constructor(
+    readonly name: string,
+    readonly state: { shell?: string },
+    private readonly onDispose: (terminal: ScriptedTerminal) => void,
+  ) {}
+  show(): void {}
+  dispose(): void {
+    this.disposed = true;
+    this.onDispose(this);
+  }
+}
+
+/**
+ * A terminal API that answers from a script instead of a shell.
+ *
+ * Deliberately minimal: it exists to reach the refusal and timeout paths,
+ * which a real terminal would only reach by luck.
+ */
+class ScriptedTerminalApi implements TerminalApi {
+  readonly terminals: ScriptedTerminal[] = [];
+  private readonly closeListeners: ((terminal: TerminalLike) => void)[] = [];
+  private readonly endListeners: ((event: { terminal: TerminalLike; execution: ExecutionLike; exitCode: number | undefined }) => void)[] = [];
+  private current?: { terminal: ScriptedTerminal; execution: ExecutionLike; push: (chunk: string) => void; close: () => void };
+
+  constructor(private readonly options: { shellIntegration?: boolean; script?: TerminalScript } = {}) {}
+
+  /** Feed one more chunk into the running execution. */
+  push(chunk: string): void {
+    this.current?.push(chunk);
+  }
+
+  /** A terminal this pool did not create, as the user or another extension would. */
+  openForeignTerminal(): ScriptedTerminal {
+    const terminal = new ScriptedTerminal("foreign", { shell: "bash" }, () => {});
+    this.terminals.push(terminal);
+    return terminal;
+  }
+
+  createTerminal(options: { name: string; cwd: string }): TerminalLike {
+    const terminal = new ScriptedTerminal(options.name, { shell: "bash" }, (closed) => {
+      for (const listener of this.closeListeners) listener(closed);
+    });
+    if (this.options.shellIntegration !== false) {
+      terminal.shellIntegration = { executeCommand: () => this.startExecution(terminal) };
+    }
+    this.terminals.push(terminal);
+    return terminal;
+  }
+
+  private startExecution(terminal: ScriptedTerminal): ExecutionLike {
+    const script = this.options.script ?? { chunks: [], end: true, exitCode: 0 };
+    const queue: string[] = [...script.chunks];
+    let notify: (() => void) | undefined;
+    let closed = false;
+    const execution: ExecutionLike = {
+      read: async function* read() {
+        while (true) {
+          while (queue.length > 0) yield queue.shift() as string;
+          if (closed) return;
+          await new Promise<void>((resolve) => {
+            notify = resolve;
+          });
+        }
+      },
+    };
+    const push = (chunk: string) => {
+      queue.push(chunk);
+      notify?.();
+      notify = undefined;
+    };
+    const close = () => {
+      closed = true;
+      notify?.();
+      notify = undefined;
+    };
+    this.current = { terminal, execution, push, close };
+    if (script.end) {
+      setTimeout(() => {
+        close();
+        for (const listener of this.endListeners) listener({ terminal, execution, exitCode: script.exitCode });
+      }, 5);
+    }
+    return execution;
+  }
+
+  onDidChangeTerminalShellIntegration(): DisposableLike {
+    // Scripted terminals arrive with their integration already attached, so
+    // nothing ever fires here; the absent case simply never resolves.
+    return { dispose() {} };
+  }
+
+  onDidEndTerminalShellExecution(
+    listener: (event: { terminal: TerminalLike; execution: ExecutionLike; exitCode: number | undefined }) => void,
+  ): DisposableLike {
+    this.endListeners.push(listener);
+    return { dispose: () => this.endListeners.splice(this.endListeners.indexOf(listener), 1) };
+  }
+
+  onDidCloseTerminal(listener: (terminal: TerminalLike) => void): DisposableLike {
+    this.closeListeners.push(listener);
+    return { dispose: () => this.closeListeners.splice(this.closeListeners.indexOf(listener), 1) };
+  }
+
+  onDidChangeTerminalState(): DisposableLike {
+    return { dispose() {} };
   }
 }
 

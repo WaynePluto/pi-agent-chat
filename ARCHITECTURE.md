@@ -9,7 +9,7 @@
 | 模块 | 路径 | 职责 | 主要依赖 |
 |------|------|------|----------|
 | extension | `src/extension.ts` | 插件入口：`activate()` 注册 webview view `piAgentChat.view`、4 个命令、diff content provider；`ChatViewProvider` 懒创建 `PiRuntime` + `ChatBridge`；用 `workspaceState` 记住上次显示的会话（含未落盘的新会话）以决定启动时打开哪个 session；静态注册 OAuth flows | vscode, pi-ai/bun-oauth, bridge, diagnostics, diff-view, http, runtime, protocol |
-| runtime | `src/agent/runtime.ts` | `PiRuntime`：SDK `AgentSessionRuntime` 薄封装；session 新建/继续、替换后重新 bindExtensions、**始终**注入 subagent 工具（内置优先，屏蔽扩展的同名工具；被屏蔽者经 `findShadowedSubagentExtension()` 与 `shadowedSubagentExtension` 仅用于告知）、按 `enabledModels` 解析会话 scoped models；扩展 UI 的 `ctx.ui.notify` 与扩展 handler 报错（`bindExtensions({ onError })`）经注入的 sink 转到 transcript（无 sink 时 notify 回退原生弹窗）；持有 dispose 级 `AbortSignal` 并贯穿所有 auth/model 调用 | vscode, pi-coding-agent, subagent |
+| runtime | `src/agent/runtime.ts` | `PiRuntime`：SDK `AgentSessionRuntime` 薄封装；session 新建/继续、替换后重新 bindExtensions、按配置注入自有工具 `subagent` / `vscode_terminal`（内置优先，**始终**屏蔽扩展的同名工具；被屏蔽者经 `findShadowedExtensionTool()` 与 `shadowedSubagentExtension` / `shadowedTerminalExtension` 仅用于告知）、按 `enabledModels` 解析会话 scoped models；扩展 UI 的 `ctx.ui.notify` 与扩展 handler 报错（`bindExtensions({ onError })`）经注入的 sink 转到 transcript（无 sink 时 notify 回退原生弹窗）；持有 dispose 级 `AbortSignal` 并贯穿所有 auth/model 调用 | vscode, pi-coding-agent, subagent, vscode-terminal |
 | bridge | `src/agent/bridge.ts` | `ChatBridge`：SDK `AgentSessionEvent` → `HostMessage`，webview 消息 → runtime 操作；历史回放（`buildHistoryEvents`）、资源清单、技能/提示词/扩展归属标注、子代理观察者、models.json 保存后重新加载与错误上报；**「当前显示什么」由单一 `View` 联合类型表示**（`live` / `lane` / `replay`），所有派生状态从它算出 | vscode, pi-coding-agent, protocol, auth, activity, commands, session-tree, session-title, model-config, diff-view, project-files, runtime, skills, invocations, subagent |
 | commands | `src/agent/commands.ts` | 斜杠命令目录（命名对齐 CLI）与内置命令分发；prompt 模板/扩展命令仅做补全展示，实际由 `AgentSession.prompt()` 处理 | vscode, pi-coding-agent, protocol, runtime, session-tree, session-title |
 | invocations | `src/agent/invocations.ts` | 提示词模板与扩展命令的归属判定：在 `prompt()` 改写文本之前解析用户输入，回放时按无占位符的模板正文精确匹配，弥补 SDK 无「模板已使用 / 命令已执行」事件 | pi-coding-agent |
@@ -25,8 +25,11 @@
 | subagent | `src/agent/subagent.ts` | `SubagentCoordinator`：以自定义工具形式并行运行多个 SDK 子 session，父 session 在工具调用中等待；每路独立 services 与写入范围；向观察者广播每路事件与进展 | typebox, pi-coding-agent, scope, scoped-tools, config |
 | scope | `src/agent/scope.ts` | 子代理写入范围：路径前缀规范化（非 glob，重叠必须可判定）、启动前重叠检查、`ScopeGuard`（越界拒绝 + 写入记账） | node:path |
 | scoped-tools | `src/agent/scoped-tools.ts` | 用 SDK 导出的 `createEditToolDefinition` / `createWriteToolDefinition` 重建同名 `edit`/`write`，仅替换文件操作层以实施范围强制与记账；读不受限；bash 无法覆盖 | node:fs, pi-coding-agent, scope |
-| config | `src/agent/config.ts` | 插件自有能力的 VS Code 配置（并行子代理开关 / 并行上限 / 子代理默认模型），按 workspace folder 解析，并提供按作用域读写（workspace / user）的落盘入口 | vscode |
-| diagnostics | `src/agent/diagnostics.ts` | 冒烟/风险自检：SDK 加载、undici 版本、jiti、clipboard、历史回放、斜杠命令、手动重试（私有 prompt 路径存在 + 重发不新增用户消息 + 从磁盘重开仍提供重试）、session 树、子代理工具（开关两态 + 子会话排除）、扩展 `subagent` 屏蔽、范围强制、子会话隔离、**视图状态机**（驱动真实 `ChatBridge` 并断言 `postState()` 的输出）、文件索引、可选的真实 LLM 调用 | pi-coding-agent, bridge, commands, session-tree, subagent, scope, scoped-tools, diff-view, project-files, resume |
+| vscode-terminal | `src/agent/vscode-terminal.ts` | `VsCodeTerminalPool` 与 `vscode_terminal` 工具：在用户可见、可键入的集成终端中执行命令（`run`/`list`/`read`/`close` 四个动作互相咬合）；终端跨调用复用、只认自己创建的、**绝不自动关闭**；无 shell integration 时拒绝执行而非返回空；超时不 kill 只汇报「还在跑」；输出按 SDK 的 `truncateTail` 走与 `bash` 同一预算。终端 API 经 `TerminalApi` 注入，自检可用脚本化实现驱动 | vscode, typebox, pi-coding-agent, terminal-replay, config |
+| terminal-replay | `src/agent/terminal-replay.ts` | 迷你 VT 重放：遵从光标指令而不是剥离它们（剥离会留下被覆盖的幻影文本），输出屏幕文本 + 光标行；光标行是 `read` 增量续读的边界，使进度条重绘不会被当成新行。零依赖，附 8 条用例供 spike 与 `pnpm verify` 共用 | — |
+| terminal-spike | `src/agent/terminal-spike.ts` | 真机探针（命令面板触发）：shell integration 激活耗时、用户键入是否可捕获、增量交付、退出码保真、调度延迟；replay 用例复用 `terminal-replay`，两边不漂移 | vscode, terminal-replay, diagnostics |
+| config | `src/agent/config.ts` | 插件自有能力的 VS Code 配置（并行子代理开关 / 并行上限 / 子代理默认模型；终端工具开关 / 终端数上限；消息折叠阈值），按 workspace folder 解析，并提供打开 VS Code 设置界面用的 section id | vscode |
+| diagnostics | `src/agent/diagnostics.ts` | 冒烟/风险自检：SDK 加载、undici 版本、jiti、clipboard、历史回放、斜杠命令、手动重试（私有 prompt 路径存在 + 重发不新增用户消息 + 从磁盘重开仍提供重试）、session 树、子代理工具（开关两态 + 子会话排除）、扩展 `subagent` 屏蔽、范围强制、子会话隔离、终端工具（开关两态 + 同名屏蔽 + 无 shell integration 时拒绝执行 + 超时不 kill + 增量读 + `close` 只碰自己创建的终端）、**视图状态机**（驱动真实 `ChatBridge` 并断言 `postState()` 的输出）、文件索引、可选的真实 LLM 调用 | pi-coding-agent, bridge, commands, session-tree, subagent, scope, scoped-tools, vscode-terminal, diff-view, project-files, resume |
 | project-files | `src/agent/project-files.ts` | `ProjectFileIndex`：`@` 文件引用的索引/搜索/校验，含缓存、二进制与敏感文件过滤、引用数上限 | node:child_process, node:fs, protocol |
 | resume | `src/agent/resume.ts` | 请求异常中断后的手动重发：判定会话是否停在失败响应上（`stopReason === "error"`）、丢弃该响应（只丢 agent state，会话文件不动）并经 SDK 私有 prompt 路径以空消息批继续；私有入口做特性探测，缺失即不提供该动作。提供时机在 `bridge` 的 `agent_settled`，回放时由 `postHistory()` 重算 | pi-coding-agent |
 | diff-view | `src/agent/diff-view.ts` | `pi-agent-chat-original` URI scheme：反向应用 patch 还原编辑前内容并打开 `vscode.diff` | diff, vscode |
@@ -55,7 +58,7 @@
 | webview/highlight | `src/webview/highlight.ts` | highlight.js core + 手选语言子集；只高亮 fence 声明的语言（不做自动探测），带结果缓存供流式重渲染 | format, highlight.js |
 | webview/bubble | `src/webview/bubble.ts` | 正式消息气泡：内容容器 + 页脚（折叠开关 / 复制原文）；长消息折叠判定按 Markdown 源长度（无头可复现） | clipboard, dom, format, i18n, markdown |
 | webview/clipboard | `src/webview/clipboard.ts` | 复制按钮（消息 / 代码块）；写剪贴板交给宿主的 `copyText` | dom, host, i18n, icons |
-| build & scripts | `esbuild.mjs`, `scripts/` | 双 bundle 构建、运行时包复制到 `dist/node_modules`、`import.meta.url/resolve` 重写；`check_bundle.py` 校验产物、`smoke_load.mjs` 跑宿主 diagnostics、`smoke_webview.mjs` 在 jsdom 中比对 webview DOM 快照 | esbuild, jsdom, node |
+| build & scripts | `esbuild.mjs`, `scripts/` | 双 bundle 构建、运行时包复制到 `dist/node_modules`、`import.meta.url/resolve` 重写；`check_bundle.py` 校验产物、`check_terminal_replay.mjs` 用 esbuild 编译 `terminal-replay.ts` 后跑重放用例、`smoke_load.mjs` 跑宿主 diagnostics、`smoke_webview.mjs` 在 jsdom 中比对 webview DOM 快照 | esbuild, jsdom, node |
 
 ## 依赖关系图
 
@@ -79,6 +82,9 @@ graph TD
     subagent[agent/subagent]
     scope[agent/scope]
     scopedtools[agent/scoped-tools]
+    vscodeterminal[agent/vscode-terminal]
+    terminalreplay[agent/terminal-replay]
+    terminalspike[agent/terminal-spike]
     pluginconfig[agent/config]
     projectfiles[agent/project-files]
     resume[agent/resume]
@@ -175,6 +181,11 @@ graph TD
   settingsmenu --> http
   runtime --> http
   runtime --> subagent
+  runtime --> vscodeterminal
+  vscodeterminal --> sdk
+  vscodeterminal --> terminalreplay
+  vscodeterminal --> pluginconfig
+  terminalspike --> terminalreplay
   runtime --> pluginconfig
   runtime --> sdk
   subagent --> sdk
@@ -188,6 +199,7 @@ graph TD
   diagnostics --> commands
   diagnostics --> sessiontree
   diagnostics --> subagent
+  diagnostics --> vscodeterminal
   diagnostics --> scope
   diagnostics --> scopedtools
   diagnostics --> diffview
@@ -267,8 +279,8 @@ graph TD
 - **数据流**：SDK `AgentSessionEvent` → `ChatBridge` → `HostMessage` → `main.ts` 路由到面板模块；用户操作 → `WebviewMessage`（经 `webview/host.ts`）→ `ChatBridge` → `PiRuntime`/`AgentSession`。
 - **session 替换**：`PiRuntime` 持有 `AgentSessionRuntime`，每次 session 被替换（new/resume/fork/tree）必须重新 `bindExtensions()` 并重订阅事件，统一走 `ChatBridge.attach()`。
 - **扩展输出**：pi 扩展的 `ctx.ui.notify` 不弹原生通知，而是由 `PiRuntime.setExtensionNoticeSink()`（`ChatBridge` 构造时注入，必须早于首次 `bindExtensions()`）转成 `status` / `error` 事件写进对应 session 的 transcript；扩展命令执行期间标 `scope: "command"`（顶层展开卡片），其余时间不标（收进 work block）。
-- **配置复用**：会话与配置全部落在 `~/.pi/agent/`（`getAgentDir()`），与终端 Pi 互操作；插件不维护私有配置副本。VS Code 配置项只用于**插件独有的能力**（subagent 的三项设置），共享能力一律走 `~/.pi/agent/`。
-- **工具集**：插件只在 pi 默认的 `read`/`bash`/`edit`/`write` 之外注册 `subagent`，且**默认关闭**、由 VS Code 配置开启；不调用 `setActiveToolsByName()`（自定义工具在 session 构造时已随 `includeAllExtensionTools` 激活）。扩展注册的 `subagent` **始终屏蔽**（与该开关无关）：名字归本窗口自己的工具所有——开关开时靠 SDK 工具注册表的覆盖语义赢，开关关时经 `excludeTools` 整体排除（扩展式实现在扩展宿主里本就 spawn 出 VS Code 自身并静默返回空结果，屏蔽不丢能力）。`grep`/`find`/`ls` 等其他能力由 `~/.pi/agent/extensions/` 下的 pi 扩展提供，CLI 与 GUI 共享。
+- **配置复用**：会话与配置全部落在 `~/.pi/agent/`（`getAgentDir()`），与终端 Pi 互操作；插件不维护私有配置副本。VS Code 配置项只用于**插件独有的能力**（subagent 的三项、终端工具的两项、消息折叠阈值），共享能力一律走 `~/.pi/agent/`。
+- **工具集**：插件只在 pi 默认的 `read`/`bash`/`edit`/`write` 之外注册 `subagent` 与 `vscode_terminal` 两个工具，且两者都**默认关闭**、由 VS Code 配置开启；不调用 `setActiveToolsByName()`（自定义工具在 session 构造时已随 `includeAllExtensionTools` 激活）。扩展注册的同名工具 **始终屏蔽**（与开关无关）：名字归本窗口自己的工具所有——开关开时靠 SDK 工具注册表的覆盖语义赢，开关关时经 `excludeTools` 整体排除（扩展式 `subagent` 实现在扩展宿主里本就 spawn 出 VS Code 自身并静默返回空结果，屏蔽不丢能力）。`grep`/`find`/`ls` 等其他能力由 `~/.pi/agent/extensions/` 下的 pi 扩展提供，CLI 与 GUI 共享。
 - **构建约束**：`vscode`、`@silvia-odwyer/photon-node`、`@mariozechner/clipboard` 为 external；`undici` 通过 alias 强制指向本仓库 8.8.0；生产构建把 SDK 等运行时包复制进 `dist/node_modules`，并用 banner 重写 `import.meta.url` / `import.meta.resolve`。
 - **本地化**：宿主侧面向用户的文案（原生对话框、QuickPick、transcript 状态提示）全部定义在 `shared/messages.ts`，由 `agent/i18n.ts` 的 `t()`/`tf()` 按 `vscode.env.language` 解析；webview 侧由 `webview/i18n.ts` 按 `<html lang>` 解析。有意保留英文：`/` 命令目录（对齐 CLI）、spike 诊断命令、SDK/模型产生的文本。
 - **安全**：webview CSP 严格（脚本需 nonce），模型输出经 `markdown.ts` 白名单净化后才插入 DOM；`project-files.ts` 过滤敏感文件名与二进制扩展名。

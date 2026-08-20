@@ -20,6 +20,7 @@ import {
   runSlashCommandTest,
   runSpikeDiagnostics,
   runSubagentToolTest,
+  runTerminalToolTest,
   runExtensionSdkImportTest,
 } from "./agent/diagnostics.js";
 import { OriginalContentProvider, ORIGINAL_SCHEME } from "./agent/diff-view.js";
@@ -78,6 +79,7 @@ export function activate(context: vscode.ExtensionContext): void {
         ...(await runRetryOfferLifecycleTest(resolveWorkspaceCwd())),
         ...(await runSessionTreeTest(resolveWorkspaceCwd())),
         ...(await runSubagentToolTest(resolveWorkspaceCwd())),
+        ...(await runTerminalToolTest(resolveWorkspaceCwd())),
         ...(await runProjectFilesTest(resolveWorkspaceCwd())),
         ...(await runExtensionSdkImportTest(resolveWorkspaceCwd())),
         ...(await runExtensionReloadTest(resolveWorkspaceCwd())),
@@ -143,6 +145,7 @@ export const __spike = {
   runRetryOfferLifecycleTest,
   runSessionTreeTest,
   runSubagentToolTest,
+  runTerminalToolTest,
   runProjectFilesTest,
   runExtensionSdkImportTest,
   runExtensionReloadTest,

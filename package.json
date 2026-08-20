@@ -59,6 +59,20 @@
           "scope": "resource",
           "markdownDescription": "%configuration.subagent.defaultModel%"
         },
+        "piAgentChat.terminal.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "markdownDescription": "%configuration.terminal.enabled%"
+        },
+        "piAgentChat.terminal.maxTerminals": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 8,
+          "scope": "resource",
+          "markdownDescription": "%configuration.terminal.maxTerminals%"
+        },
         "piAgentChat.transcript.foldLines": {
           "type": "number",
           "default": 14,
@@ -117,7 +131,7 @@
     "package": "node esbuild.mjs --production",
     "typecheck": "tsc --noEmit",
     "check:dependencies": "python scripts/check_dependency_versions.py",
-    "verify": "pnpm check:dependencies && node esbuild.mjs && python scripts/check_bundle.py && node scripts/check_extension_runtime.mjs && node scripts/smoke_load.mjs && node scripts/smoke_webview.mjs",
+    "verify": "pnpm check:dependencies && node esbuild.mjs && python scripts/check_bundle.py && node scripts/check_terminal_replay.mjs && node scripts/check_extension_runtime.mjs && node scripts/smoke_load.mjs && node scripts/smoke_webview.mjs",
     "vscode:prepublish": "npm run package",
     "package:vsix": "vsce package --no-dependencies --githubBranch master --readme-path README.md --out pi-code-agent-chat.vsix",
     "install:vsix": "code --install-extension pi-code-agent-chat.vsix --force",

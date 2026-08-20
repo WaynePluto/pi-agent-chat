@@ -24,9 +24,9 @@ This extension is implemented with the **official** `@earendil-works/pi-coding-a
 
 Like Pi itself, this extension stays minimal:
 
-- **A second Pi host, not a CLI front-end.** The agent loop, tools, LLM calls and extension/skill loading all come from the SDK, unmodified; the extension adds the UI and what any host has to do itself (auth dialogs, proxy, its own settings). Compatibility is drawn on the **data** side: the same `~/.pi/agent/`, the same sessions, either host able to pick up the other's work. VS Code settings are used only for capabilities unique to this host (currently the subagent tool).
+- **A second Pi host, not a CLI front-end.** The agent loop, tools, LLM calls and extension/skill loading all come from the SDK, unmodified; the extension adds the UI and what any host has to do itself (auth dialogs, proxy, its own settings). Compatibility is drawn on the **data** side: the same `~/.pi/agent/`, the same sessions, either host able to pick up the other's work. VS Code settings are used only for capabilities unique to this host (currently the subagent and terminal tools).
 - **Shares the Pi ecosystem.** Context (AGENTS.md), skills, extensions, prompt templates, models and auth are read from the same place and behave as they do in the CLI — except for extensions that need a terminal Pi process ([Host boundaries](#host-boundaries)). The UI itself follows your VS Code color theme (Pi TUI themes are not used).
-- **No feature sprawl.** One task line at a time (below), and exactly one tool on top of pi's own set — `subagent`, off by default. Everything else comes from pi or from a pi extension in `~/.pi/agent/extensions/`, shared with the CLI.
+- **No feature sprawl.** One task line at a time (below), and exactly two tools on top of pi's own set — `subagent` and `vscode_terminal`, both off by default. Everything else comes from pi or from a pi extension in `~/.pi/agent/extensions/`, shared with the CLI.
 
 ## Single-session mode (by design)
 
@@ -55,6 +55,7 @@ Overall, this extension bets on simplicity and on the continued progress of the 
 - `@` project file references: type `@` in the composer to fuzzy-search workspace files (respecting `.gitignore`; `Ctrl+→` toggles showing ignored files, which are labeled along with potentially sensitive ones); selected files become removable chips and are sent as plain relative paths for the model to `read` itself
 - Shell-style input history: `↑` / `↓` recall previously sent prompts (references restored as chips; the half-written draft is kept while browsing), claimed on the outer lines of the text so multi-line editing keeps its arrows; never during IME composition. Opening a session also seeds the history with its earlier questions, like the Pi CLI
 - Subagent (opt-in): one call fans out into several child sessions that each write directly to your working tree within a declared path range, shown as live rows in the parent's transcript
+- Terminal tool (opt-in): the agent runs commands in a **visible VS Code terminal you can type into** while they run — what you type is part of what the agent reads back
 
 ### Subagent (off by default)
 
@@ -104,7 +105,7 @@ An extension-side subagent could not work here anyway: `ExtensionContext` offers
 
 Your extension is untouched and keeps working in the Pi CLI, where that introspection is correct. The disabled tool is named in the new-session notice. To make your own implementation reachable here as well, register it under a different tool name.
 
-This is the only tool name treated this way; for extensions that depend on the host in other ways, see [Host boundaries](#host-boundaries).
+This is the only kind of tool name treated this way — the other one is `vscode_terminal`, for the same reason; for extensions that depend on the host in other ways, see [Host boundaries](#host-boundaries).
 
 #### Opening a session with subagent calls in the Pi CLI
 
@@ -116,6 +117,35 @@ Sessions live in `~/.pi/agent/` and are shared with the terminal Pi, so a sessio
 - If the model imitates the history and calls `subagent` again, the outcome depends on what that name means over there: with a `subagent` extension installed in the CLI, it gets that tool's schema instead of this window's, so the call may produce argument errors against the wrong parameters; without one, it just receives `Tool subagent not found` and picks another route. Cross-host resumption is best-effort by design — see [Host boundaries](#host-boundaries).
 
 What you lose is the parent↔child link: each child is a **separate** session file named `Subagent: <title>`, listed flat among the other sessions, with no navigation from the parent and not part of its session tree. Delegation itself is unavailable in the CLI.
+
+### Terminal tool (off by default)
+
+`vscode_terminal` runs a command in a real VS Code integrated terminal: you can watch it, and **you can type into it** — answer a prompt, confirm an install, hit Ctrl-C — and everything you type is part of the transcript the agent reads back. The terminal stays open afterwards, so the next command starts where the last one left off: same working directory, same environment, same shell variables.
+
+That combination is why the tool exists in this host and not as a pi extension. A terminal-hosted agent can hand the terminal over to a command (pi ships an `interactive-shell` example that does exactly this) but then the output goes straight to the tty and the agent gets nothing back; keeping the transcript means the user cannot type. Here the chat stays where it is, the terminal is a normal panel, and both halves are true at once.
+
+It is **off by default**. Turn it on from the header **Settings → Plugin settings**, or edit the settings directly:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `piAgentChat.terminal.enabled` | `false` | Offer the tool at all |
+| `piAgentChat.terminal.maxTerminals` | `3` | How many terminals it may keep open at once (hard maximum 8) |
+
+Both are `resource`-scoped, and a change reaches the next session the window builds — the same rule as the subagent settings above, including the empty-session shortcut.
+
+**It never closes a terminal by itself.** A terminal is somewhere you may be reading or typing, so only an explicit `close` from the model, or your own ×, disposes one. For the same reason it can only see and close the terminals it created: terminals you or another extension opened are not listed and cannot be touched, whatever the model asks for.
+
+**A command that runs long is not killed.** Each call has a timeout (default 30s, at most 300s, chosen per call by the model); when it expires the tool reports that the command is *still running*, hands over the output so far, and leaves it alone — it may well be waiting for you. The agent can look again later, or end it.
+
+**Output is the screen, not the byte stream.** Cursor movements are replayed rather than stripped, so line editing and progress bars read the way they look in the terminal. Full-screen programs (`vim`, `htop`) are out of scope and will not render faithfully. Long output is truncated to the same budget pi's own `bash` tool uses.
+
+**Exit codes are exact on POSIX shells only.** VS Code's PowerShell shell integration reports a synthesized `[int]!$?` rather than the real exit code, so on PowerShell the result says *succeeded* or *failed* and nothing more. Reporting a fabricated `1` would be worse than saying less: exit codes carry meaning (`grep` 1 = no match but 2 = error) that a model reasons about.
+
+**Shell integration is required.** Where VS Code cannot activate it — `cmd`, an unusual profile, the feature switched off — the tool refuses to run the command and says so, instead of running it blind and returning an empty success.
+
+**Subagents do not get this tool.** Several child sessions typing into one visible terminal would interleave into something nobody can follow, and you would not know which one is asking. Subagents still have `bash`, which needs no audience.
+
+An extension that registers a tool named `vscode_terminal` is shadowed exactly like a `subagent` extension is, and for the same reason — see [If you already have a `subagent` extension](#if-you-already-have-a-subagent-extension); the new-session notice names it. In the Pi CLI, a session containing `vscode_terminal` calls replays as generic tool cards with self-explanatory result text, and the tool itself is unavailable there.
 
 ### Host boundaries
 

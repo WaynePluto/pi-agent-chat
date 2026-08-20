@@ -58,20 +58,35 @@ export interface ChatStats {
 export const SUBAGENT_TOOL = "subagent";
 
 /**
- * How the session on screen was assembled with respect to delegation.
+ * Name of the terminal tool this extension adds to pi's own set.
+ *
+ * Prefixed rather than a bare `terminal`: the plugin owns every name it gives
+ * one of its own tools (a same-named extension tool is shadowed, see
+ * {@link ToolSetup}), so a name with a low collision rate is the cheap way to
+ * keep that promise — and the prefix says which host the tool belonged to when
+ * the session is read anywhere else.
+ */
+export const VSCODE_TERMINAL_TOOL = "vscode_terminal";
+
+/**
+ * How the session on screen was assembled with respect to one of this host's
+ * own tools.
  *
  * The values travel together because the wording depends on both: the notice
- * about a shadowed extension must know whether the window's own `subagent`
- * tool is active in its place, and with nothing shadowed a disabled
- * subagent still deserves a hint pointing at the setting — the feature is off
- * by default and would otherwise stay invisible.
+ * about a shadowed extension must know whether the window's own tool is active
+ * in its place, and with nothing shadowed a disabled tool still deserves a hint
+ * pointing at the setting — both features are off by default and would
+ * otherwise stay invisible.
  */
-export interface SubagentSetup {
-  /** Whether this window's `subagent` tool is part of this session's tool set. */
+export interface ToolSetup {
+  /** Whether this window's tool is part of this session's tool set. */
   enabled: boolean;
   /** Path of the pi extension that registered the suppressed same-named tool. */
   shadowedExtension?: string;
 }
+
+/** Historical name of {@link ToolSetup}, kept for the subagent call sites. */
+export type SubagentSetup = ToolSetup;
 
 /** One subagent of a running `subagent` call. */
 export interface DelegationLane {
@@ -422,6 +437,12 @@ export type HostMessage =
        * up, not something that happened in it.
        */
       subagent?: SubagentSetup;
+      /**
+       * The same for this host's `vscode_terminal` tool. A second field rather
+       * than one list: the two are explained in different words, and the
+       * notice has to say which tool it is talking about.
+       */
+      terminal?: ToolSetup;
     }
   | { type: "sessions"; items: SessionListItem[] }
   /** Answer to `listModels`, also pushed after credentials or markers change. */
