@@ -169,10 +169,12 @@ function restoreViewState(): void {
   const saved = currentView.scrollTop;
   if (saved === undefined) {
     // First visit to this transcript: show the newest content, as always.
-    followBottom = true;
+    resumeFollowing();
     scrollToEnd();
     return;
   }
+  // Fresh view: the previous transcript's wheel intent does not carry over.
+  userWheeledUp = false;
   followBottom = currentView.followBottom;
   messagesEl.scrollTop = saved;
   // Markdown, code blocks and images can settle a frame later and shift the
@@ -296,17 +298,60 @@ let followBottom = true;
 
 const NEAR_BOTTOM_PX = 40;
 
+/**
+ * The user's most recent wheel input went up, and nothing since has cancelled
+ * that intent. Geometry alone cannot tell the user's escape apart from our own
+ * snaps: assigning scrollTop also fires "scroll", and a small upward wheel
+ * stays inside the NEAR_BOTTOM_PX zone where both look identical — so the snap
+ * came right back on the next streaming frame and the view jittered up and
+ * down. The wheel event is the one input a scrollTop assignment can never
+ * produce, so it alone cancels following at any distance.
+ */
+let userWheeledUp = false;
+
+/** Whether an element between `node` and `root` would eat an upward wheel
+ * (its own content is scrolled down). Wheel over a card body that scrolls
+ * reads that body, not the transcript — not an escape attempt. */
+function innerScrollerConsumesWheelUp(node: Element | null, root: Element): boolean {
+  for (let el = node; el && el !== root; el = el.parentElement) {
+    const overflowY = getComputedStyle(el).overflowY;
+    if ((overflowY === "auto" || overflowY === "scroll") && el.scrollTop > 0) return true;
+  }
+  return false;
+}
+
 function isNearBottom(): boolean {
   return messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < NEAR_BOTTOM_PX;
 }
 
+/** Force following back on: sending a message, the jump button, fresh views. */
+function resumeFollowing(): void {
+  userWheeledUp = false;
+  followBottom = true;
+}
+
+messagesEl.addEventListener(
+  "wheel",
+  (event) => {
+    if (event.deltaY < 0) {
+      if (!innerScrollerConsumesWheelUp(event.target as Element | null, messagesEl)) userWheeledUp = true;
+    } else if (event.deltaY > 0) {
+      userWheeledUp = false;
+    }
+  },
+  { passive: true },
+);
+
 messagesEl.addEventListener("scroll", () => {
-  followBottom = isNearBottom();
+  // Landing exactly on the bottom — however the user got there (wheel,
+  // scrollbar drag, keyboard) — is itself an "all caught up" signal.
+  if (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 1) userWheeledUp = false;
+  followBottom = !userWheeledUp && isNearBottom();
   updateScrollDownButton(false);
 });
 
 scrollDownBtn.addEventListener("click", () => {
-  followBottom = true;
+  resumeFollowing();
   messagesEl.scrollTop = messagesEl.scrollHeight;
   updateScrollDownButton(false);
   // The scroll event fires asynchronously; re-check on the next frame.
@@ -326,7 +371,7 @@ function updateScrollDownButton(hasNews: boolean): void {
 
 /** Re-attach to the bottom, e.g. after the user sends a new message. */
 export function followLatest(): void {
-  followBottom = true;
+  resumeFollowing();
   updateScrollDownButton(false);
 }
 
@@ -520,7 +565,7 @@ export function showLoading(): void {
   row.append(spinner(), el("span", undefined, ` ${t.loadingSession}`));
   messagesEl.appendChild(row);
   placeholderEl = row;
-  followBottom = true;
+  resumeFollowing();
 }
 
 /**
@@ -532,7 +577,7 @@ export function showLoading(): void {
 export function showNewSession(): void {
   clearMessages();
   appendEmptySessionPlaceholder();
-  followBottom = true;
+  resumeFollowing();
 }
 
 function appendEmptySessionPlaceholder(): void {
