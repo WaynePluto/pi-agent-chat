@@ -343,11 +343,32 @@ messagesEl.addEventListener(
 );
 
 messagesEl.addEventListener("scroll", () => {
-  // Landing exactly on the bottom — however the user got there (wheel,
-  // scrollbar drag, keyboard) — is itself an "all caught up" signal.
-  if (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 1) userWheeledUp = false;
+  // An exact-bottom landing alone must NOT resume following. While streaming,
+  // any re-render shrink (markdown re-parse merging an unfinished construct,
+  // the working row going away, a bubble folding) clamps scrollTop to the new
+  // maximum and fires a scroll event that looks like "user reached the
+  // bottom" — treating that as a resume signal resurrected the snap on the
+  // next streaming event, and the view jittered against every small upward
+  // wheel (large wheels escaped via the NEAR_BOTTOM_PX geometry, so only they
+  // seemed to work). Resumes come from explicit intent only: wheel down, the
+  // jump button, sending, End.
   followBottom = !userWheeledUp && isNearBottom();
   updateScrollDownButton(false);
+});
+
+// Keyboard escape hatch for the resume rule above: End means "take me to the
+// latest" just as much as the jump button does. Guarded so the composer's own
+// End (caret to line end) keeps its native meaning.
+window.addEventListener("keydown", (event) => {
+  if (event.key !== "End") return;
+  const target = event.target;
+  if (
+    target instanceof HTMLElement &&
+    (target.tagName === "TEXTAREA" || target.tagName === "INPUT" || target.isContentEditable)
+  ) {
+    return;
+  }
+  resumeFollowing();
 });
 
 scrollDownBtn.addEventListener("click", () => {
