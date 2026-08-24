@@ -180,16 +180,35 @@ export class ChatSurfaceManager implements vscode.Disposable {
       await vscode.commands.executeCommand("workbench.action.moveEditorToNewWindow");
       return;
     }
-    // Sidebar: create a fresh editor panel for the sidebar's controller, then
-    // detach that panel into a new window — no swap, no intermediate reveal.
+    // Sidebar: VS Code moves only editor tabs between windows — never views —
+    // so a carrier editor panel is structurally required. Its stop in this
+    // window must be a flash rather than a stay: the panel is created and
+    // detached within one breath, and anything slow (the replacement
+    // controller for the vacated sidebar) happens only once it is gone.
     try {
+      if (this.panel) {
+        // An editor chat already exists: hand the sidebar's session to that
+        // panel (its own controller takes the vacated sidebar), then detach it.
+        this.swapVisibleControllers();
+        this.panel.reveal(this.panel.viewColumn, false);
+        await vscode.commands.executeCommand("workbench.action.moveEditorToNewWindow");
+        return;
+      }
       const panel = this.createEditorPanel();
-      if (this.sidebarController) {
-        const moved = this.sidebarController;
+      const moved = this.sidebarController;
+      if (moved) {
         this.editorController = moved;
         moved.setSlot("editor");
         this.bindEditorPanel(panel, moved);
-
+      }
+      // Detach before any await: while a controller is being built the carrier
+      // tab must not sit in this window's editor area for seconds on end.
+      panel.reveal(panel.viewColumn, false);
+      await vscode.commands.executeCommand("workbench.action.moveEditorToNewWindow");
+      if (moved) {
+        // The sidebar keeps the moved session's last frame until the fresh
+        // controller takes over — the same stale window the previous ordering
+        // showed, just without the editor-area stopover.
         const replacement = await this.createController("sidebar", { mode: "new" });
         this.sidebarController = replacement;
         if (this.sidebar) this.sidebar.bind(replacement);
@@ -198,9 +217,6 @@ export class ChatSurfaceManager implements vscode.Disposable {
         this.editorController = controller;
         this.bindEditorPanel(panel, controller);
       }
-      // Move the newly created panel to a new window immediately.
-      panel.reveal(panel.viewColumn, false);
-      await vscode.commands.executeCommand("workbench.action.moveEditorToNewWindow");
     } catch (error) {
       this.reportError(this.editor ?? this.sidebar, error);
     }
@@ -276,9 +292,12 @@ export class ChatSurfaceManager implements vscode.Disposable {
   /** Open a new session in a floating window. */
   async newWindowSession(): Promise<void> {
     try {
-      const panel = this.createEditorPanel();
+      // Build the runtime first, while no carrier panel exists: once the panel
+      // is created it must move within the same breath, not wait out the
+      // seconds a controller takes as a tab in this window's editor area.
       const controller = await this.createController("editor", { mode: "new" });
       this.editorController = controller;
+      const panel = this.createEditorPanel();
       this.bindEditorPanel(panel, controller);
       panel.reveal(panel.viewColumn, false);
       await vscode.commands.executeCommand("workbench.action.moveEditorToNewWindow");
