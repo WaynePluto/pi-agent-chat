@@ -26,7 +26,7 @@ import { ProjectFileIndex } from "./project-files.js";
 import { isResumable, resumeAfterError, supportsResume } from "./resume.js";
 import { readContentMaxWidth, readFoldLines } from "./config.js";
 import type { ChatState, HostMessage } from "../shared/protocol.js";
-import { claimedSessionSourceStartup, editorPanelTitle, MAX_EDITOR_TAB_TITLE_CHARS, replacementStartupForRunningController, SessionClaimRegistry, shouldDisposeHeadlessRuntime } from "../chat-surfaces.js";
+import { claimedSessionSourceStartup, editorPanelTitle, isMovableSessionState, MAX_EDITOR_TAB_TITLE_CHARS, replacementStartupForRunningController, SessionClaimRegistry, shouldDisposeHeadlessRuntime } from "../chat-surfaces.js";
 
 /** Injected by esbuild (see esbuild.mjs). */
 declare const __PI_UNDICI_VERSION__: string;
@@ -100,11 +100,17 @@ export function runSurfaceCoordinationTest(): DiagnosticResult[] {
   const shortTabTitleIsUntouched = editorPanelTitle("Short") === "Short — Pi";
   const visibleMoveLeavesFreshSource = claimedSessionSourceStartup("visible")?.mode === "new";
   const backgroundMoveHasNoSource = claimedSessionSourceStartup("background") === undefined;
+  // "Move this session" menu visibility: only a session that carries messages
+  // is offered for moving (the context keys in `updateMoveMenuContext`).
+  const emptySessionNotMovable = !isMovableSessionState(undefined)
+    && !isMovableSessionState({ ready: true, isStreaming: false, isCompacting: false, messageCount: 0 });
+  const transcriptSessionMovable = isMovableSessionState({ ready: true, isStreaming: false, isCompacting: false, messageCount: 2 });
   const ok = firstClaim && collisionRejected && wrongOwnerDidNotRelease && released
     && runningHeadlessRetained && settledHeadlessDisposed && visibleRetained && sidebarRetained
     && replacementNew && selectedSessionBecomesLive && ownSessionDoesNotDuplicate && idleSessionUsesExistingController
     && editorTabTitleIsCapped && shortTabTitleIsUntouched
-    && visibleMoveLeavesFreshSource && backgroundMoveHasNoSource;
+    && visibleMoveLeavesFreshSource && backgroundMoveHasNoSource
+    && emptySessionNotMovable && transcriptSessionMovable;
   return [{
     name: "chat surface coordination",
     ok,

@@ -174,12 +174,12 @@
       "editor/title": [
         {
           "command": "piAgentChat.moveSessionToSidebar",
-          "when": "activeWebviewPanelId == piAgentChat.editor",
+          "when": "activeWebviewPanelId == piAgentChat.editor && !piAgentChat.editorSessionEmpty",
           "group": "9_piAgentChat@1"
         },
         {
           "command": "piAgentChat.moveSessionFromEditorToWindow",
-          "when": "activeWebviewPanelId == piAgentChat.editor",
+          "when": "activeWebviewPanelId == piAgentChat.editor && !piAgentChat.editorSessionEmpty",
           "group": "9_piAgentChat@2"
         },
         {
@@ -196,10 +196,12 @@
       "piAgentChat.moveSessionFromSidebarMenu": [
         {
           "command": "piAgentChat.moveSessionToEditor",
+          "when": "!piAgentChat.sidebarSessionEmpty",
           "group": "navigation@1"
         },
         {
           "command": "piAgentChat.moveSessionFromSidebarToWindow",
+          "when": "!piAgentChat.sidebarSessionEmpty",
           "group": "navigation@2"
         },
         {

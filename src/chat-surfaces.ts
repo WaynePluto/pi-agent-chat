@@ -73,6 +73,16 @@ export function claimedSessionSourceStartup(location: "visible" | "background"):
 }
 
 /**
+ * A session with no messages has nothing worth carrying to another surface:
+ * every target already has an "open a new session in …" menu item, which is
+ * exactly what moving an empty session amounts to. Gates the visibility of
+ * the "move this session" commands (see `updateMoveMenuContext`).
+ */
+export function isMovableSessionState(state: ChatState | undefined): boolean {
+  return (state?.messageCount ?? 0) > 0;
+}
+
+/**
  * Owns all top-level chat runtimes in one VS Code window.
  *
  * Webviews are replaceable presentation surfaces. A controller (runtime +
@@ -94,6 +104,8 @@ export class ChatSurfaceManager implements vscode.Disposable {
   private nextControllerId = 1;
   private creationQueue: Promise<void> = Promise.resolve();
   private disposed = false;
+  /** Last context values pushed for the move-menu `when` clauses; see updateMoveMenuContext. */
+  private moveMenuContext?: { sidebarEmpty: boolean; editorEmpty: boolean };
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -490,7 +502,31 @@ export class ChatSurfaceManager implements vscode.Disposable {
   }
 
   notifySessionsChanged(): void {
-    if (!this.disposed) this.sessionsChangedEmitter.fire();
+    if (this.disposed) return;
+    this.updateMoveMenuContext();
+    this.sessionsChangedEmitter.fire();
+  }
+
+  /**
+   * Keep the "move this session" menu items in step with the sessions the two
+   * surfaces actually hold (`when: !piAgentChat.<slot>SessionEmpty` in the
+   * manifest). An empty session is not offered for moving — every target
+   * surface already has an "open a new session in …" item that amounts to the
+   * same thing.
+   *
+   * Called from notifySessionsChanged() so that every path which changes which
+   * controller sits on which surface (a state post, a swap, a move, a
+   * release) converges here; VS Code re-evaluates the menu `when` clauses as
+   * soon as the context value lands.
+   */
+  private updateMoveMenuContext(): void {
+    const sidebarEmpty = !isMovableSessionState(this.sidebarController?.state);
+    const editorEmpty = !isMovableSessionState(this.editorController?.state);
+    // This runs on every state post; only an actual flip should reach VS Code.
+    if (this.moveMenuContext?.sidebarEmpty === sidebarEmpty && this.moveMenuContext.editorEmpty === editorEmpty) return;
+    this.moveMenuContext = { sidebarEmpty, editorEmpty };
+    void vscode.commands.executeCommand("setContext", "piAgentChat.sidebarSessionEmpty", sidebarEmpty);
+    void vscode.commands.executeCommand("setContext", "piAgentChat.editorSessionEmpty", editorEmpty);
   }
 
   redirectClaimedSession(requester: ChatController, file: string): boolean {
