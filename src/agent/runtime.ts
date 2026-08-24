@@ -544,22 +544,16 @@ export class PiRuntime implements vscode.Disposable {
   /**
    * Switch the model for the current session only.
    *
-   * `AgentSession.setModel()` also rewrites `defaultProvider`/`defaultModel`
-   * (CLI semantics: picking a model there means "make it the default"). The
-   * sidebar keeps the two apart — only the picker's pin button changes the
-   * startup default — so the previous default is written back here.
+   * Since SDK 0.84.3 `AgentSession.setModel()` is session-only unless
+   * `options.persist` is passed — exactly this host's split: only the picker's
+   * pin button (`setDefaultModel`) writes the startup default. 0.84.2 rewrote
+   * `defaultProvider`/`defaultModel` here, which this wrapper used to undo by
+   * writing the previous values back; that workaround is now gone.
    */
   async setModel(providerId: string, modelId: string): Promise<void> {
     const model = this.runtime.services.modelRuntime.getModel(providerId, modelId);
     if (!model) throw new Error(`Model not found: ${providerId}/${modelId}`);
-    const settings = this.runtime.services.settingsManager;
-    const previousProvider = settings.getDefaultProvider();
-    const previousModel = settings.getDefaultModel();
     await this.runtime.session.setModel(model);
-    if (previousProvider && previousModel && (previousProvider !== providerId || previousModel !== modelId)) {
-      settings.setDefaultModelAndProvider(previousProvider, previousModel);
-      await settings.flush();
-    }
     this.log(`model switched to ${providerId}/${modelId}`);
   }
 

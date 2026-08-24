@@ -200,9 +200,10 @@ function buildThinkingRows(): PickerRow[] {
   const list = listEl!;
   list.replaceChildren();
   const built: PickerRow[] = [];
-  // No "default" marker here on purpose: the SDK's setThinkingLevel() writes
-  // the chosen level straight into `defaultThinkingLevel`, so such a marker
-  // would always sit on the checked row.
+  // No "default" marker here on purpose: since SDK 0.84.3 the session's
+  // setThinkingLevel() is session-only (the global default changes only
+  // through the settings menu), and the host sends just the session's current
+  // level — the picker has no global default to mark.
   for (const level of state.thinkingLevels ?? []) {
     const current = level === state.thinkingLevel;
     const row = buildRow(level, {
