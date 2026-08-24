@@ -65,6 +65,21 @@ export function renderMarkdown(text: string): DocumentFragment {
 }
 
 /**
+ * Render markdown without syntax highlighting — used during streaming where the
+ * text changes every frame and highlighting would be wasted work (fences are
+ * usually incomplete anyway). Code blocks still get wrapped and get their copy
+ * button, just no color.
+ */
+export function renderMarkdownNoHighlight(text: string): DocumentFragment {
+  const html = marked.parse(text, { async: false });
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  sanitize(template.content);
+  decorateCodeBlocksNoHighlight(template.content);
+  return template.content;
+}
+
+/**
  * Give every fenced code block its own copy button, and color it.
  *
  * `marked` does neither: highlighting is delegated to a `highlight` option that
@@ -80,6 +95,15 @@ function decorateCodeBlocks(root: ParentNode): void {
     pre.replaceWith(wrapper);
     wrapper.append(pre, copyButton("code-copy", t.copyCode, () => pre.textContent ?? ""));
     highlightBlock(pre);
+  }
+}
+
+/** Same as decorateCodeBlocks but skips highlighting (used during streaming). */
+function decorateCodeBlocksNoHighlight(root: ParentNode): void {
+  for (const pre of [...root.querySelectorAll("pre")]) {
+    const wrapper = el("div", "code-block");
+    pre.replaceWith(wrapper);
+    wrapper.append(pre, copyButton("code-copy", t.copyCode, () => pre.textContent ?? ""));
   }
 }
 

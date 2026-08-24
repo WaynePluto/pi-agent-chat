@@ -1,0 +1,73 @@
+
+#root.layout-wide .surface-body {
+  display: grid;
+  grid-template-areas: "sessions chat resources";
+  grid-template-columns:
+    minmax(230px, 320px)
+    minmax(700px, var(--content-max-width))
+    minmax(230px, 320px);
+  justify-content: center;
+  gap: 12px;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+
+#root.layout-wide .sessions,
+#root.layout-wide .resources {
+  min-width: 0;
+  min-height: 0;
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background, var(--section-bg));
+  box-shadow: none;
+}
+
+#root.layout-wide .sessions {
+  grid-area: sessions;
+  overflow: hidden;
+  padding: 10px 8px 10px 18px;
+}
+
+#root.layout-wide .chat-column {
+  grid-area: chat;
+  width: 100%;
+  max-width: var(--content-max-width);
+}
+
+#root.layout-wide .resources {
+  grid-area: resources;
+  display: flex;
+  overflow: hidden;
+  padding: 0;
+  font-size: 0.9em;
+}
+
+#root.layout-wide .resources.hidden {
+  display: none;
+}
+
+#root.layout-wide .resources-panel {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+#root.layout-wide .resources-body {
+  max-height: none;
+}
+
+#root.layout-wide .session-row {
+  gap: 2px;
+  padding-inline: 2px;
+}
+
+#root.layout-wide .session-rename,
+#root.layout-wide .session-delete {
+  padding-inline: 4px;
+  font-size: 0.78em;
+}

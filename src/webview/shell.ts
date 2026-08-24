@@ -9,22 +9,27 @@ import { CHEVRON_ICON, CLOSE_ICON, DOWN_ICON, MORE_ICON, SEND_ICON, UP_ICON } fr
 
 const t = getDict();
 
-const root = document.getElementById("root") as HTMLElement;
-root.innerHTML = `
+export const rootEl = document.getElementById("root") as HTMLElement;
+rootEl.innerHTML = `
   <header id="header" class="header">
-    <div id="header-title" class="header-title">${t.newSessionLabel}</div>
-    <div id="header-actions" class="header-actions">
-      <button id="btn-new" title="${t.newSessionTitle}">${t.newSession}</button>
-      <button id="btn-sessions" title="${t.sessionsTitle}">${t.sessions}</button>
-      <button id="btn-tree" title="${t.treeTitle}">${t.tree}</button>
-      <button id="btn-search" title="${t.searchTitle}">${t.search}</button>
-      <button id="btn-resources" title="${t.resourcesToggleTitle}" aria-pressed="false">${t.resources}</button>
-      <button id="btn-settings" title="${t.settingsTitle}">${t.settings}</button>
-      <button id="btn-header-more" class="overflow-toggle hidden" title="${t.moreActions}" aria-label="${t.moreActions}" aria-expanded="false">${MORE_ICON}</button>
-      <div id="header-menu" class="overflow-menu hidden"></div>
+    <div id="header-content" class="header-content">
+      <div id="header-title" class="header-title">${t.newSessionLabel}</div>
+      <div id="header-actions" class="header-actions">
+        <button id="btn-new" title="${t.newSessionTitle}">${t.newSession}</button>
+        <button id="btn-sessions" title="${t.sessionsTitle}">${t.sessions}</button>
+        <button id="btn-tree" title="${t.treeTitle}">${t.tree}</button>
+        <button id="btn-search" title="${t.searchTitle}">${t.search}</button>
+        <button id="btn-resources" title="${t.resourcesToggleTitle}" aria-pressed="false">${t.resources}</button>
+        <button id="btn-settings" title="${t.settingsTitle}">${t.settings}</button>
+        <button id="btn-header-more" class="overflow-toggle hidden" title="${t.moreActions}" aria-label="${t.moreActions}" aria-expanded="false">${MORE_ICON}</button>
+        <div id="header-menu" class="overflow-menu hidden"></div>
+      </div>
     </div>
   </header>
-  <div id="sessions" class="sessions hidden"></div>
+  <div id="surface-body" class="surface-body">
+    <div id="sessions" class="sessions hidden"></div>
+    <div id="resources" class="resources hidden"></div>
+    <div id="chat-column" class="chat-column">
   <div id="auth" class="auth-page hidden">
     <div class="auth-title">${t.authTitle}</div>
     <div class="auth-body">${t.authBody}</div>
@@ -33,10 +38,11 @@ root.innerHTML = `
       <button id="btn-logout" class="secondary">${t.authLogout}</button>
     </div>
   </div>
-  <div id="resources" class="resources hidden"></div>
   <div id="delegation-bar" class="delegation-bar hidden">
-    <span id="delegation-label"></span>
-    <button id="delegation-peer" class="secondary"></button>
+    <div class="delegation-content content-column">
+      <span id="delegation-label"></span>
+      <button id="delegation-peer" class="secondary"></button>
+    </div>
   </div>
   <div id="messages-wrap" class="messages-wrap">
     <div id="search-bar" class="search-bar hidden">
@@ -48,30 +54,36 @@ root.innerHTML = `
       <button id="search-next" class="icon-button" title="${t.searchNextTitle}">${DOWN_ICON}</button>
       <button id="search-close" class="icon-button" title="${t.searchCloseTitle}">${CLOSE_ICON}</button>
     </div>
-    <main id="messages" class="messages"></main>
+    <main id="messages" class="messages">
+      <div id="messages-content" class="messages-content content-column"></div>
+    </main>
     <button id="scroll-down" class="scroll-down hidden" title="${t.scrollDownTitle}">${CHEVRON_ICON}</button>
   </div>
-  <div id="widgets-above" class="widgets hidden"></div>
   <footer id="composer" class="composer">
-    <div id="autocomplete" class="autocomplete hidden"></div>
-    <div id="file-refs" class="file-refs hidden"></div>
-    <div id="resize-handle" class="resize-handle"></div>
-    <textarea id="input" rows="3" placeholder="${t.inputPlaceholder}"></textarea>
-    <div id="composer-actions" class="composer-actions">
-      <button id="btn-model" class="chip" title="${t.modelTitle}">-</button>
-      <button id="btn-thinking" class="chip" title="${t.thinkingTitle}">-</button>
-      <span class="spacer"></span>
-      <button id="btn-steer" class="secondary hidden" title="${t.steerTitle}">${t.steer}</button>
-      <button id="btn-followup" class="secondary hidden" title="${t.followUpTitle}">${t.followUp}</button>
-      <button id="btn-recall" class="secondary hidden" title="${t.recallTitle}">${t.recall}</button>
-      <button id="btn-composer-more" class="overflow-toggle hidden" title="${t.moreActions}" aria-label="${t.moreActions}" aria-expanded="false">${MORE_ICON}</button>
-      <button id="btn-send" class="icon-button" title="${t.sendIconTitle}">${SEND_ICON}</button>
-      <div id="composer-menu" class="overflow-menu hidden"></div>
-      <div id="picker" class="picker hidden" role="dialog" tabindex="-1"></div>
+    <div class="composer-content content-column">
+      <div id="autocomplete" class="autocomplete hidden"></div>
+      <div id="file-refs" class="file-refs hidden"></div>
+      <div id="resize-handle" class="resize-handle"></div>
+      <div id="widgets-above" class="widgets hidden"></div>
+      <textarea id="input" rows="3" placeholder="${t.inputPlaceholder}"></textarea>
+      <div id="composer-actions" class="composer-actions">
+        <button id="btn-model" class="chip" title="${t.modelTitle}">-</button>
+        <button id="btn-thinking" class="chip" title="${t.thinkingTitle}">-</button>
+        <span class="spacer"></span>
+        <button id="btn-steer" class="secondary hidden" title="${t.steerTitle}">${t.steer}</button>
+        <button id="btn-followup" class="secondary hidden" title="${t.followUpTitle}">${t.followUp}</button>
+        <button id="btn-recall" class="secondary hidden" title="${t.recallTitle}">${t.recall}</button>
+        <button id="btn-composer-more" class="overflow-toggle hidden" title="${t.moreActions}" aria-label="${t.moreActions}" aria-expanded="false">${MORE_ICON}</button>
+        <button id="btn-send" class="icon-button" title="${t.sendIconTitle}">${SEND_ICON}</button>
+        <div id="composer-menu" class="overflow-menu hidden"></div>
+        <div id="picker" class="picker hidden" role="dialog" tabindex="-1"></div>
+      </div>
+      <div id="widgets-below" class="widgets hidden"></div>
+      <div id="statusline" class="statusline"></div>
     </div>
-    <div id="widgets-below" class="widgets hidden"></div>
-    <div id="statusline" class="statusline"></div>
   </footer>
+    </div>
+  </div>
 `;
 
 export function byId<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -80,7 +92,9 @@ export function byId<T extends HTMLElement = HTMLElement>(id: string): T {
   return element as T;
 }
 
+export const chatColumnEl = byId("chat-column");
 export const messagesEl = byId("messages");
+export const messagesContentEl = byId("messages-content");
 export const messagesWrapEl = byId("messages-wrap");
 export const inputEl = byId<HTMLTextAreaElement>("input");
 export const sessionsEl = byId("sessions");
@@ -108,6 +122,7 @@ export const delegationLabelEl = byId("delegation-label");
 export const delegationPeerBtn = byId<HTMLButtonElement>("delegation-peer");
 export const scrollDownBtn = byId<HTMLButtonElement>("scroll-down");
 export const headerEl = byId("header");
+export const headerContentEl = byId("header-content");
 export const headerTitleEl = byId("header-title");
 export const headerActionsEl = byId("header-actions");
 export const headerMoreBtn = byId<HTMLButtonElement>("btn-header-more");

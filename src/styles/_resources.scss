@@ -1,0 +1,174 @@
+/* ---------------------------------------------------------------- */
+/* Startup resources listing (CLI-style [Context]/[Skills]/...)      */
+/* ---------------------------------------------------------------- */
+
+.resources {
+  padding: 8px 12px 12px;
+  position: relative;
+  z-index: 1;
+  font-size: 0.9em;
+  /* Same family as the header block; separated from the chat area below. */
+  background: var(--section-bg);
+  box-shadow: none;
+}
+
+/* Only the lowest visible narrow-mode top section casts a shadow into the
+   transcript. In wide mode the rails sit beside the transcript, so the header
+   alone separates the whole workspace from the title row. */
+#root {
+  &:not(.layout-wide):not(:has(.resources:not(.hidden), .delegation-bar:not(.hidden))) > .header,
+  &:not(.layout-wide) .resources:not(.hidden):not(:has(~ .chat-column .delegation-bar:not(.hidden))),
+  &:not(.layout-wide) .delegation-bar:not(.hidden),
+  &.layout-wide > .header {
+    box-shadow:
+      0 6px 16px -5px var(--shadow),
+      0 2px 5px -2px var(--shadow);
+  }
+}
+
+/* Bordered container; collapsed = only the slim toggle row is visible. */
+.resources-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: min(30vh, 320px);
+  border: 1px solid var(--widget-border);
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background, transparent);
+  overflow: hidden;
+}
+
+.resources-toggle {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 10px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  border: none;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--vscode-list-hoverBackground, var(--hover-bg));
+  }
+}
+
+.resources-title {
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.resources-counts {
+  flex: 1;
+  color: var(--vscode-descriptionForeground);
+}
+
+.resources-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 8px 8px 18px;
+  border-top: 1px solid var(--widget-border);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.resource-section {
+  margin-bottom: 2px;
+}
+
+.resource-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 4px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  border: none;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--vscode-list-hoverBackground, var(--hover-bg));
+  }
+}
+
+.resource-name {
+  font-weight: 600;
+  color: var(--vscode-textLink-foreground);
+  flex-shrink: 0;
+}
+
+.resource-summary {
+  flex: 1;
+  color: var(--vscode-descriptionForeground);
+}
+
+.resource-details {
+  padding: 2px 4px 4px 16px;
+  /* Rows are plain foreground text: everything listed here is loaded and in
+     effect unless it says otherwise. Dimming is reserved for `.resource-inactive`
+     so "grey" has exactly one meaning in this panel. */
+  color: var(--vscode-foreground);
+  word-break: break-all;
+
+  /* Rows sit one level below their scope heading. */
+  > .resource-file,
+  > div:not(.resource-scope) {
+    padding-left: 10px;
+  }
+}
+
+/* Scope group heading inside an expanded section (Global / Project / ...) */
+.resource-scope {
+  margin: 2px 0 1px;
+  font-size: 0.92em;
+  color: var(--vscode-descriptionForeground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+
+  &:not(:first-child) {
+    margin-top: 6px;
+  }
+}
+
+/* Clickable file rows inside expanded resource sections */
+.resource-file {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  word-break: break-all;
+
+  &:hover {
+    color: var(--vscode-textLink-foreground);
+    text-decoration: underline;
+  }
+}
+
+/* Skills loaded, tools called, prompt templates invoked and extensions exercised
+   in the displayed transcript. Same green as the assistant bubble's left edge:
+   "the agent used this". */
+.resource-file.resource-used,
+.resource-details .resource-used,
+.resource-summary .resource-used {
+  color: var(--vscode-charts-green, var(--accent));
+  font-weight: 600;
+}
+
+/* Configured but not in effect: a tool outside the agent's active set, or an
+   extension that failed to load. Dimmed rather than hidden, so "off" stays
+   distinguishable from "gone". */
+.resource-summary .resource-inactive,
+.resource-details .resource-inactive {
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.6;
+  font-style: italic;
+}

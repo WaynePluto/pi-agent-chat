@@ -26,6 +26,7 @@ import { ProjectFileIndex } from "./project-files.js";
 import { isResumable, resumeAfterError, supportsResume } from "./resume.js";
 import { readFoldLines } from "./config.js";
 import type { ChatState, HostMessage } from "../shared/protocol.js";
+import { claimedSessionSourceStartup, editorPanelTitle, MAX_EDITOR_TAB_TITLE_CHARS, replacementStartupForRunningController, SessionClaimRegistry, shouldDisposeHeadlessRuntime } from "../chat-surfaces.js";
 
 /** Injected by esbuild (see esbuild.mjs). */
 declare const __PI_UNDICI_VERSION__: string;
@@ -41,6 +42,78 @@ export interface DiagnosticResult {
  * Spike risk checks from `vscode-pi-design.md` §3 and §8:
  * native module load, jiti `.ts` extension loading, and the undici alias.
  */
+export function runSurfaceCoordinationTest(): DiagnosticResult[] {
+  const claims = new SessionClaimRegistry<object>();
+  const first = {};
+  const second = {};
+  const file = join(tmpdir(), "pi-surface-claim.jsonl");
+  const firstClaim = claims.claim(file, first);
+  const collisionRejected = !claims.claim(file, second) && claims.owner(file) === first;
+  claims.release(file, second);
+  const wrongOwnerDidNotRelease = claims.owner(file) === first;
+  claims.release(file, first);
+  const released = claims.claim(file, second) && claims.owner(file) === second;
+
+  const runningHeadlessRetained = !shouldDisposeHeadlessRuntime({
+    disposeWhenSettled: true,
+    visible: false,
+    busy: true,
+    retainedSidebar: false,
+  });
+  const settledHeadlessDisposed = shouldDisposeHeadlessRuntime({
+    disposeWhenSettled: true,
+    visible: false,
+    busy: false,
+    retainedSidebar: false,
+  });
+  const visibleRetained = !shouldDisposeHeadlessRuntime({
+    disposeWhenSettled: true,
+    visible: true,
+    busy: false,
+    retainedSidebar: false,
+  });
+  const sidebarRetained = !shouldDisposeHeadlessRuntime({
+    disposeWhenSettled: true,
+    visible: false,
+    busy: false,
+    retainedSidebar: true,
+  });
+  const replacementNew = replacementStartupForRunningController({ type: "newSession" }, true)?.mode === "new";
+  const replacementFile = replacementStartupForRunningController(
+    { type: "resumeSession", file: "other.jsonl" },
+    true,
+    "current.jsonl",
+  );
+  const selectedSessionBecomesLive = replacementFile?.mode === "file" && replacementFile.path === "other.jsonl";
+  const ownSessionDoesNotDuplicate = replacementStartupForRunningController(
+    { type: "resumeSession", file: "current.jsonl" },
+    true,
+    "current.jsonl",
+  ) === undefined;
+  const idleSessionUsesExistingController = replacementStartupForRunningController(
+    { type: "resumeSession", file: "other.jsonl" },
+    false,
+    "current.jsonl",
+  ) === undefined;
+  const longTabTitle = editorPanelTitle("A".repeat(MAX_EDITOR_TAB_TITLE_CHARS * 2));
+  const editorTabTitleIsCapped = [...longTabTitle].length === MAX_EDITOR_TAB_TITLE_CHARS && longTabTitle.endsWith("...");
+  const shortTabTitleIsUntouched = editorPanelTitle("Short") === "Short — Pi";
+  const visibleMoveLeavesFreshSource = claimedSessionSourceStartup("visible")?.mode === "new";
+  const backgroundMoveHasNoSource = claimedSessionSourceStartup("background") === undefined;
+  const ok = firstClaim && collisionRejected && wrongOwnerDidNotRelease && released
+    && runningHeadlessRetained && settledHeadlessDisposed && visibleRetained && sidebarRetained
+    && replacementNew && selectedSessionBecomesLive && ownSessionDoesNotDuplicate && idleSessionUsesExistingController
+    && editorTabTitleIsCapped && shortTabTitleIsUntouched
+    && visibleMoveLeavesFreshSource && backgroundMoveHasNoSource;
+  return [{
+    name: "chat surface coordination",
+    ok,
+    detail: ok
+      ? "claims are exclusive; claimed sessions move to the requesting surface with a fresh visible source; background runs survive until settle"
+      : "claim ownership, claimed-session transfer, tab-title cap or headless runtime lifecycle invariant failed",
+  }];
+}
+
 export async function runSpikeDiagnostics(): Promise<DiagnosticResult[]> {
   const results: DiagnosticResult[] = [];
 
@@ -343,12 +416,14 @@ export async function runReplayedRetryOfferTest(cwd: string): Promise<Diagnostic
  * Offline check (no LLM call): the retry offer must resolve on the transcript.
  *
  * The button is drawn from the state the host puts on the notice, so the whole
- * lifecycle is host-side and invisible to the webview smoke test. Two failures
- * this pins, both reported from real use: a retry that succeeds leaving the
- * button reading "Retrying..." forever (nothing rebuilds that card on its
- * own), and the offer coming back clickable after a transcript replay, because
- * the outcome lived in the clicked button instead of in the history. The
- * request itself is stubbed out; making a real one is the live test's job.
+ * lifecycle is host-side and invisible to the webview smoke test. It pins the
+ * reported multi-request case: a retry gets a successful tool-request response,
+ * then its next provider request times out. The clicked offer must resolve as
+ * succeeded, while the later timeout gets a separate offer. Retrying that new
+ * failure without any successful response must resolve only the new offer as
+ * failed. The states must also survive a transcript replay instead of living
+ * only in the clicked button. Requests are stubbed; a real one is the live
+ * test's job.
  */
 export async function runRetryOfferLifecycleTest(cwd: string): Promise<DiagnosticResult[]> {
   type StoredMessage = Parameters<SessionManager["appendMessage"]>[0];
@@ -389,47 +464,86 @@ export async function runRetryOfferLifecycleTest(cwd: string): Promise<Diagnosti
       new OriginalContentProvider(),
     );
     await bridge.attach();
-    // A successful re-issue: append the terminal response the real agent loop
-    // would emit, so both agent state and the persisted active branch move past
-    // the failed response.
+    type EventReceiver = { onSessionEvent: (session: AgentSession, event: unknown) => void };
+    const receive = (event: unknown) => {
+      (bridge as unknown as EventReceiver).onSessionEvent(runtime!.session, event);
+    };
+    const response = (stopReason: "toolUse" | "error", text: string): StoredMessage => ({
+      role: "assistant",
+      content: text ? [{ type: "text", text }] : [],
+      api: "anthropic-messages",
+      provider: "probe-provider",
+      model: "probe-model",
+      usage: {
+        input: 0,
+        output: text ? 1 : 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: text ? 1 : 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason,
+      errorMessage: stopReason === "error" ? "Request timed out." : undefined,
+      timestamp: Date.now(),
+    } as unknown as StoredMessage);
+    const append = (message: StoredMessage) => {
+      runtime!.session.agent.state.messages.push(message);
+      runtime!.session.sessionManager.appendMessage(message);
+    };
+
+    // Retry A receives a valid tool-request response, then the provider call
+    // after that tool activity times out. A succeeded; the timeout owns offer B.
     (runtime.session as unknown as Runner)._runAgentPrompt = async () => {
-      const response = {
-        role: "assistant",
-        content: [{ type: "text", text: "done" }],
-        api: "anthropic-messages",
-        provider: "probe-provider",
-        model: "probe-model",
-        usage: {
-          input: 0,
-          output: 1,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 1,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        },
-        stopReason: "stop",
+      const toolRequest = response("toolUse", "calling tool");
+      runtime!.session.agent.state.messages.push(toolRequest);
+      receive({ type: "message_end", message: toolRequest });
+      runtime!.session.sessionManager.appendMessage(toolRequest);
+      append({
+        role: "toolResult",
+        toolCallId: "probe-call",
+        toolName: "read",
+        content: [{ type: "text", text: "ok" }],
+        isError: false,
         timestamp: Date.now(),
-      } as unknown as StoredMessage;
-      runtime!.session.agent.state.messages.push(response);
-      runtime!.session.sessionManager.appendMessage(response);
+      } as unknown as StoredMessage);
+      const laterFailure = response("error", "");
+      runtime!.session.agent.state.messages.push(laterFailure);
+      receive({ type: "message_end", message: laterFailure });
+      runtime!.session.sessionManager.appendMessage(laterFailure);
+      receive({ type: "agent_settled" });
     };
     posted.length = 0;
     await bridge.handleMessage({ type: "retry" });
     const duringRun = retryStates(posted).includes("running");
-    const afterRun = lastRetryState(posted);
+    const afterPartialSuccess = latestRetryStates(posted);
 
-    // The reported regression: leaving the session and coming back rebuilt the
-    // transcript, and the spent offer came back clickable.
+    // Replaying must retain A's spent state and independently recreate B.
     posted.length = 0;
     await bridge.attach();
-    const afterReplay = lastRetryState(posted);
+    const afterReplay = latestRetryStates(posted);
+
+    // Retry B never receives a successful response. B fails and the new
+    // interruption owns offer C; A must not be rewritten by B's outcome.
+    (runtime.session as unknown as Runner)._runAgentPrompt = async () => {
+      const failure = response("error", "");
+      runtime!.session.agent.state.messages.push(failure);
+      receive({ type: "message_end", message: failure });
+      runtime!.session.sessionManager.appendMessage(failure);
+      receive({ type: "agent_settled" });
+    };
+    posted.length = 0;
+    await bridge.handleMessage({ type: "retry" });
+    const afterFailedRetry = latestRetryStates(posted);
     bridge.dispose();
 
-    const ok = duringRun && afterRun === "succeeded" && afterReplay === "succeeded";
+    const expectedFirst = afterPartialSuccess.join(",") === "succeeded,offered";
+    const expectedReplay = afterReplay.join(",") === "succeeded,offered";
+    const expectedSecond = afterFailedRetry.join(",") === "succeeded,failed,offered";
+    const ok = duringRun && expectedFirst && expectedReplay && expectedSecond;
     return [{
       name,
       ok,
-      detail: `while running=${duringRun ? "running" : "NOT MARKED"}; after success=${afterRun ?? "nothing"}; after replay=${afterReplay ?? "nothing"}`,
+      detail: `while running=${duringRun ? "running" : "NOT MARKED"}; after tool success + later timeout=${afterPartialSuccess.join(",") || "nothing"}; after replay=${afterReplay.join(",") || "nothing"}; after retry without success=${afterFailedRetry.join(",") || "nothing"}`,
     }];
   } catch (error) {
     return [{ name, ok: false, detail: describe(error) }];
@@ -447,9 +561,12 @@ function retryStates(posted: readonly HostMessage[]): string[] {
   });
 }
 
-function lastRetryState(posted: readonly HostMessage[]): string | undefined {
-  const states = retryStates(posted);
-  return states[states.length - 1];
+function latestRetryStates(posted: readonly HostMessage[]): string[] {
+  const history = [...posted].reverse().find((message) => message.type === "history");
+  if (!history || history.type !== "history") return [];
+  return history.events.flatMap((event) => (
+    event.kind === "status" && event.retry ? [event.retry] : []
+  ));
 }
 
 /**
@@ -1537,9 +1654,9 @@ export async function runViewStateTest(cwd: string): Promise<DiagnosticResult[]>
     expect("back: parent transcript", lastTranscriptId() === parentTranscript);
     expect("back to live: replay does not re-populate input history", !lastHistoryFlag());
 
-    // The regression that took three rounds: a subagent whose live session is
-    // gone is shown by replaying its file, and *both* flags must be set. A
-    // preview without the delegation renders "back to the running session".
+    // A subagent whose live session is gone is shown by replaying its file, and
+    // both flags must be set. Ordinary top-level sessions no longer use replay:
+    // selecting one constructs a live controller even while this one runs.
     const sessions = await SessionManager.list(cwd);
     const other = sessions.find((info) => info.path !== runtime?.session.sessionFile);
     let replayDetail = "skipped (no other session on disk)";
@@ -1552,16 +1669,9 @@ export async function runViewStateTest(cwd: string): Promise<DiagnosticResult[]>
       expect("replayed lane: read-only", replayed?.inputDisabled === true);
       expect("replayed lane: transcript is the file", lastTranscriptId() === other.path);
 
-      // An ordinary preview must NOT claim to be a subagent, or every session
-      // opened during a run would grow a bogus "back to the parent" banner.
-      await bridge.handleMessage({ type: "closePreview" });
-      await bridge.handleMessage({ type: "previewSession", file: other.path });
-      await waitForState((s) => s?.preview?.file === other.path && s?.delegation?.role !== "child");
-      const plain = lastState();
-      expect("plain preview: is a preview", plain?.preview?.file === other.path);
-      expect("plain preview: not a subagent", plain?.delegation?.role !== "child");
-      await bridge.handleMessage({ type: "closePreview" });
-      replayDetail = "replayed lane framed as subagent; plain preview not";
+      await bridge.handleMessage({ type: "showLane" });
+      await waitForState((s) => s?.preview === undefined && s?.inputDisabled !== true);
+      replayDetail = "historical lane replay framed as subagent";
     }
 
     bridge.dispose();

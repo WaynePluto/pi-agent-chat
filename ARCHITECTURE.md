@@ -2,19 +2,20 @@
 
 > 由 architecture-map 技能生成于 2026-08-03（webview 拆分后更新）；模块结构变化后需重新生成。
 
-项目为 VS Code 插件：侧边栏 webview 聊天 UI + 扩展宿主侧的 Pi SDK 适配层。源码全部在 `src/`，两个独立 bundle 由 `esbuild.mjs` 产出（`dist/extension.js` 为 Node/CJS，`dist/webview.js` 为浏览器/IIFE）。
+项目为 VS Code 插件：侧边栏 / 编辑区标签页共享的 webview 聊天 UI + 扩展宿主侧的 Pi SDK 适配层。源码全部在 `src/`，两个独立 bundle 由 `esbuild.mjs` 产出（`dist/extension.js` 为 Node/CJS，`dist/webview.js` 为浏览器/IIFE）。
 
 ## 模块一览
 
 | 模块 | 路径 | 职责 | 主要依赖 |
 |------|------|------|----------|
-| extension | `src/extension.ts` | 插件入口：`activate()` 注册 webview view `piAgentChat.view`、4 个命令、diff content provider；`ChatViewProvider` 懒创建 `PiRuntime` + `ChatBridge`；用 `workspaceState` 记住上次显示的会话（含未落盘的新会话）以决定启动时打开哪个 session；静态注册 OAuth flows | vscode, pi-ai/bun-oauth, bridge, diagnostics, diff-view, http, runtime, protocol |
-| runtime | `src/agent/runtime.ts` | `PiRuntime`：SDK `AgentSessionRuntime` 薄封装；session 新建/继续、替换后重新 bindExtensions、按配置注入自有工具 `subagent` / `vscode_terminal`（内置优先，**始终**屏蔽扩展的同名工具；被屏蔽者经 `findShadowedExtensionTool()` 与 `shadowedSubagentExtension` / `shadowedTerminalExtension` 仅用于告知）、按 `enabledModels` 解析会话 scoped models；扩展 UI 的 `ctx.ui.notify` 与扩展 handler 报错（`bindExtensions({ onError })`）经注入的 sink 转到 transcript（无 sink 时 notify 回退原生弹窗）；持有 dispose 级 `AbortSignal` 并贯穿所有 auth/model 调用 | vscode, pi-coding-agent, subagent, vscode-terminal |
-| bridge | `src/agent/bridge.ts` | `ChatBridge`：SDK `AgentSessionEvent` → `HostMessage`，webview 消息 → runtime 操作；历史回放（`buildHistoryEvents`）、资源清单、技能/提示词/扩展归属标注、子代理观察者、models.json 保存后重新加载与错误上报；**「当前显示什么」由单一 `View` 联合类型表示**（`live` / `lane` / `replay`），所有派生状态从它算出 | vscode, pi-coding-agent, protocol, auth, activity, commands, session-tree, session-title, model-config, diff-view, project-files, runtime, skills, invocations, subagent |
+| extension | `src/extension.ts` | 插件入口：注册侧边栏 webview、编辑区 `WebviewPanel` serializer、命令、diff content provider 与 diagnostics；静态注册 OAuth flows | vscode, pi-ai/bun-oauth, chat-surfaces, diagnostics, diff-view, http |
+| chat-surfaces | `src/chat-surfaces.ts` | `ChatSurfaceManager`：把 sidebar / editor 当作可替换 GUI surface，管理每个顶层会话自己的 `PiRuntime` + `ChatBridge`、session claim、per-surface 启动记忆、sidebar 原生 `…` submenu 与 editor 内置 `…` 中的扁平移动命令；会话列表选择已被可见 surface claim 的会话时，把原 controller 移到点击方并给来源 surface 一个空的新会话；运行中的被替换 controller 转为 background，无面保活到 settle；窗口级 `EventEmitter` 向所有 bridge 广播会话列表 invalidation；serializer 恢复 editor / 新窗口时先同步画 webview shell，再异步重建 controller，避免 reload 黑屏；共享 webview HTML / CSP | vscode, bridge, runtime, diff-view, protocol |
+| runtime | `src/agent/runtime.ts` | `PiRuntime`：SDK `AgentSessionRuntime` 薄封装；session 新建/继续、替换后重新 bindExtensions；`createIsolatedServices()` 让并存的顶层/子会话共享模型与设置但各有 ResourceLoader / 扩展 runtime；切换前可把已被其他 surface claim 的会话重定向过去；按配置注入自有工具 `subagent` / `vscode_terminal`（内置优先，始终屏蔽扩展的同名工具）；扩展 UI 与错误经 sink 转到 transcript；持有 dispose 级 `AbortSignal` | vscode, pi-coding-agent, subagent, vscode-terminal |
+| bridge | `src/agent/bridge.ts` | `ChatBridge`：SDK `AgentSessionEvent` → `HostMessage`，webview 消息 → runtime 操作；历史回放、资源清单、技能/提示词/扩展归属标注、子代理观察者、models.json 保存后重新加载与错误上报；订阅窗口级会话 invalidation，仅在窄屏会话页 / 宽屏左栏可见时用 trailing debounce 重扫；**「当前显示什么」由单一 `View` 联合类型表示**（`live` / `lane` / `replay`） | vscode, pi-coding-agent, protocol, auth, activity, commands, session-tree, session-title, model-config, diff-view, project-files, runtime, skills, invocations, subagent |
 | commands | `src/agent/commands.ts` | 斜杠命令目录（命名对齐 CLI）与内置命令分发；prompt 模板/扩展命令仅做补全展示，实际由 `AgentSession.prompt()` 处理 | vscode, pi-coding-agent, protocol, runtime, session-tree, session-title |
 | invocations | `src/agent/invocations.ts` | 提示词模板与扩展命令的归属判定：在 `prompt()` 改写文本之前解析用户输入，回放时按无占位符的模板正文精确匹配，弥补 SDK 无「模板已使用 / 命令已执行」事件 | pi-coding-agent |
 | skills | `src/agent/skills.ts` | 技能路径索引与工具调用归属判定（`SKILL.md` 读取 = 自动加载，技能目录内文件 = 技能资源），弥补 SDK 无「技能已加载」事件 | node:path, pi-coding-agent, protocol |
-| session-title | `src/agent/session-title.ts` | 会话标题的单一口径：用户设定的名字，否则首条用户消息（`<skill>` 块折叠回 `/skill:name`）。供 header 标题与 `/name`、会话列表重命名的输入框预填共用，保证「列表里看到的标题」与「重命名框里的初始值」一致 | pi-coding-agent, skills |
+| session-title | `src/agent/session-title.ts` | 会话标题的单一口径：用户设定的名字，否则首条用户消息（`<skill>` 块折叠回 `/skill:name`）。供 header 双击重命名与 `/name`、会话列表重命名的输入框预填共用，保证「列表里看到的标题」与「重命名框里的初始值」一致 | pi-coding-agent, skills |
 | tool-details | `src/agent/tool-details.ts` | 工具 `AgentToolResult.details` 跨界前的清洗：排除有专用卡片的工具（仅 pi 自带七个；`subagent` 虽有卡片但**不在列中**，它的卡片正是用 `details` 画的），其余按深度/条目/字符预算截断并剔除不可结构化克隆的值。不认任何扩展的 schema | protocol |
 | activity | `src/agent/activity.ts` | `ActivityTracker`：宿主侧「本会话中真正生效过」的判定，供资源面板点亮 Context / Extensions 两栏。上下文文件按「已发出过请求」判定；扩展按 `Extension.handlers` 订阅的事件 + 已观察到的会话事件（含 bind 时的 `session_start`）推断，另加 `onError` 直证 | pi-coding-agent, protocol |
 | session-tree | `src/agent/session-tree.ts` | `/tree` `/fork` `/clone`：用原生 QuickPick 驱动 session 条目树导航与分支操作 | vscode, pi-coding-agent, runtime |
@@ -29,7 +30,7 @@
 | terminal-replay | `src/agent/terminal-replay.ts` | 迷你 VT 重放：遵从光标指令而不是剥离它们（剥离会留下被覆盖的幻影文本），输出屏幕文本 + 光标行；光标行是 `read` 增量续读的边界，使进度条重绘不会被当成新行。零依赖，附 8 条用例供 spike 与 `pnpm verify` 共用 | — |
 | terminal-spike | `src/agent/terminal-spike.ts` | 真机探针（命令面板触发）：shell integration 激活耗时、用户键入是否可捕获、增量交付、退出码保真、调度延迟；replay 用例复用 `terminal-replay`，两边不漂移 | vscode, terminal-replay, diagnostics |
 | config | `src/agent/config.ts` | 插件自有能力的 VS Code 配置（并行子代理开关 / 并行上限 / 子代理默认模型；终端工具开关 / 终端数上限；消息折叠阈值），按 workspace folder 解析，并提供打开 VS Code 设置界面用的 section id | vscode |
-| diagnostics | `src/agent/diagnostics.ts` | 冒烟/风险自检：SDK 加载、undici 版本、jiti、clipboard、历史回放、斜杠命令、手动重试（私有 prompt 路径存在 + 重发不新增用户消息 + 从磁盘重开仍提供重试）、session 树、子代理工具（开关两态 + 子会话排除）、扩展 `subagent` 屏蔽、范围强制、子会话隔离、终端工具（开关两态 + 同名屏蔽 + 无 shell integration 时拒绝执行 + 超时不 kill + 增量读 + `close` 只碰自己创建的终端）、**视图状态机**（驱动真实 `ChatBridge` 并断言 `postState()` 的输出）、文件索引、可选的真实 LLM 调用 | pi-coding-agent, bridge, commands, session-tree, subagent, scope, scoped-tools, vscode-terminal, diff-view, project-files, resume |
+| diagnostics | `src/agent/diagnostics.ts` | 冒烟/风险自检：surface session claim 与无面 runtime 生命周期、SDK 加载、undici 版本、jiti、clipboard、历史回放、斜杠命令、手动重试（私有 prompt 路径存在 + 重发不新增用户消息 + 从磁盘重开仍提供重试）、session 树、子代理工具（开关两态 + 子会话排除）、扩展 `subagent` 屏蔽、范围强制、子会话隔离、终端工具（开关两态 + 同名屏蔽 + 无 shell integration 时拒绝执行 + 超时不 kill + 增量读 + `close` 只碰自己创建的终端）、**视图状态机**（驱动真实 `ChatBridge` 并断言 `postState()` 的输出）、文件索引、可选的真实 LLM 调用 | pi-coding-agent, bridge, commands, session-tree, subagent, scope, scoped-tools, vscode-terminal, diff-view, project-files, resume |
 | project-files | `src/agent/project-files.ts` | `ProjectFileIndex`：`@` 文件引用的索引/搜索/校验，含缓存、二进制与敏感文件过滤、引用数上限 | node:child_process, node:fs, protocol |
 | resume | `src/agent/resume.ts` | 请求异常中断后的手动重发：判定会话是否停在失败响应上（`stopReason === "error"`）、丢弃该响应（只丢 agent state，会话文件不动）并经 SDK 私有 prompt 路径以空消息批继续；私有入口做特性探测，缺失即不提供该动作。提供时机在 `bridge` 的 `agent_settled`，回放时由 `postHistory()` 重算 | pi-coding-agent |
 | diff-view | `src/agent/diff-view.ts` | `pi-agent-chat-original` URI scheme：反向应用 patch 还原编辑前内容并打开 `vscode.diff` | diff, vscode |
@@ -38,14 +39,14 @@
 | protocol | `src/shared/protocol.ts` | host ↔ webview 消息与状态类型（`ChatEvent`/`ChatState`/`HostMessage`/`WebviewMessage`）与共享常量 `MAX_FILE_REFERENCES`；**零依赖** | — |
 | messages | `src/shared/messages.ts` | 宿主侧全部面向用户文案的中英字典（`sharedMessages` 固定串 + `sharedTemplates` 参数化模板）与 `isChinese()`/`localize()`；webview `i18n.ts` 也引用它；**零依赖** | — |
 | agent/i18n | `src/agent/i18n.ts` | 宿主侧取文案入口 `t()` / `tf()`，按 `vscode.env.language` 解析 | vscode, shared/messages |
-| webview/main | `src/webview/main.ts` | 应用外壳：页面布局（聊天/会话页/认证门）、事件接线、`HostMessage` 路由 | 全部 webview 模块 |
-| webview/shell | `src/webview/shell.ts` | 静态页面骨架（`#root` innerHTML）与所有元素引用 | i18n, icons |
+| webview/main | `src/webview/main.ts` | 应用外壳：页面布局（聊天/会话页/认证门）、事件接线、`HostMessage` 路由；同一个 `ResizeObserver` 在 1440px 切换窄 / 宽模式；宽屏左右栏各有 header 开关，但三条 grid 轨道固定以保持中央列位置；会话栏开关同步 host 可见订阅，资源开关跨模式共享 | 全部 webview 模块 |
+| webview/shell | `src/webview/shell.ts` | 静态页面骨架（`#root` innerHTML）与所有元素引用；`surface-body` 包含 sessions / chat-column / resources 三个可响应式排布的区域，中间 `.content-column` 共用 950px 上限；editor 类 surface 隐藏重复的 header 会话标题 | i18n, icons |
 | webview/store | `src/webview/store.ts` | 唯一的 `ChatState` 快照（live binding + `setState`） | protocol |
 | webview/host | `src/webview/host.ts` | `acquireVsCodeApi()` 封装，唯一的 `post()` 出口 | protocol |
 | webview/transcript | `src/webview/transcript.ts` | 消息区：气泡、work block、思考/工具/通知卡片（含技能徽章）、diff 渲染、粘底滚动、运行指示器；并为搜索提供「逐层展开」（reveal 注册表）与未渲染懒加载 body 的可搜索文本（`collectHiddenBodies`） | bubble, collapsible, dom, format, host, markdown, resources-view, shell, spinner, store |
 | webview/composer | `src/webview/composer.ts` | 输入区：发送/steer/follow-up、`/` 命令补全、`@` 文件选择器与引用 chip、拖拽调整高度 | dom, format, host, shell, store, transcript |
-| webview/sessions-view | `src/webview/sessions-view.ts` | 会话列表页渲染与行内操作（恢复/删除/查看父子会话） | dom, format, host, shell, spinner, store, transcript |
-| webview/resources-view | `src/webview/resources-view.ts` | 资源面板（Context / Skills / Prompts / Extensions / Tools；不含 Themes，也不含任何非 pi 官方的资源类型）：header 按钮控制显隐；绿色 = 本会话中生效过（transcript 可见的技能/工具/提示词/扩展命令，并与宿主下发的 `item.used` 取并集），灰斜体 = 已配置但未生效，其余为常规前景色 | collapsible, dom, host, shell |
+| webview/sessions-view | `src/webview/sessions-view.ts` | 会话列表渲染与行内操作：窄模式为替换聊天的整页，宽模式为可切换左栏；标题 / 搜索固定，只有列表行滚动，跨 surface 状态刷新保留批次数与滚动位置；被其它 controller claim 的行仍可点击并移动同一个 controller | dom, format, host, shell, spinner, store, transcript |
+| webview/resources-view | `src/webview/resources-view.ts` | 资源面板（Context / Skills / Prompts / Extensions / Tools）：窄模式为顶部面板，宽模式为右栏；首次布局按初始宽度设置默认可见 / 展开值，此后两种模式共享同一份可见与顶层折叠状态；绿色 = 本会话中生效过，灰斜体 = 已配置但未生效 | collapsible, dom, host, shell |
 | webview/search | `src/webview/search.ts` | transcript 搜索（header 按钮触发，无键绑定——webview 的 keydown 会被工作台键绑定服务先行转发，拦不住默认的编辑器搜索）：字面、大小写不敏感、空白归一化的查询对语料匹配（语料构建方式对齐 TUI 全屏搜索），Enter/Shift+Enter 导航；语料分两层——DOM 文本（含折叠的卡片与长消息，文本仍在 DOM）与从未渲染过的懒加载卡片 body 的数据层文本（`collectHiddenBodies`），导航命中折叠区域时层层展开（`revealTranscriptElement`）；高亮走 CSS Custom Highlight API 不改 DOM（jsdom 降级为仅计数/导航），MutationObserver 防抖重算 | i18n, shell, transcript |
 | webview/statusline | `src/webview/statusline.ts` | CLI 风格底部状态行（tokens / 缓存 / 成本 / 上下文占用），以及扩展经 `ctx.ui.setStatus` 发布的独立状态行（后者不受窄面板整行隐藏规则影响） | dom, format, protocol, shell, store |
 | webview/widgets | `src/webview/widgets.ts` | 扩展经 `ctx.ui.setWidget` 发布的纯文本块，按 `aboveEditor` / `belowEditor` 落在 composer 上下两侧；只渲染 SDK 的 `string[]` 重载，component factory 重载属 TUI-only 不实现 | collapsible, dom, protocol, shell |
@@ -66,6 +67,7 @@
 graph TD
   subgraph host["扩展宿主 (dist/extension.js)"]
     extension[extension.ts]
+    surfaces[chat-surfaces.ts]
     bridge[agent/bridge]
     runtime[agent/runtime]
     commands[agent/commands]
@@ -120,7 +122,9 @@ graph TD
   messages[shared/messages]
   sdk["@earendil-works/pi-coding-agent + pi-ai"]
 
-  extension --> bridge
+  extension --> surfaces
+  surfaces --> bridge
+  surfaces --> runtime
   extension --> runtime
   extension --> diagnostics
   extension --> diffview
@@ -195,6 +199,7 @@ graph TD
   scopedtools --> scope
   projectfiles --> protocol
 
+  diagnostics --> surfaces
   diagnostics --> bridge
   diagnostics --> commands
   diagnostics --> sessiontree
@@ -274,10 +279,10 @@ graph TD
 ## 关键约定
 
 - **分层方向**：宿主 `extension` → `bridge` → 功能模块 → `runtime` → SDK；webview `main`（装配/布局/路由）→ 面板模块 → `shell`/`store`/`host`/工具模块。`shared/` 下的 `protocol` 与 `messages` 是仅有的双端共享模块，必须保持零依赖（webview 打包不能引入 Node 代码）。
-- **入口点**：宿主 `src/extension.ts#activate`（激活事件 `onView:piAgentChat.view`）；webview `src/webview/main.ts`（IIFE，顶层执行）。
+- **入口点**：宿主 `src/extension.ts#activate`（激活事件 `onView:piAgentChat.view` / `onWebviewPanel:piAgentChat.editor`）；webview `src/webview/main.ts`（IIFE，顶层执行）。
 - **webview 模块协作**：跨模块依赖一律通过 `initComposer()` / `initSessions()` 传入回调，不使用发布订阅；页面布局（聊天页/会话页/认证门的显示切换）只由 `main.ts` 决定。
-- **数据流**：SDK `AgentSessionEvent` → `ChatBridge` → `HostMessage` → `main.ts` 路由到面板模块；用户操作 → `WebviewMessage`（经 `webview/host.ts`）→ `ChatBridge` → `PiRuntime`/`AgentSession`。
-- **session 替换**：`PiRuntime` 持有 `AgentSessionRuntime`，每次 session 被替换（new/resume/fork/tree）必须重新 `bindExtensions()` 并重订阅事件，统一走 `ChatBridge.attach()`。
+- **数据流**：每个顶层 controller 的 SDK `AgentSessionEvent` → `ChatBridge` → 当前 surface 的 `HostMessage` → `main.ts`；用户操作 → `WebviewMessage` → surface 对应的 `ChatBridge` → `PiRuntime`/`AgentSession`。同一 session file 由窗口级 claim 表保证只属于一个 controller。
+- **session 替换**：`PiRuntime` 持有 `AgentSessionRuntime`，每次 session 被替换（new/resume/fork/tree）必须重新 `bindExtensions()` 并重订阅事件，统一走 `ChatBridge.attach()`；并存 runtime 不共享 ResourceLoader / 扩展实例。
 - **扩展输出**：pi 扩展的 `ctx.ui.notify` 不弹原生通知，而是由 `PiRuntime.setExtensionNoticeSink()`（`ChatBridge` 构造时注入，必须早于首次 `bindExtensions()`）转成 `status` / `error` 事件写进对应 session 的 transcript；扩展命令执行期间标 `scope: "command"`（顶层展开卡片），其余时间不标（收进 work block）。
 - **配置复用**：会话与配置全部落在 `~/.pi/agent/`（`getAgentDir()`），与终端 Pi 互操作；插件不维护私有配置副本。VS Code 配置项只用于**插件独有的能力**（subagent 的三项、终端工具的两项、消息折叠阈值），共享能力一律走 `~/.pi/agent/`。
 - **工具集**：插件只在 pi 默认的 `read`/`bash`/`edit`/`write` 之外注册 `subagent` 与 `vscode_terminal` 两个工具，且两者都**默认关闭**、由 VS Code 配置开启；不调用 `setActiveToolsByName()`（自定义工具在 session 构造时已随 `includeAllExtensionTools` 激活）。扩展注册的同名工具 **始终屏蔽**（与开关无关）：名字归本窗口自己的工具所有——开关开时靠 SDK 工具注册表的覆盖语义赢，开关关时经 `excludeTools` 整体排除（扩展式 `subagent` 实现在扩展宿主里本就 spawn 出 VS Code 自身并静默返回空结果，屏蔽不丢能力）。`grep`/`find`/`ls` 等其他能力由 `~/.pi/agent/extensions/` 下的 pi 扩展提供，CLI 与 GUI 共享。

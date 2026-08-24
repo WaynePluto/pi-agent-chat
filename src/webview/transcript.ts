@@ -17,8 +17,8 @@ import { BRANCH_ICON, RETRY_ICON, REWIND_ICON, TAG_ICON } from "./icons.js";
 import { getDict } from "./i18n.js";
 import { renderMarkdown } from "./markdown.js";
 import { clearResourceHighlights, markExtensionUsed, markPromptUsed, markSkillActive, markToolUsed } from "./resources-view.js";
-import { messagesEl, scrollDownBtn } from "./shell.js";
-import { spinner } from "./spinner.js";
+import { messagesContentEl, messagesEl, scrollDownBtn } from "./shell.js";
+import { ensureSpinnerRunning, spinner } from "./spinner.js";
 import { currentLane, isDelegating, state } from "./store.js";
 /**
  * The transcript: chat bubbles, the grouped "work block" of non-formal output
@@ -123,6 +123,40 @@ let workBlockIndex = -1;
  */
 const latestBubbles = new Map<string, MessageBubble>();
 let bubbleIndex = -1;
+
+/**
+ * Bubbles whose automatic fold is waiting for the user to come back to the
+ * bottom.
+ *
+ * Folding the previous message of a role the moment a new one arrives is right
+ * only while the user is following the latest output. When they have scrolled
+ * up they are, by definition, reading something older — and the message being
+ * read is usually exactly the one the rule wants to collapse, so the text
+ * vanishes from under the cursor and everything below it jumps. So while
+ * following is off the fold is recorded instead of applied, and flushed the
+ * moment following resumes (jump button, End, sending, wheeling back down).
+ * Replay is exempt: it rebuilds the whole transcript, and its result must not
+ * depend on where the user happened to be standing.
+ */
+const deferredFolds = new Set<MessageBubble>();
+
+/**
+ * Apply the folds held back while the user was reading. Bubbles pinned in the
+ * meantime keep the user's decision; a bubble can never become the newest of
+ * its role again, since only an older one is ever deferred and both sets are
+ * cleared together with the transcript.
+ */
+function flushDeferredFolds(): void {
+  if (deferredFolds.size === 0) return;
+  const pending = [...deferredFolds];
+  // Cleared first: folding shrinks the content, which fires "scroll" again.
+  deferredFolds.clear();
+  for (const bubble of pending) {
+    if (!bubble.pinned) bubble.setFolded(true);
+  }
+  // The content just got shorter above the newest message; stay glued to it.
+  if (followBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
+}
 
 function selectTranscript(id: string | undefined): void {
   const key = id ?? "";
@@ -277,7 +311,7 @@ export function collectHiddenBodies(): Array<{ root: HTMLElement; text: string }
  * session this is a detached fragment: building hundreds of cards directly in
  * the live DOM makes the browser maintain layout for every single append.
  */
-let sink: HTMLElement | DocumentFragment = messagesEl;
+let sink: HTMLElement | DocumentFragment = messagesContentEl;
 
 /** Suppresses per-event scrolling (which forces a synchronous layout). */
 let replaying = false;
@@ -328,6 +362,7 @@ function isNearBottom(): boolean {
 function resumeFollowing(): void {
   userWheeledUp = false;
   followBottom = true;
+  flushDeferredFolds();
 }
 
 messagesEl.addEventListener(
@@ -352,7 +387,11 @@ messagesEl.addEventListener("scroll", () => {
   // wheel (large wheels escaped via the NEAR_BOTTOM_PX geometry, so only they
   // seemed to work). Resumes come from explicit intent only: wheel down, the
   // jump button, sending, End.
+  const wasFollowing = followBottom;
   followBottom = !userWheeledUp && isNearBottom();
+  // Scrolling back down by hand re-arms the default fold rule, same as the
+  // jump button does through resumeFollowing().
+  if (followBottom && !wasFollowing) flushDeferredFolds();
   updateScrollDownButton(false);
 });
 
@@ -400,10 +439,10 @@ function scrollToEnd(): void {
   // Queued/steering bubbles stay glued to the bottom (above the working
   // indicator) until they are consumed by the agent loop.
   for (const pending of pendingUserBubbles) {
-    if (pending.element !== messagesEl.lastElementChild) messagesEl.appendChild(pending.element);
+    if (pending.element !== messagesContentEl.lastElementChild) messagesContentEl.appendChild(pending.element);
   }
   // Keep the working indicator glued to the bottom as new content arrives.
-  if (workingEl && workingEl !== messagesEl.lastElementChild) messagesEl.appendChild(workingEl);
+  if (workingEl && workingEl !== messagesContentEl.lastElementChild) messagesContentEl.appendChild(workingEl);
   // Respect the user's reading position: only auto-scroll while following.
   if (followBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
   else updateScrollDownButton(true);
@@ -461,7 +500,8 @@ export function applyEvent(event: ChatEvent): void {
       assistantBubble = undefined;
       break;
     case "assistant_end":
-      flushStreaming();
+      // Final render with syntax highlighting (streaming skips it).
+      if (assistantBubble) assistantBubble.bubble.setText(assistantBubble.raw);
       finishThinkingCard();
       assistantBubble = undefined;
       break;
@@ -487,14 +527,14 @@ export function applyEvent(event: ChatEvent): void {
       assistantBubble = undefined;
       break;
     case "agent_end":
-      flushStreaming();
+      finalizeStreamingBubble();
       finishThinkingCard();
       // This only ends one low-level run. Automatic retries, compaction and
       // queued continuations may still add cards to the same work block.
       assistantBubble = undefined;
       break;
     case "agent_settled":
-      flushStreaming();
+      finalizeStreamingBubble();
       finishThinkingCard();
       finishWorkBlock();
       assistantBubble = undefined;
@@ -505,7 +545,7 @@ export function applyEvent(event: ChatEvent): void {
       reconcilePendingBubbles(event.steering, event.followUp);
       break;
     case "compaction_boundary":
-      flushStreaming();
+      finalizeStreamingBubble();
       finishThinkingCard();
       finishWorkBlock();
       assistantBubble = undefined;
@@ -554,10 +594,10 @@ export function applyHistory(
     for (const event of events) applyEvent(event);
   } finally {
     replaying = false;
-    sink = messagesEl;
+    sink = messagesContentEl;
   }
   const built = performance.now();
-  messagesEl.appendChild(fragment);
+  messagesContentEl.appendChild(fragment);
 
   if (events.length === 0) appendEmptySessionPlaceholder();
   // Persisted history has no agent lifecycle events. Its final non-formal
@@ -584,7 +624,7 @@ export function showLoading(): void {
   clearMessages();
   const row = el("div", "working-row");
   row.append(spinner(), el("span", undefined, ` ${t.loadingSession}`));
-  messagesEl.appendChild(row);
+  messagesContentEl.appendChild(row);
   placeholderEl = row;
   resumeFollowing();
 }
@@ -609,7 +649,14 @@ function appendEmptySessionPlaceholder(): void {
 export function clearMessages(): void {
   // Before the DOM goes: this is the last moment the reading position exists.
   captureViewState();
-  messagesEl.innerHTML = "";
+  messagesContentEl.innerHTML = "";
+  // The working row goes with it. Keeping the variable would make
+  // `updateWorkingIndicator()` re-attach this now-detached element instead of
+  // building a new one — and with it a spinner whose shared timer has since
+  // stopped (it halts on the first tick that finds no spinner in the
+  // document), leaving a permanently frozen "working..." animation.
+  workingEl = undefined;
+  workingLabelEl = undefined;
   toolCards.clear();
   pendingUserBubbles.length = 0;
   assistantBubble = undefined;
@@ -620,6 +667,7 @@ export function clearMessages(): void {
   workBlocks.clear();
   workBlockIndex = -1;
   latestBubbles.clear();
+  deferredFolds.clear();
   bubbleIndex = -1;
   hiddenBodies.clear();
   placeholderEl = undefined;
@@ -648,9 +696,13 @@ function appendMarkdownBubble(role: string, text: string): MessageBubble {
   });
   // The message that just arrived is the one being read, so the previous one of
   // the same role folds away — unless the user opened or closed it by hand, in
-  // which case their decision outranks the default.
+  // which case their decision outranks the default. While the user is reading
+  // further up (following off) the fold is deferred instead: see deferredFolds.
   const previous = latestBubbles.get(role);
-  if (previous && !previous.pinned) previous.setFolded(true);
+  if (previous && !previous.pinned) {
+    if (replaying || followBottom) previous.setFolded(true);
+    else deferredFolds.add(previous);
+  }
   latestBubbles.set(role, bubble);
   // A folded bubble clips its content away, so search must be able to open it.
   // Not pinned: only the user's own toggle outranks the fold rules.
@@ -803,7 +855,7 @@ function reconcilePendingBubbles(steering: string[], followUp: string[]): void {
     // close it and let what follows open a fresh one.
     finishThinkingCard();
     finishWorkBlock();
-    messagesEl.appendChild(pending.element);
+    messagesContentEl.appendChild(pending.element);
     pendingUserBubbles.splice(i, 1);
   }
 }
@@ -1304,19 +1356,42 @@ function formatDetailScalar(value: JsonValue): string {
   return value === null ? "null" : String(value);
 }
 
-/** Re-render streaming content at most once per frame while deltas arrive. */
+/** Minimum interval between streaming renders (ms). One rAF is ~16ms, so
+ * this skips 2–3 frames — visually imperceptible but cuts rendering work by 4x. */
+const RENDER_THROTTLE_MS = 60;
+let lastRenderTime = 0;
+
+/** Re-render streaming content at most once per throttle interval. */
 function scheduleRender(): void {
   if (renderScheduled) return;
   renderScheduled = true;
-  requestAnimationFrame(() => {
-    renderScheduled = false;
-    flushStreaming();
-    scrollToEnd();
-  });
+  const elapsed = performance.now() - lastRenderTime;
+  const delay = Math.max(0, RENDER_THROTTLE_MS - elapsed);
+  if (delay === 0) {
+    requestAnimationFrame(doRender);
+  } else {
+    setTimeout(() => requestAnimationFrame(doRender), delay);
+  }
+}
+
+function doRender(): void {
+  renderScheduled = false;
+  lastRenderTime = performance.now();
+  flushStreaming();
+  scrollToEnd();
+}
+
+/**
+ * Final full render (with syntax highlighting) when streaming ends.
+ * Used by assistant_end, agent_end, agent_settled, compaction_boundary.
+ */
+function finalizeStreamingBubble(): void {
+  if (assistantBubble) assistantBubble.bubble.setText(assistantBubble.raw);
+  for (const card of toolCards.values()) card.refresh();
 }
 
 function flushStreaming(): void {
-  if (assistantBubble) assistantBubble.bubble.setText(assistantBubble.raw);
+  if (assistantBubble) assistantBubble.bubble.setStreamingText(assistantBubble.raw);
   // Collapsed cards keep their raw text unrendered on purpose.
   if (thinkingCard) {
     thinkingCard.invalidate();
@@ -1363,6 +1438,10 @@ export function updateWorkingIndicator(): void {
       workingEl = el("div", "working-row");
       workingLabelEl = el("span");
       workingEl.append(spinner(), workingLabelEl);
+    } else {
+      // Belt and braces for the bug fixed in `clearMessages()`: whatever else
+      // may detach the row, the animation must not stay dead once it is back.
+      ensureSpinnerRunning();
     }
     if (workingLabelEl) {
       const lane = currentLane();
@@ -1374,7 +1453,7 @@ export function updateWorkingIndicator(): void {
             ? ` ${t.subagentWorking}`
             : ` ${t.streaming}`;
     }
-    messagesEl.appendChild(workingEl); // re-append to keep it last
+    messagesContentEl.appendChild(workingEl); // re-append to keep it last
     scrollToEnd();
   } else {
     workingEl?.remove();

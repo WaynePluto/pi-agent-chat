@@ -1,0 +1,474 @@
+/* Drag zone on the composer's top edge to resize the input */
+.resize-handle {
+  height: 8px;
+  margin: 0 -12px;
+  cursor: ns-resize;
+  touch-action: none;
+
+  &:hover,
+  &:active {
+    background: linear-gradient(to bottom, var(--accent) 0, var(--accent) 2px, transparent 2px);
+  }
+}
+
+/* `/` command autocomplete, anchored above the input */
+.autocomplete {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(100% - 6px);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 10;
+  background: var(--vscode-editorSuggestWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-editorSuggestWidget-border, var(--border));
+  border-radius: 3px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.autocomplete-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 6px;
+  cursor: pointer;
+
+  &.selected {
+    background: var(--vscode-editorSuggestWidget-selectedBackground, var(--vscode-list-activeSelectionBackground));
+    color: var(--vscode-editorSuggestWidget-selectedForeground, var(--vscode-list-activeSelectionForeground));
+  }
+}
+
+.autocomplete-name {
+  font-family: var(--vscode-editor-font-family);
+  white-space: nowrap;
+}
+
+.autocomplete-kind {
+  font-size: 0.75em;
+  color: var(--vscode-descriptionForeground);
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  padding: 0 5px;
+  white-space: nowrap;
+
+  &.sensitive {
+    color: var(--vscode-errorForeground);
+  }
+}
+
+.autocomplete-description {
+  flex: 1 1 auto;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+/* Header row inside the @ file picker */
+.autocomplete-hint {
+  padding: 2px 6px;
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: inherit;
+}
+
+/* Selected @ file references, shown as chips above the input */
+.file-refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 0 2px;
+}
+
+.file-ref-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 0 2px 0 6px;
+  border: 1px solid var(--vscode-keybindingLabel-border, var(--border));
+  border-radius: 9px;
+  font-size: 0.85em;
+  font-family: var(--vscode-editor-font-family);
+  background: var(--vscode-keybindingLabel-background, var(--vscode-badge-background, transparent));
+  color: var(--vscode-keybindingLabel-foreground, var(--vscode-badge-foreground, inherit));
+
+  &.ignored {
+    opacity: 0.75;
+    border-style: dashed;
+  }
+
+  &.sensitive {
+    border-color: var(--vscode-errorForeground);
+  }
+}
+
+.file-ref-remove {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+
+  &:hover {
+    color: var(--vscode-errorForeground);
+  }
+}
+
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: none; /* resized by dragging .resize-handle instead */
+  /* Match the transcript bubbles, which render in the editor font. */
+  font-family: var(--vscode-editor-font-family);
+  font-size: inherit;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 3px;
+  padding: 8px 4px 8px 14px;
+  min-height: 48px;
+  max-height: min(30vh, 320px);
+  overflow-y: auto;
+
+  &:focus {
+    outline: 1px solid var(--accent);
+  }
+
+  &::placeholder {
+    color: var(--vscode-input-placeholderForeground);
+  }
+
+  &:disabled {
+    opacity: 0.72;
+    cursor: not-allowed;
+  }
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  /* One line always: when the buttons stop fitting, the overflow controller
+     moves them into the popup instead of letting the row wrap. */
+  flex-wrap: nowrap;
+  position: relative;
+
+  /* Composer pops up: opens towards the transcript. */
+  .overflow-menu {
+    bottom: calc(100% + 6px);
+  }
+}
+
+/* Buttons keep their natural width so that measuring what the row needs is
+   meaningful; without this they would shrink to an unreadable sliver and the
+   row would always look like it fits. */
+.composer-actions > button,
+.header-actions > button {
+  flex: 0 0 auto;
+}
+
+/* ---------------------------------------------------------------- */
+/* Toolbar overflow: "..." popup for a panel too narrow for the row  */
+/* ---------------------------------------------------------------- */
+
+/* Where a collapsed button returns to. Never rendered. */
+.overflow-slot {
+  display: none;
+}
+
+/* Specific enough to beat `.header-actions button` (which sets its own
+   padding); with `box-sizing: border-box` that padding would eat the icon. */
+.header-actions .overflow-toggle,
+.composer-actions .overflow-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  color: var(--vscode-foreground);
+  background: transparent;
+}
+
+.overflow-toggle {
+  /* Beats the `display: inline-flex` above, which `.hidden` alone cannot. */
+  &.hidden {
+    display: none;
+  }
+
+  &:hover:not(:disabled) {
+    background: var(--hover-bg-strong);
+  }
+
+  svg {
+    display: block;
+    flex: 0 0 auto;
+  }
+}
+
+/* In the header the toggle sits among text buttons, so it needs their visual
+   weight; in the composer it sits among chips and the round send button, where
+   the base size already matches. */
+.header-actions {
+  .overflow-toggle {
+    width: 28px;
+    height: 26px;
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
+
+  /* Header drops down: opens towards the transcript. */
+  .overflow-menu {
+    top: calc(100% + 6px);
+  }
+}
+
+.overflow-menu {
+  position: absolute;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 132px;
+  padding: 4px;
+  border: 1px solid var(--widget-border);
+  border-radius: 4px;
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+  box-shadow: 0 2px 8px var(--shadow);
+
+  /* Inside the popup every entry is a full-width menu row, whatever it looks
+     like in the toolbar (chip, secondary button, plain menu-bar text). */
+  > button {
+    width: 100%;
+    max-width: none;
+    justify-content: flex-start;
+    text-align: left;
+    border-radius: 3px;
+  }
+}
+
+/* ---------------------------------------------------------------- */
+/* Composer quick menus: model and thinking level. Deliberately small   */
+/* and anchored to their chip, like the editor's own chat controls.     */
+/* ---------------------------------------------------------------- */
+
+.picker {
+  position: absolute;
+  /* `left` is set from the chip's position; the popup keeps its own width. */
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 21;
+  display: flex;
+  flex-direction: column;
+  min-width: 168px;
+  max-width: min(320px, 100%);
+  max-height: min(46vh, 320px);
+  padding: 4px;
+  border: 1px solid var(--widget-border);
+  border-radius: 4px;
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+  box-shadow: 0 2px 8px var(--shadow);
+  overflow: hidden;
+
+  &:focus-visible {
+    outline: none;
+  }
+}
+
+.picker-title {
+  flex: 0 0 auto;
+  padding: 3px 8px 5px;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+}
+
+.picker-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--vscode-list-hoverBackground, var(--hover-bg));
+  }
+
+  &.selected {
+    background: var(--vscode-list-activeSelectionBackground, var(--hover-bg-strong));
+    color: var(--vscode-list-activeSelectionForeground, inherit);
+  }
+}
+
+/* Fixed gutter so every row's name starts at the same x, checked or not. */
+.picker-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 14px;
+}
+
+.picker-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Provider (model menu) or "default" marker (thinking menu). */
+.picker-note {
+  flex: 0 0 auto;
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+}
+
+/* Hands over to the native picker: search, capabilities, star and pin. */
+.picker-more {
+  flex: 0 0 auto;
+  margin-top: 4px;
+  padding: 4px 8px 4px 28px;
+  text-align: left;
+  color: var(--vscode-foreground);
+  background: transparent;
+  border-top: 1px solid var(--widget-border);
+  border-radius: 0;
+
+  &:hover:not(:disabled) {
+    color: var(--vscode-foreground);
+    background: var(--vscode-list-hoverBackground, var(--hover-bg));
+  }
+}
+
+.picker-empty {
+  padding: 6px 8px;
+  color: var(--vscode-descriptionForeground);
+  white-space: normal;
+}
+
+/* CLI-style status line under the composer */
+.statusline {
+  margin-top: 8px;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.82em;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.5;
+}
+
+.statusline-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+
+  &.error {
+    color: var(--vscode-errorForeground);
+    white-space: normal;
+  }
+
+  /* Entries from an extension's ctx.ui.setStatus(): free text rather than a
+     counter set, so they get their own row and are never dropped for width. */
+  &.extension-status {
+    justify-content: flex-start;
+    gap: 12px;
+  }
+}
+
+.statusline-right {
+  flex: 0 0 auto;
+}
+
+.extension-status-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- */
+/* Extension widgets (ctx.ui.setWidget), above and below the composer */
+/* ---------------------------------------------------------------- */
+
+.widgets {
+  background: var(--section-bg);
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.86em;
+}
+
+/* Breathing room on both sides: inside composer-content, between the resize
+   handle and the textarea. No extra z-index or full-width padding needed since
+   it inherits the content-column constraint from its parent. */
+#widgets-above {
+  padding: 4px 0 2px;
+}
+
+#widgets-below {
+  padding: 8px 0 2px;
+}
+
+.widget + .widget {
+  margin-top: 4px;
+}
+
+/* Flat like the other collapsible headers: without an explicit background it
+   inherits the primary-button blue from the base `button` rule and paints a
+   solid blue band above the composer. */
+button.widget-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 4px;
+  color: var(--vscode-descriptionForeground);
+  background: transparent;
+  text-align: left;
+
+  &:hover:not(:disabled) {
+    background: var(--vscode-list-hoverBackground, var(--hover-bg));
+  }
+}
+
+.widget-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.widget-status {
+  margin-left: auto;
+  opacity: 0.8;
+}
+
+/* Content is the extension's own text: plain foreground, and bounded so a long
+   widget scrolls instead of pushing the transcript out of the panel. */
+.widget-body {
+  max-height: 30vh;
+  overflow-y: auto;
+  padding: 1px 4px 3px 14px;
+  color: var(--vscode-foreground);
+}
+
+.widget-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}

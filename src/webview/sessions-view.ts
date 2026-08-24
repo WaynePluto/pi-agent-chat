@@ -6,14 +6,15 @@ import { post } from "./host.js";
 import { getDict } from "./i18n.js";
 import { sessionsEl } from "./shell.js";
 import { spinner } from "./spinner.js";
-import { isDelegating, state } from "./store.js";
+import { state } from "./store.js";
 import { showLoading } from "./transcript.js";
 
 /**
- * The sessions page: a full-height list replacing the chat while open.
+ * The sessions list: a full-height page on narrow surfaces and a persistent
+ * left rail in wide mode.
  *
- * Showing/hiding the page is a layout decision owned by `main.ts`; this module
- * only renders the list and reports what the user picked.
+ * Showing/hiding it is a layout decision owned by `main.ts`; this module only
+ * renders the list and reports what the user picked.
  */
 
 const t = getDict();
@@ -42,28 +43,35 @@ let searchInputEl: HTMLInputElement | undefined;
 
 export function initSessions(sessionsHooks: SessionsHooks): void {
   hooks = sessionsHooks;
-  sessionsEl.addEventListener("scroll", () => {
-    if (sessionsEl.scrollTop + sessionsEl.clientHeight >= sessionsEl.scrollHeight - SCROLL_THRESHOLD) {
-      renderMore();
-    }
-  });
 }
 
-export function isSessionsOpen(): boolean {
+export function isSessionsVisible(): boolean {
   return !sessionsEl.classList.contains("hidden");
+}
+
+/** Toggle the page/rail and render the latest cached listing when it appears. */
+export function setSessionsVisible(visible: boolean): void {
+  const changed = visible === sessionsEl.classList.contains("hidden");
+  sessionsEl.classList.toggle("hidden", !visible);
+  if (visible && changed) renderSessions(allItems);
 }
 
 export function renderSessions(items: SessionListItem[]): void {
   allItems = items;
-  if (!isSessionsOpen()) return;
-  // Rebuilding steals focus from the search box; remember the caret.
+  if (!isSessionsVisible()) return;
+  // Rebuilding must preserve both search editing and the reading position of
+  // the independently scrolling list during live cross-surface refreshes.
   const focusSearch = document.activeElement === searchInputEl;
   const caret = searchInputEl?.selectionStart ?? searchQuery.length;
+  const scrollTop = listEl?.scrollTop ?? 0;
+  const rowBudget = Math.max(PAGE_SIZE, renderedCount);
   sessionsEl.replaceChildren();
+  const content = el("div", "sessions-content content-column");
+  sessionsEl.appendChild(content);
 
   const header = el("div", "sessions-header");
   header.append(el("span", undefined, t.sessionsHeader));
-  sessionsEl.appendChild(header);
+  content.appendChild(header);
 
   searchInputEl = document.createElement("input");
   searchInputEl.type = "text";
@@ -72,13 +80,18 @@ export function renderSessions(items: SessionListItem[]): void {
   searchInputEl.value = searchQuery;
   searchInputEl.addEventListener("input", () => {
     searchQuery = searchInputEl?.value ?? "";
+    if (listEl) listEl.scrollTop = 0;
     renderList();
   });
-  sessionsEl.appendChild(searchInputEl);
+  content.appendChild(searchInputEl);
 
   listEl = el("div", "sessions-list");
-  sessionsEl.appendChild(listEl);
-  renderList();
+  listEl.addEventListener("scroll", () => {
+    if (listEl && listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - SCROLL_THRESHOLD) renderMore();
+  });
+  content.appendChild(listEl);
+  renderList(rowBudget);
+  listEl.scrollTop = scrollTop;
   if (focusSearch && searchInputEl) {
     searchInputEl.focus();
     searchInputEl.setSelectionRange(caret, caret);
@@ -91,8 +104,8 @@ function filteredItems(): SessionListItem[] {
   return allItems.filter((item) => item.title.toLowerCase().includes(query));
 }
 
-/** (Re)fill the list container with the first batch of filtered rows. */
-function renderList(): void {
+/** (Re)fill the list container, normally with the first filtered batch. */
+function renderList(upTo = PAGE_SIZE): void {
   if (!listEl) return;
   listEl.replaceChildren();
   renderedCount = 0;
@@ -101,12 +114,12 @@ function renderList(): void {
     listEl.appendChild(el("div", "sessions-empty", allItems.length === 0 ? t.sessionsEmpty : t.sessionsNoMatch));
     return;
   }
-  appendRows(items, PAGE_SIZE);
+  appendRows(items, upTo);
 }
 
 /** Append the next batch when the page scrolls near the bottom. */
 function renderMore(): void {
-  if (!listEl || !isSessionsOpen()) return;
+  if (!listEl || !isSessionsVisible()) return;
   const items = filteredItems();
   if (renderedCount >= items.length) return;
   appendRows(items, renderedCount + PAGE_SIZE);
@@ -122,12 +135,12 @@ function appendRows(items: SessionListItem[], upTo: number): void {
 function sessionRow(item: SessionListItem): HTMLElement {
   const row = el(
     "div",
-    `session-row${item.current ? " current" : ""}${item.delegationRole ? ` delegation-${item.delegationRole}` : ""}`,
+    `session-row${item.current ? " current" : ""}${item.claimedElsewhere ? ` claimed-${item.claimedElsewhere}` : ""}${item.delegationRole ? ` delegation-${item.delegationRole}` : ""}`,
   );
   row.title = item.file;
 
   const main = button("session-main", undefined, () => onRowClick(item));
-  main.title = t.sessionResumeTitle;
+  main.title = claimTitle(item) ?? t.sessionResumeTitle;
   const titleRow = el("span", "session-title");
   const badge = statusBadge(item);
   if (badge) titleRow.appendChild(badge);
@@ -146,6 +159,13 @@ function sessionRow(item: SessionListItem): HTMLElement {
 }
 
 function onRowClick(item: SessionListItem): void {
+  if (item.claimedElsewhere) {
+    // A session belongs to its controller, not to either GUI. Move that exact
+    // controller here; the host replaces a visible source with an empty session.
+    post({ type: "revealSession", file: item.file });
+    hooks.close();
+    return;
+  }
   if (item.delegationRole === "parent") {
     post({ type: "showLane" });
     hooks.close();
@@ -160,24 +180,11 @@ function onRowClick(item: SessionListItem): void {
     return;
   }
   if (!item.current) {
-    // Clicking the running session while previewing returns to the live view.
-    if (state.preview && item.running) {
-      post({ type: "closePreview" });
-      hooks.close();
-      return;
-    }
-    // While a run or compaction is in progress, other sessions open read-only
-    // instead of replacing the active session. Preview reports both activity
-    // flags as false (the visible transcript is static), so check it too.
-    if (state.isStreaming || state.isCompacting || isDelegating() || state.preview) {
-      showLoading();
-      post({ type: "previewSession", file: item.file });
-      hooks.close();
-      return;
-    }
     hooks.onResume();
     // Loading a large session file takes the host a moment; without this the
-    // previous transcript would stay on screen and read as a frozen UI.
+    // previous transcript would stay on screen and read as a frozen UI. If the
+    // current controller is busy, the host leaves it running in the background
+    // and gives this surface a controller for the selected session.
     showLoading();
     post({ type: "resumeSession", file: item.file });
   }
@@ -186,7 +193,11 @@ function onRowClick(item: SessionListItem): void {
 
 function statusBadge(item: SessionListItem): HTMLElement | undefined {
   const badge = el("span", "session-badge");
-  if (item.delegationRole === "child") {
+  if (item.claimedElsewhere === "visible") {
+    badge.textContent = t.sessionOpenElsewhere;
+  } else if (item.claimedElsewhere === "background") {
+    badge.append(spinner(), document.createTextNode(` ${t.sessionRunningInBackground}`));
+  } else if (item.delegationRole === "child") {
     badge.append(spinner(), document.createTextNode(` ${t.sessionSubagentRunning}`));
   } else if (item.delegationRole === "parent") {
     badge.textContent = t.sessionParentWaiting;
@@ -206,13 +217,19 @@ function deleteButton(item: SessionListItem): HTMLElement {
     event.stopPropagation();
     post({ type: "deleteSession", file: item.file });
   });
-  if (item.current || item.running || item.delegationRole) {
+  if (item.current || item.running || item.delegationRole || item.claimedElsewhere) {
     del.disabled = true;
-    del.title = t.sessionDeleteCurrentTitle;
+    del.title = claimTitle(item) ?? t.sessionDeleteCurrentTitle;
   } else {
     del.title = t.sessionDeleteTitle;
   }
   return del;
+}
+
+function claimTitle(item: SessionListItem): string | undefined {
+  if (item.claimedElsewhere === "visible") return t.sessionOpenElsewhereTitle;
+  if (item.claimedElsewhere === "background") return t.sessionBackgroundTitle;
+  return undefined;
 }
 
 function renameButton(item: SessionListItem): HTMLElement {
@@ -220,8 +237,9 @@ function renameButton(item: SessionListItem): HTMLElement {
     event.stopPropagation();
     post({ type: "renameSession", file: item.file });
   });
-  // Same disabled-with-reason pattern as delete: a running subagent appends to
-  // its session file, so renaming it must wait for the run to finish.
+  // A running subagent appends to its session file, so renaming it must wait
+  // for the run to finish. Sessions claimed by another surface can still be
+  // renamed — the rename just appends metadata, it does not interfere.
   if (item.delegationRole === "child") {
     rename.disabled = true;
     rename.title = t.sessionRenameRunningTitle;

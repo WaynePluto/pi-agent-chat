@@ -2,7 +2,7 @@
   "name": "pi-code-agent-chat",
   "displayName": "Pi Agent Chat",
   "description": "%extension.description%",
-  "version": "0.0.14",
+  "version": "0.0.15-20260825",
   "publisher": "waynepluto",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -33,7 +33,8 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onView:piAgentChat.view"
+    "onView:piAgentChat.view",
+    "onWebviewPanel:piAgentChat.editor"
   ],
   "contributes": {
     "configuration": {
@@ -111,6 +112,30 @@
         "title": "%command.focus.title%"
       },
       {
+        "command": "piAgentChat.moveSessionToEditor",
+        "title": "%command.moveSessionToEditor.title%"
+      },
+      {
+        "command": "piAgentChat.moveSessionToSidebar",
+        "title": "%command.moveSessionToSidebar.title%"
+      },
+      {
+        "command": "piAgentChat.moveSessionFromSidebarToWindow",
+        "title": "%command.moveSessionToWindow.title%"
+      },
+      {
+        "command": "piAgentChat.moveSessionFromEditorToWindow",
+        "title": "%command.moveSessionToWindow.title%"
+      },
+      {
+        "command": "piAgentChat.newEditorSession",
+        "title": "%command.newEditorSession.title%"
+      },
+      {
+        "command": "piAgentChat.newWindowSession",
+        "title": "%command.newWindowSession.title%"
+      },
+      {
         "command": "piAgentChat.runSpikeDiagnostics",
         "title": "Pi Agent Chat: Run Spike Diagnostics"
       },
@@ -122,7 +147,89 @@
         "command": "piAgentChat.runTerminalSpike",
         "title": "Pi Agent Chat: Run Terminal Shell Integration Spike"
       }
-    ]
+    ],
+    "submenus": [
+      {
+        "id": "piAgentChat.moveSessionFromSidebarMenu",
+        "label": "%menu.moveSession.label%",
+        "icon": "$(ellipsis)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "submenu": "piAgentChat.moveSessionFromSidebarMenu",
+          "when": "view == piAgentChat.view",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "piAgentChat.moveSessionToSidebar",
+          "when": "activeWebviewPanelId == piAgentChat.editor",
+          "group": "9_piAgentChat@1"
+        },
+        {
+          "command": "piAgentChat.moveSessionFromEditorToWindow",
+          "when": "activeWebviewPanelId == piAgentChat.editor",
+          "group": "9_piAgentChat@2"
+        },
+        {
+          "command": "piAgentChat.newEditorSession",
+          "when": "activeWebviewPanelId == piAgentChat.editor",
+          "group": "9_piAgentChat@3"
+        },
+        {
+          "command": "piAgentChat.newWindowSession",
+          "when": "activeWebviewPanelId == piAgentChat.editor",
+          "group": "9_piAgentChat@4"
+        }
+      ],
+      "piAgentChat.moveSessionFromSidebarMenu": [
+        {
+          "command": "piAgentChat.moveSessionToEditor",
+          "group": "navigation@1"
+        },
+        {
+          "command": "piAgentChat.moveSessionFromSidebarToWindow",
+          "group": "navigation@2"
+        },
+        {
+          "command": "piAgentChat.newEditorSession",
+          "group": "2_new@1"
+        },
+        {
+          "command": "piAgentChat.newWindowSession",
+          "group": "2_new@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "piAgentChat.moveSessionToEditor",
+          "when": "false"
+        },
+        {
+          "command": "piAgentChat.moveSessionToSidebar",
+          "when": "false"
+        },
+        {
+          "command": "piAgentChat.moveSessionFromSidebarToWindow",
+          "when": "false"
+        },
+        {
+          "command": "piAgentChat.moveSessionFromEditorToWindow",
+          "when": "false"
+        },
+        {
+          "command": "piAgentChat.newEditorSession",
+          "when": "false"
+        },
+        {
+          "command": "piAgentChat.newWindowSession",
+          "when": "false"
+        }
+      ]
+    }
   },
   "scripts": {
     "prepare": "husky",
@@ -153,6 +260,7 @@
     "esbuild": "0.28.2",
     "husky": "9.1.7",
     "jsdom": "30.0.1",
+    "sass": "1.103.1",
     "typescript": "6.0.3"
   },
   "pnpm": {

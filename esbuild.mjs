@@ -1,9 +1,10 @@
 import { createRequire } from "node:module";
-import { cp, mkdir, rm, readFile } from "node:fs/promises";
+import { cp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import esbuild from "esbuild";
+import * as sass from "sass";
 import { copyRuntimePackages, runtimePackages } from "./scripts/runtime-packages.mjs";
 
 const require = createRequire(import.meta.url);
@@ -212,13 +213,33 @@ const webviewConfig = {
   minify: production,
 };
 
+/** Compile SCSS sources into dist/main.css. */
+async function compileSass() {
+  const entry = resolve(root, "src/styles/main.scss");
+  const result = sass.compile(entry, {
+    style: production ? "compressed" : "expanded",
+    sourceMap: !production,
+  });
+  await mkdir(resolve(root, "dist"), { recursive: true });
+  await writeFile(resolve(root, "dist/main.css"), result.css);
+  if (result.sourceMap && !production) {
+    await writeFile(resolve(root, "dist/main.css.map"), JSON.stringify(result.sourceMap));
+  }
+}
+
 if (watch) {
   const contexts = await Promise.all([esbuild.context(extensionConfig), esbuild.context(webviewConfig)]);
   await Promise.all(contexts.map((ctx) => ctx.watch()));
+  // Initial SCSS build + simple poll watcher (sass has no built-in watch).
+  await compileSass();
+  const { watch: fsWatch } = await import("node:fs");
+  fsWatch(resolve(root, "src/styles"), { recursive: true }, async () => {
+    try { await compileSass(); } catch (e) { console.error("[sass]", e.message); }
+  });
   console.log("[esbuild] watching...");
 } else {
   if (production) await rm(resolve(root, "dist"), { recursive: true, force: true });
-  await Promise.all([esbuild.build(extensionConfig), esbuild.build(webviewConfig)]);
+  await Promise.all([esbuild.build(extensionConfig), esbuild.build(webviewConfig), compileSass()]);
   if (production) await copyRuntimePackagesIntoDist();
   console.log("[esbuild] build complete");
 }

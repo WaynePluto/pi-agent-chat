@@ -167,7 +167,7 @@ export interface ChatState {
   messageCount?: number;
   /** Present while a subagent delegation is running or being viewed. */
   delegation?: DelegationState;
-  /** Present while another session is opened read-only during a run. */
+  /** Present while a historical subagent session file is replayed read-only. */
   preview?: { file: string; title: string };
   /** Subagent transcripts are read-only: the user only ever talks to the parent. */
   inputDisabled?: boolean;
@@ -210,7 +210,14 @@ export interface SessionListItem {
   running?: boolean;
   /** Active task-line role, if this is the running child or waiting parent. */
   delegationRole?: "parent" | "child";
+  /**
+   * Another top-level controller owns this session. Both states are selectable:
+   * the owner moves to the requesting surface without constructing a second
+   * writer; a visible source is replaced with a fresh empty session.
+   */
+  claimedElsewhere?: "visible" | "background";
 }
+
 
 /**
  * One section of the CLI-style startup listing ([Context] / [Skills] /
@@ -487,14 +494,12 @@ export type WebviewMessage =
   /** Clear all queued (steer/follow-up) messages; texts return to the composer. */
   | { type: "dequeue" }
   | { type: "newSession" }
-  /** Sessions page opened/closed; the host only scans session files while it is visible. */
+  /** Narrow sessions page or wide sessions rail shown/hidden; scans run only while visible. */
   | { type: "sessionsVisible"; visible: boolean }
   | { type: "listCommands" }
   | { type: "resumeSession"; file: string }
-  /** Open another session read-only, without replacing the runtime session. */
-  | { type: "previewSession"; file: string }
-  /** Return from a read-only preview to the live transcript. */
-  | { type: "closePreview" }
+  /** Move a session claimed by another top-level controller onto this surface. */
+  | { type: "revealSession"; file: string }
   /**
    * Switch the displayed transcript between the parent and one subagent.
    *
@@ -508,8 +513,10 @@ export type WebviewMessage =
   | { type: "stopLane"; laneId: string }
   /** Delete a persisted session file (asks for confirmation host-side). */
   | { type: "deleteSession"; file: string }
-  /** Rename a session (host shows an input box; writes a session_info entry). */
+  /** Rename a session from the sessions list (host shows an input box; writes a session_info entry). */
   | { type: "renameSession"; file: string }
+  /** Rename the live session from its header, including an empty session that has no file yet. */
+  | { type: "renameCurrentSession" }
   /** Open the session tree navigator (switch branch / fork / label). */
   | { type: "openSessionTree" }
   /** Same three operations, applied to one message bubble in the transcript. */

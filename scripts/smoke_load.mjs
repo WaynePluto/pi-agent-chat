@@ -23,6 +23,7 @@ const vscodeStub = {
   window: {
     createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }),
     registerWebviewViewProvider: noop,
+    registerWebviewPanelSerializer: noop,
     showErrorMessage: noop,
     showWarningMessage: noop,
     showInformationMessage: noop,
@@ -63,6 +64,7 @@ extension.activate({
   subscriptions,
   extensionUri: { fsPath: root },
   extensionPath: root,
+  workspaceState: { get: () => undefined, update: async () => {} },
 });
 
 if (typeof extension.activate !== "function" || typeof extension.deactivate !== "function") {
@@ -81,6 +83,7 @@ function report(results) {
 
 const {
   runSpikeDiagnostics,
+  runSurfaceCoordinationTest,
   runHistoryReplayTest,
   runSlashCommandTest,
   runManualRetryTest,
@@ -100,6 +103,7 @@ const {
   formatDiagnostics,
 } = extension.__spike;
 report(await runSpikeDiagnostics());
+report(runSurfaceCoordinationTest());
 report(await runHistoryReplayTest(root));
 report(await runSlashCommandTest(root));
 // Pins the private SDK entry point the "retry" action on a failed-request

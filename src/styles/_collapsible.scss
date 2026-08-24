@@ -1,0 +1,106 @@
+/* ---------------------------------------------------------------- */
+/* Collapsible primitives shared by work blocks, thinking/tool cards */
+/* and the resources panel: chevron, pulse dot, hidden body.         */
+/* ---------------------------------------------------------------- */
+
+.work-chevron,
+.card-chevron,
+.resources-chevron,
+.resource-chevron,
+.widget-chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: transform 0.15s ease;
+}
+
+.work-chevron,
+.card-chevron {
+  margin-left: auto;
+}
+
+.resources-chevron,
+.resource-chevron,
+.widget-chevron {
+  transform: rotate(180deg);
+}
+
+.resource-chevron {
+  opacity: 0.6;
+}
+
+.work-block {
+  &.collapsed {
+    .work-chevron {
+      transform: rotate(-90deg);
+    }
+
+    .work-body {
+      display: none;
+    }
+  }
+}
+
+.collapsed {
+  .card-chevron {
+    transform: rotate(-90deg);
+  }
+
+  .card-body {
+    display: none;
+  }
+}
+
+.resources-panel {
+  &.collapsed {
+    .resources-chevron {
+      transform: rotate(0deg);
+    }
+
+    .resources-body {
+      display: none;
+    }
+  }
+}
+
+.resource-section {
+  &.collapsed {
+    .resource-chevron {
+      transform: rotate(0deg);
+    }
+
+    .resource-details {
+      display: none;
+    }
+  }
+}
+
+.widget {
+  &.collapsed {
+    .widget-chevron {
+      transform: rotate(0deg);
+    }
+
+    .widget-body {
+      display: none;
+    }
+  }
+}
+
+.work-pulse,
+.card-pulse {
+  border-radius: 50%;
+  background: var(--pulse-color);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}

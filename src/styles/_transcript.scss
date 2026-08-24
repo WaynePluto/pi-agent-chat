@@ -1,0 +1,298 @@
+.bubble {
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 8px 10px;
+  border-radius: 4px;
+  line-height: 1.5;
+
+  &.user {
+    /* Same raised surface as the work block. */
+    background: var(--vscode-editorWidget-background);
+    /* Formal transcript text follows the user's editor font. */
+    font-family: var(--vscode-editor-font-family);
+    font-weight: var(--vscode-editor-font-weight, normal);
+    border: 1px solid var(--border);
+    border-right: 2px solid var(--accent);
+    align-self: flex-end;
+    /* Normally 82% like the assistant side, but never so wide that the action
+       bar in the left gutter would overflow the transcript: on a narrow panel
+       the bubble gives up width instead. */
+    max-width: min(82%, calc(100% - var(--bubble-gutter)));
+    /* Anchor for the hover action bar. */
+    position: relative;
+
+    /* The gutter itself is not part of the bubble, so hovering it would not reveal
+       anything. This invisible extension makes the whole row a hover target. */
+    &[data-entry-id]::before {
+      content: "";
+      position: absolute;
+      right: 100%;
+      top: 0;
+      bottom: 0;
+      width: var(--bubble-gutter);
+    }
+
+    /* Queued (follow-up) messages: dashed border + muted accent while waiting. */
+    &.queued {
+      border-style: dashed;
+      border-right: 2px dashed var(--vscode-charts-yellow, var(--accent));
+
+      .bubble-badge {
+        color: var(--vscode-editor-background, #000);
+        background: var(--vscode-charts-yellow, #d7ba7d);
+      }
+    }
+
+    /* Steering messages: orange accent, they interrupt the current run. */
+    &.steered {
+      border-right: 2px solid var(--vscode-charts-orange, var(--vscode-editorWarning-foreground, orange));
+
+      .bubble-badge {
+        color: var(--vscode-editor-background, #000);
+        background: var(--vscode-charts-orange, #ce9178);
+      }
+    }
+
+    /* Explicitly invoked skills (`/skill:<name>`). The SDK inlines SKILL.md into
+       the message before the agent ever sees it, so there is no `read` tool call to
+       attribute: this badge is the only signal that the skill really was loaded. */
+    &.skill {
+      border-right: 2px solid var(--vscode-charts-purple, var(--accent));
+
+      .bubble-badge.skill-invocation {
+        color: var(--vscode-editor-background, #000);
+        background: var(--vscode-charts-purple, #c586c0);
+      }
+    }
+
+    /* Keep message content and its right-side badge column on the first row without
+       using float. Later Markdown blocks wrap onto full-width rows below them. */
+    &.queued,
+    &.steered,
+    &.skill {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      /* Put status badges nearer the top edge without offsetting them with a
+         negative margin. The first content block restores the normal text inset. */
+      padding-top: 4px;
+
+      /* Later Markdown blocks take a full row below the leading text and badges. */
+      > :not(:where(.bubble-badges, .bubble-actions)) {
+        order: 3;
+        flex: 0 0 100%;
+        min-width: 0;
+      }
+
+      /* The first Markdown block shares the first row with the badge column. */
+      > .bubble-badges + :not(.bubble-badges) {
+        order: 1;
+        /* A zero basis reserves room for the badges before wrapping; with `auto`, a
+           long first paragraph claims the whole row and pushes them below it. */
+        flex: 1 1 0;
+        min-width: 0;
+        margin-top: 4px;
+      }
+    }
+  }
+
+  &.assistant {
+    background: var(--vscode-editorWidget-background);
+    font-family: var(--vscode-editor-font-family);
+    font-weight: var(--vscode-editor-font-weight, normal);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--vscode-charts-green, var(--accent));
+    align-self: flex-start;
+    max-width: 82%;
+  }
+
+  &.status {
+    color: var(--vscode-descriptionForeground);
+    font-size: 0.9em;
+  }
+
+  &.error {
+    color: var(--vscode-errorForeground);
+    border-left: 2px solid var(--vscode-errorForeground);
+  }
+}
+
+/* Per-message session-tree actions (rewind / fork / label).
+   Parked in the empty gutter left of the bubble, so showing them neither
+   reflows the transcript nor covers any message text. */
+.bubble-actions {
+  position: absolute;
+  right: 100%;
+  top: 2px;
+  margin-right: 6px;
+  display: flex;
+  gap: 1px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 80ms ease-in;
+}
+
+/* Revealed on hover, only for bubbles bound to a session entry, and only while
+   acting on the transcript is allowed (not streaming/preview/subagent). */
+.messages:not(.actions-locked) {
+  .bubble.user[data-entry-id] {
+    &:hover,
+    &:focus-within {
+      .bubble-actions {
+        opacity: 1;
+        pointer-events: auto;
+      }
+    }
+  }
+}
+
+button.bubble-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--hover-bg-strong);
+    color: var(--vscode-foreground);
+  }
+
+  /* The frequent one (rewind + refill the composer) reads as the primary. */
+  &.switch:hover:not(:disabled) {
+    color: var(--accent);
+  }
+
+  svg {
+    display: block;
+  }
+}
+
+.bubble-badges {
+  order: 2;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  margin: 0 0 4px 8px;
+
+  > .bubble-badge {
+    margin: 0;
+  }
+}
+
+.bubble-badge {
+  display: block;
+  order: 2;
+  flex: 0 0 auto;
+  width: fit-content;
+  margin: 0 0 4px 8px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 0.78em;
+  line-height: 1.6;
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background, rgba(128, 128, 128, 0.3));
+  opacity: 0.9;
+
+  /* User-set bookmark, kept visible (unlike the hover-only actions). */
+  &.label-badge {
+    color: var(--vscode-editor-background, #000);
+    background: var(--accent);
+  }
+}
+
+/* Collapsed status/error notices (retry, compaction, command feedback) */
+.notice-card {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  font-size: 0.9em;
+
+  .card-label {
+    font-weight: 400;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  /* Short notices with no hidden content: plain row, no expand chevron. */
+  &.flat {
+    padding: 6px 10px;
+
+    .card-label {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* A notice that carries an action puts it on the same row as the text. */
+    &.actionable {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .card-label {
+        flex: 1 1 auto;
+      }
+    }
+  }
+
+  &.error {
+    border-color: var(--vscode-errorForeground);
+
+    .card-label {
+      color: var(--vscode-errorForeground);
+    }
+  }
+}
+
+.notice-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 10px 8px;
+}
+
+/* Flat, quiet by default: hover feedback is grey, like every other small
+   button in a card (see the `:where()` note on `button:hover`). */
+button.notice-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: none;
+  color: var(--vscode-foreground);
+  font-size: 0.95em;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--hover-bg-strong);
+  }
+
+  svg {
+    display: block;
+  }
+}
+
+.notice-body {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--vscode-editor-font-family);
+}
+
+/* `⠋ Working...` row at the bottom of the message list */
+.working-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  color: var(--vscode-descriptionForeground);
+}

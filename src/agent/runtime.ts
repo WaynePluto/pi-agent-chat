@@ -28,7 +28,7 @@ import { VsCodeTerminalPool, VSCODE_TERMINAL_TOOL } from "./vscode-terminal.js";
 /**
  * Which session a fresh runtime opens with.
  *
- * `file` is what the sidebar asks for on a normal start: it remembers the
+ * `file` is what a chat surface asks for on a normal start: it remembers the
  * session it was last showing, which is not the same as the most recent one on
  * disk (the user may have switched back to an older session, and the CLI may
  * have written a newer one in the same cwd since). `recent` is the fallback for
@@ -44,6 +44,21 @@ export interface PiRuntimeOptions {
   /** Defaults to a brand new session, as `pi` with no flags does. */
   startup?: StartupSession;
   log: (message: string) => void;
+  /**
+   * Services of another top-level runtime in this window.
+   *
+   * Only its model/auth and settings stores are shared. The new runtime still
+   * receives a private ResourceLoader and extension runtime; sharing those
+   * between two live sessions retargets every extension's `pi.*` actions and
+   * makes disposal of either session poison the other one.
+   */
+  sharedServices?: AgentSessionServices;
+  /**
+   * Return true when another surface already owns `sessionFile` and handled
+   * the request by revealing that surface. Checked for host- and
+   * extension-initiated session switches before the SDK replaces anything.
+   */
+  redirectClaimedSession?: (sessionFile: string) => boolean | Promise<boolean>;
 }
 
 /**
@@ -146,13 +161,21 @@ export function findShadowedExtensionTool(services: AgentSessionServices, toolNa
  * against the shared `modelRuntime`; re-registering a provider is defined to
  * merge over the previous registration (`core/model-runtime.ts`).
  */
-export async function createSubagentServices(parent: AgentSessionServices): Promise<AgentSessionServices> {
+export async function createIsolatedServices(
+  parent: AgentSessionServices,
+  cwd = parent.cwd,
+): Promise<AgentSessionServices> {
   return await createAgentSessionServices({
-    cwd: parent.cwd,
+    cwd,
     agentDir: parent.agentDir,
     modelRuntime: parent.modelRuntime,
     settingsManager: parent.settingsManager,
   });
+}
+
+/** Historical task-specific name; every live child still uses this path. */
+export async function createSubagentServices(parent: AgentSessionServices): Promise<AgentSessionServices> {
+  return await createIsolatedServices(parent);
 }
 
 /** A `ctx.ui.notify` call from a pi extension, routed to the transcript. */
@@ -184,7 +207,7 @@ export interface ExtensionWidgetUpdate {
  * Host side of the extension command context (`ctx.*` in command handlers).
  *
  * `ctx.newSession()` / `ctx.fork()` / `ctx.switchSession()` /
- * `ctx.navigateTree()` / `ctx.reload()` all change what the sidebar must
+ * `ctx.navigateTree()` / `ctx.reload()` all change what the owning surface must
  * display, and the SDK cannot do that half for us — the CLI wires the same
  * pair of concerns in `modes/rpc/rpc-mode.ts`.
  */
@@ -211,6 +234,7 @@ export class PiRuntime implements vscode.Disposable {
     private readonly log: (message: string) => void,
     /** Written by the session factory on every (re)build; see `shadowedSubagentExtension`. */
     private readonly toolSetupRef: ToolSetupRef,
+    private readonly openClaimRedirect?: (sessionFile: string) => boolean | Promise<boolean>,
   ) {}
 
   /**
@@ -304,7 +328,9 @@ export class PiRuntime implements vscode.Disposable {
     const createRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd: effectiveCwd, sessionManager, sessionStartEvent }) => {
       // modelRuntimeSignal cancels the create-time credential restore and
       // availability probe when the view is closed mid-startup.
-      const services = await createAgentSessionServices({ cwd: effectiveCwd, modelRuntimeSignal: lifetime.signal });
+      const services = options.sharedServices
+        ? await createIsolatedServices(options.sharedServices, effectiveCwd)
+        : await createAgentSessionServices({ cwd: effectiveCwd, modelRuntimeSignal: lifetime.signal });
       toolSetup.shadowedSubagent = findShadowedExtensionTool(services, SUBAGENT_TOOL);
       toolSetup.shadowedTerminal = findShadowedExtensionTool(services, VSCODE_TERMINAL_TOOL);
       for (const [name, path] of [
@@ -381,8 +407,16 @@ export class PiRuntime implements vscode.Disposable {
     // creates its runtime.
     configureHttpDispatcher(runtime.services.settingsManager.getHttpIdleTimeoutMs());
 
-    const wrapper: PiRuntime = new PiRuntime(runtime, subagents, terminals, lifetime, log, toolSetup);
-    // The only place the sidebar hears about a replacement it did not start.
+    const wrapper: PiRuntime = new PiRuntime(
+      runtime,
+      subagents,
+      terminals,
+      lifetime,
+      log,
+      toolSetup,
+      options.redirectClaimedSession,
+    );
+    // The only place the owning surface hears about a replacement it did not start.
     // Runs once the new session exists and before the extension's `withSession`
     // callback, which is exactly where re-attaching belongs.
     runtime.setRebindSession(async () => {
@@ -419,7 +453,7 @@ export class PiRuntime implements vscode.Disposable {
   /**
    * Cancellation token for everything this runtime owns. The SDK's auth and
    * model calls all take an `AbortSignal`; wiring this one through means a
-   * closed sidebar does not leave provider probes running in the background.
+   * disposed controller does not leave provider probes running in the background.
    */
   get signal(): AbortSignal {
     return this.lifetime.signal;
@@ -571,7 +605,7 @@ export class PiRuntime implements vscode.Disposable {
   }
 
   /**
-   * Route the extension status line and widgets to the sidebar.
+   * Route the extension status line and widgets to the owning chat surface.
    *
    * Without these two the SDK surface still resolves (the UI context falls back
    * to a no-op), so an extension that publishes a status would simply vanish in
@@ -618,7 +652,10 @@ export class PiRuntime implements vscode.Disposable {
         if (!result.cancelled) await this.lifecycle?.reattach();
         return { cancelled: result.cancelled };
       },
-      switchSession: (sessionPath, options) => this.runtime.switchSession(sessionPath, options),
+      switchSession: async (sessionPath, options) => {
+        if (await this.redirectClaimedSession(sessionPath)) return { cancelled: true };
+        return await this.runtime.switchSession(sessionPath, options);
+      },
       reload: async () => {
         if (this.lifecycle) await this.lifecycle.reload();
         else await session.reload();
@@ -629,7 +666,7 @@ export class PiRuntime implements vscode.Disposable {
   /**
    * Bind extension UI hooks for an SDK session owned by this application.
    *
-   * `ownsSession` marks the session shown in the sidebar; only it gets the
+   * `ownsSession` marks the session shown on a top-level chat surface; only it gets the
    * command context actions.
    */
   async bindSessionExtensions(
@@ -665,10 +702,20 @@ export class PiRuntime implements vscode.Disposable {
     this.log(`new session: ${this.runtime.session.sessionFile ?? "(in-memory)"}`);
   }
 
-  async switchSession(sessionFile: string): Promise<void> {
+  private async redirectClaimedSession(sessionFile: string): Promise<boolean> {
+    return Boolean(await this.openClaimRedirect?.(sessionFile));
+  }
+
+  /**
+   * Switch to a persisted session unless another top-level runtime owns it.
+   * Returns false when the owning surface was revealed instead.
+   */
+  async switchSession(sessionFile: string): Promise<boolean> {
+    if (await this.redirectClaimedSession(sessionFile)) return false;
     const started = Date.now();
     await this.replacing(() => this.runtime.switchSession(sessionFile));
     this.log(`switched session: ${sessionFile} (load ${Date.now() - started}ms)`);
+    return true;
   }
 
   /** Import a session JSONL and make it the active session. */

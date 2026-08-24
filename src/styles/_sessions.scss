@@ -1,0 +1,185 @@
+.working-spinner {
+  display: inline-block;
+  color: var(--pulse-color);
+  font-weight: 600;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+/* Full-page sessions view on narrow surfaces; left rail in wide mode. The
+   title/search controls stay fixed because only `.sessions-list` scrolls. */
+.sessions {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px 12px 12px 22px;
+}
+
+.sessions-content {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sessions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.sessions-search {
+  flex: 0 0 auto;
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-input-border, transparent);
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  outline: none;
+
+  &:focus {
+    border-color: var(--vscode-focusBorder);
+  }
+
+  &::placeholder {
+    color: var(--vscode-input-placeholderForeground);
+  }
+}
+
+.sessions-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sessions-empty {
+  color: var(--vscode-descriptionForeground);
+  padding: 8px 2px;
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 4px;
+  padding: 2px 4px;
+
+  &:hover {
+    background: var(--vscode-list-hoverBackground, var(--hover-bg));
+
+    .session-delete,
+    .session-rename {
+      opacity: 0.85;
+    }
+
+    .session-delete:disabled {
+      opacity: 0.4;
+    }
+  }
+
+  /* Claimed rows remain navigation: the controller moves to the surface where
+     the row was clicked, while a visible source receives a fresh empty session. */
+  &.current {
+    background: var(--vscode-list-inactiveSelectionBackground, rgba(128, 128, 128, 0.12));
+    border-left: 2px solid var(--accent);
+  }
+
+  &.delegation-child,
+  &.delegation-parent {
+    border-left: 2px solid var(--accent);
+  }
+}
+
+.session-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  color: var(--vscode-foreground);
+  background: transparent;
+  padding: 6px 6px;
+  min-width: 0;
+
+  &:hover {
+    background: transparent;
+  }
+}
+
+.session-title {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.session-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-meta {
+  font-size: 0.82em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.session-badge {
+  flex: 0 0 auto;
+  font-size: 0.78em;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 10px;
+  padding: 1px 8px;
+  white-space: nowrap;
+
+  .working-spinner {
+    color: var(--pulse-color);
+  }
+}
+
+.session-delete {
+  flex: 0 0 auto;
+  color: var(--vscode-errorForeground);
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 0.85em;
+  padding: 3px 8px;
+  opacity: 0;
+}
+
+.session-rename {
+  flex: 0 0 auto;
+  color: var(--vscode-foreground);
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 0.85em;
+  padding: 3px 8px;
+  opacity: 0;
+
+  &:hover {
+    opacity: 1 !important;
+  }
+}
+
+button.session-delete:hover:not(:disabled) {
+  background: var(--vscode-list-hoverBackground, var(--hover-bg));
+  border-color: var(--vscode-errorForeground);
+  opacity: 1 !important;
+}
+
+.hidden {
+  display: none;
+}

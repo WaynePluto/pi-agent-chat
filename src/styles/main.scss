@@ -1,0 +1,19 @@
+// Main stylesheet entry point.
+// Partials are loaded in the exact order they appeared in the original
+// `media/main.css` to preserve cascade semantics. Do not reorder.
+//
+// Colors use only --vscode-* CSS custom properties. SCSS variables must NOT
+// define color values (they would break theme following).
+
+@use "tokens";
+@use "base";
+@use "collapsible";
+@use "cards";
+@use "transcript";
+@use "markdown";
+@use "toolcards";
+@use "composer";
+@use "sessions";
+@use "resources";
+@use "misc";
+@use "wide";

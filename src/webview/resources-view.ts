@@ -6,12 +6,13 @@ import { getDict } from "./i18n.js";
 import { resourcesEl } from "./shell.js";
 
 /**
- * CLI-style startup listing ([Context] / [Skills] / [Tools] / ...), shown above
- * the transcript as one bordered, fully collapsible panel.
+ * CLI-style startup listing ([Context] / [Skills] / [Tools] / ...): a bordered
+ * panel above the transcript in narrow mode, and a persistent right rail in
+ * wide mode.
  *
- * The panel is only in the layout while the header's resources button is
- * toggled on, and it comes up collapsed: just a slim one-line header. Expanding
- * shows the sections; each section can further expand to full file paths.
+ * Initial narrow mode starts hidden/collapsed and initial wide mode starts
+ * shown/expanded. After that first choice, visibility and top-level expansion
+ * are shared across mode switches; each section also keeps its own state.
  *
  * Two highlights answer "what actually happened in this session?": resources
  * that took effect here are coloured, while rows that are configured but not in
@@ -43,9 +44,10 @@ const EXTENSIONS_SECTION = "Extensions";
  */
 const SCOPE_ORDER: readonly ResourceScope[] = ["builtin", "global", "project", "package", "other"];
 
-/** Header toggle: the panel stays out of the layout until asked for. */
+/** Visibility and top-level expansion are shared across narrow/wide modes. */
 let panelShown = false;
 let resourcesExpanded = false;
+let layoutDefaultsInitialized = false;
 /** Section expansion survives full re-renders triggered by the highlights. */
 const expandedSections = new Set<string>();
 let lastSections: ResourceSection[] = [];
@@ -110,6 +112,18 @@ function summaryNodes(section: ResourceSection): Node[] {
     nodes.push(highlight ? el("span", highlight, item.label) : document.createTextNode(item.label));
   });
   return nodes;
+}
+
+/**
+ * Choose defaults once from the initial viewport; later mode switches inherit
+ * the same visibility and expansion state instead of resetting either one.
+ */
+export function initializeResourcesState(wide: boolean): void {
+  if (layoutDefaultsInitialized) return;
+  layoutDefaultsInitialized = true;
+  panelShown = wide;
+  resourcesExpanded = wide;
+  if (lastSections.length > 0) renderResources(lastSections);
 }
 
 /** Header toggle: flip the whole panel in or out of the layout. */

@@ -1,0 +1,126 @@
+/* Colors come from VS Code theme variables only (see vscode-pi-design.md §5). */
+
+/* Semantic aliases for the recurring theme-variable + fallback pairs.
+   Adjust look & feel here instead of touching every rule. */
+:root {
+  --border: var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+  --widget-border: var(--vscode-widget-border, var(--border));
+  --hover-bg: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.12));
+  --hover-bg-strong: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+  --section-bg: var(--vscode-sideBarSectionHeader-background, rgba(128, 128, 128, 0.08));
+  /* Chat keeps the quieter panel tone in every host surface instead of turning
+     into the editor canvas when its tab is moved. */
+  --surface-bg: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  --shadow: var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75));
+  /* Space reserved left of a user bubble for its hover action bar:
+     3 buttons + gaps + the bar's own margin, plus a little slack. */
+  --bubble-gutter: 98px;
+  --accent: var(--vscode-focusBorder);
+  --pulse-color: var(--vscode-progressBar-background, var(--accent));
+  --code-bg: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.15));
+  /* Any VS Code surface can become arbitrarily wide (including a dragged-out
+     auxiliary sidebar). Keep readable controls and text in one centered column
+     while section backgrounds continue across the full webview. */
+  --content-max-width: 950px;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  /* A webview keeps its own colour system when moved between the editor, a
+     floating window and the auxiliary sidebar. Host-container colours must not
+     make the exact same DOM look like three different pages. */
+  background: var(--surface-bg);
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  position: relative;
+  background: var(--surface-bg);
+}
+
+.surface-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-column {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.content-column,
+.resources-panel {
+  width: min(100%, var(--content-max-width));
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+/* Webview defaults ignore the theme here, so both are mapped explicitly. */
+::selection {
+  background: var(--vscode-editor-selectionBackground);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* The slider colours are intentionally translucent in VS Code themes. */
+::-webkit-scrollbar-thumb {
+  background: var(--vscode-scrollbarSlider-background);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/* Classic (space-taking) scrollbars: the moment one appears the content box
+   loses its width and the whole container reflows -- reads as a squeeze/jitter
+   in the transcript. Every scroll container that is read *while* its content
+   grows therefore reserves the gutter permanently.
+   The paddings below deliberately keep their original right value and add the
+   10px gutter to the *left* instead: content clears the slider by the same
+   distance it had before, and the total inset is equal on both sides.
+   Keep that relation when touching them: `padding-left == padding-right + 10px
+   (the scrollbar width above)`.
+   Transient popups (.autocomplete, .picker-list) are deliberately exempt:
+   they are sized when opened, not while being read. */
+.messages,
+.sessions-list,
+.work-body,
+.card-body,
+.resources-body,
+.widget-body,
+textarea {
+  scrollbar-gutter: stable;
+}

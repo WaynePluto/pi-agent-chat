@@ -31,12 +31,12 @@ export function localize(text: LocalizedText, language: string): string {
 
 /** Fixed strings. */
 export const sharedMessages = {
-  /* Single-session mode ------------------------------------------------ */
+  /* Active-runtime replacement guard ---------------------------------- */
 
-  /** Error notice when new / resume / tree is attempted mid-run. */
+  /** Error notice when new / resume / tree would replace a running session. */
   singleSessionGuard: {
-    en: "Pi Agent Chat is single-session: stop the current run before switching or starting a session.",
-    zh: "Pi Agent Chat 仅支持单会话模式：请先停止当前会话的运行，再切换或新建会话。",
+    en: "This session is still running and cannot be replaced. Start a New session to let it finish in the background, or stop it first.",
+    zh: "此会话仍在运行，无法直接替换。可点击「新会话」让它在后台继续，或先停止当前运行。",
   },
 
   /* Retry -------------------------------------------------------------- */

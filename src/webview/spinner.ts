@@ -21,8 +21,21 @@ let timer: number | undefined;
  */
 export function spinner(): HTMLSpanElement {
   const element = el("span", SPINNER_CLASS, FRAMES[index]!);
-  timer ??= window.setInterval(tick, FRAME_INTERVAL_MS);
+  ensureSpinnerRunning();
   return element;
+}
+
+/**
+ * Restart the shared timer if it stopped.
+ *
+ * The timer commits suicide on the first tick that finds no spinner in the
+ * document, and creating an element is otherwise the only thing that revives
+ * it. A caller that **detaches and later re-attaches the same spinner element**
+ * therefore ends up with a live element and a dead timer — a spinner frozen on
+ * one frame, forever. Any such caller must announce the re-attachment here.
+ */
+export function ensureSpinnerRunning(): void {
+  timer ??= window.setInterval(tick, FRAME_INTERVAL_MS);
 }
 
 function tick(): void {

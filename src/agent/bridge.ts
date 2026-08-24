@@ -33,13 +33,21 @@ export interface BridgeHost {
   post(message: HostMessage): void;
   log(message: string): void;
   /**
-   * The session the sidebar is on, so the next window start can return to it.
+   * The session this bridge's GUI surface is on, so the next window start can return to it.
    *
    * `undefined` means a session with nothing written yet: the JSONL file is
    * created on the first append, so "the user is sitting in a new, empty
    * session" leaves no trace on disk and can only be remembered here.
    */
   rememberSession?(sessionFile: string | undefined): void;
+  /** Reveal another top-level runtime that owns this session file. */
+  revealClaimedSession?(sessionFile: string): boolean;
+  /** Where another top-level runtime that owns this persisted session lives. */
+  claimedSessionLocation?(sessionFile: string): "visible" | "background" | undefined;
+  /** Announce that session metadata or live ownership changed in this VS Code window. */
+  notifySessionsChanged?(): void;
+  /** Window-level event shared by every top-level bridge in this extension host. */
+  onDidChangeSessions?: vscode.Event<void>;
 }
 
 interface CompactionQueuedPrompt {
@@ -91,12 +99,11 @@ type View =
   /**
    * A session replayed read-only from its file.
    *
-   * `laneTitle` marks it as a subagent whose child session is gone (the window
-   * was reloaded since the run). It still gets the subagent framing: to the
-   * user that is what it is, and the generic preview banner would offer "back
-   * to the running session" with nothing running.
+   * This case exists only for a subagent whose child session is gone (the
+   * window was reloaded since the run). `laneTitle` keeps the subagent framing
+   * while its persisted transcript is replayed.
    */
-  | { kind: "replay"; file: string; title: string; events: ChatEvent[]; laneTitle?: string };
+  | { kind: "replay"; file: string; title: string; events: ChatEvent[]; laneTitle: string };
 
 /**
  * Translates `AgentSession` events into webview messages and applies inbound
@@ -126,10 +133,14 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private lanes: LaneState[] = [];
   /** The parent moved on while the user was inside a lane. */
   private parentActivityWhileAway = false;
-  /** Whether the webview's sessions page is on screen. */
+  /** Whether the narrow sessions page or wide sessions rail is on screen. */
   private sessionsVisible = false;
   /** Trailing debounce so bursts of session events cause one file scan. */
   private sessionsRefreshTimer?: ReturnType<typeof setTimeout>;
+  /** Window-level session-list invalidation subscription. */
+  private sessionsChangedSubscription?: vscode.Disposable;
+  /** Only the newest asynchronous session-file scan may reach the webview. */
+  private sessionsPostVersion = 0;
   /** Only the newest async state snapshot may reach the webview. */
   private statePostVersion = 0;
   /** Cancels the availability probe of a superseded (or disposed) state post. */
@@ -144,6 +155,17 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    * active branch.
    */
   private readonly retryOutcomes = new Map<string, { sourceLeafId: string; event: Extract<ChatEvent, { kind: "status" }> }>();
+  /**
+   * Manual retry currently executing in each session. A provider response that
+   * completes successfully resolves the clicked offer immediately, even when
+   * that response requests a tool and the following provider request fails.
+   * The later failure is a new interrupted request and gets its own offer.
+   */
+  private readonly activeManualRetries = new Map<string, {
+    offerIndex: number;
+    sourceLeafId: string;
+    succeeded: boolean;
+  }>();
   /**
    * Extension-owned status entries and widgets per session (`ctx.ui.setStatus`,
    * `ctx.ui.setWidget`). Cleared on attach: rebinding extensions re-runs their
@@ -184,6 +206,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     private readonly diffProvider: OriginalContentProvider,
   ) {
     this.projectFiles = new ProjectFileIndex((message) => host.log(message));
+    this.sessionsChangedSubscription = host.onDidChangeSessions?.(() => this.refreshSessions());
     runtime.subagents.setObserver(this);
     // Must be wired before the first bindExtensions() in attach(): all three
     // sinks below are captured by the contexts created there.
@@ -518,9 +541,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       `session attach: ${events.length} events, build ${built - started}ms, post ${posted - built}ms, ` +
         `bind ${bound - posted}ms, resources+state ${Date.now() - bound}ms`,
     );
-    // Only the sessions page needs this; never make the transcript wait for it.
+    // Only a visible sessions page/rail needs this; never make the transcript wait for it.
     this.refreshSessions();
-    // A models.json broken outside the sidebar must not stay invisible.
+    // A models.json broken outside the current surface must not stay invisible.
     await this.reportModelsConfigError(session);
   }
 
@@ -674,8 +697,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   /**
    * Push the extension status entries and widgets of the displayed session.
    *
-   * A preview shows a transcript the extensions are not bound to, so it gets an
-   * empty set rather than the live session's, matching what the transcript does.
+   * A historical lane replay shows a transcript the extensions are not bound
+   * to, so it gets an empty set rather than the live session's.
    */
   private postExtensionStatus(): void {
     if (this.disposed) return;
@@ -714,8 +737,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    * Tell the webview which session entry each user bubble belongs to, so the
    * per-bubble actions (switch / fork / label) can address it.
    *
-   * Only the live runtime transcript is actionable: a read-only preview or a
-   * subagent's transcript gets an empty list, which hides the buttons.
+   * Only the live runtime transcript is actionable: a live or replayed
+   * subagent transcript gets an empty list, which hides the buttons.
    */
   postEntryIds(): void {
     const session = this.runtime.session;
@@ -1089,16 +1112,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         // Everything automatic has finished, so this is the first moment where
         // "the turn ended on a request that never came back" is a settled fact.
         this.offerRetry(session);
-        // A preview left open after the run finishes would trap the user in a
-        // read-only view; the previewed session can now be resumed for real.
-        if (this.view.kind === "replay" && !this.activeRun && session === this.runtime.session && !session.isStreaming) {
-          const file = this.view.file;
-          void (async () => {
-            await this.runtime.switchSession(file);
-            await this.attach();
-          })();
-          break;
-        }
+        // A historical lane stays where the user chose to read it. Never switch
+        // the parent runtime to the child file or pull the user back on settle.
         void this.postState();
         this.postEntryIds();
         this.refreshSessions();
@@ -1114,6 +1129,20 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       }
       case "message_end":
         this.emit(session, { kind: "assistant_end" });
+        if (
+          event.message.role === "assistant" &&
+          event.message.stopReason !== "error" &&
+          event.message.stopReason !== "aborted"
+        ) {
+          const retry = this.activeManualRetries.get(session.sessionId);
+          if (retry && !retry.succeeded) {
+            // A tool request is already a successful answer to the request we
+            // re-issued. If the tool finishes and the next provider call times
+            // out, that later call owns the new failure and retry offer.
+            retry.succeeded = true;
+            this.markRetryOffer(session, retry.offerIndex, "succeeded", retry.sourceLeafId);
+          }
+        }
         // Assistant messages carry the provider's finalized usage, cache and
         // cost figures. Refresh after the SDK persists the message so the
         // footer updates after every model response, including responses that
@@ -1320,7 +1349,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     // A subagent shown by replaying its session file — all that is left of it
     // after a window reload — is still a subagent as far as the user is
     // concerned, so it keeps the lane framing.
-    if (this.view.kind === "replay" && this.view.laneTitle !== undefined) {
+    if (this.view.kind === "replay") {
       const file = this.view.file;
       const known = this.lanes.find((lane) => lane.sessionFile === file);
       const lane: DelegationLane = known
@@ -1370,9 +1399,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    *
    * A lane stays viewable as a lane after it finishes — its child session is
    * kept until the next run — so this is the path for both a running and a
-   * completed subagent. Only once the session is gone (a transcript replayed in
-   * a later session, say) does it fall back to an ordinary read-only preview,
-   * which is also the only case where the subagent framing is genuinely lost.
+   * completed subagent. Once the child session is gone (after a window reload,
+   * say), its file is replayed read-only while retaining the same subagent
+   * framing.
    */
   private showLane(laneId?: string, fallbackFile?: string, laneTitle?: string): void {
     if (!laneId) {
@@ -1383,7 +1412,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     if (!session) {
       // The child session is gone (an earlier window, or a session switch), but
       // its transcript is on disk. Replay it *as that subagent*.
-      if (fallbackFile) void this.previewSession(fallbackFile, laneTitle ?? "");
+      if (fallbackFile) void this.replayLaneSession(fallbackFile, laneTitle ?? "");
       return;
     }
     this.setView({ kind: "lane", laneId, session });
@@ -1454,7 +1483,11 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         this.sessionsVisible = message.visible;
         if (message.visible) {
           await this.pushSessions();
-        } else if (this.sessionsRefreshTimer) {
+        } else {
+          // Invalidate an in-flight scan as well as a not-yet-started debounce.
+          this.sessionsPostVersion++;
+        }
+        if (!message.visible && this.sessionsRefreshTimer) {
           clearTimeout(this.sessionsRefreshTimer);
           this.sessionsRefreshTimer = undefined;
         }
@@ -1463,15 +1496,17 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         this.postCommands();
         break;
       case "resumeSession":
+        // A replayed historical lane may navigate back to the runtime's own
+        // parent without replacing anything.
+        if (message.file === this.runtime.session.sessionFile) {
+          this.setView({ kind: "live" });
+          break;
+        }
         if (this.guardStreaming()) break;
-        await this.runtime.switchSession(message.file);
-        await this.attach();
+        if (await this.runtime.switchSession(message.file)) await this.attach();
         break;
-      case "previewSession":
-        await this.previewSession(message.file);
-        break;
-      case "closePreview":
-        this.closePreview();
+      case "revealSession":
+        this.host.revealClaimedSession?.(message.file);
         break;
       case "showLane":
         this.showLane(message.laneId, message.sessionFile, message.title);
@@ -1484,6 +1519,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         break;
       case "renameSession":
         await this.renameSession(message.file);
+        break;
+      case "renameCurrentSession":
+        await this.renameSession();
         break;
       case "openSessionTree":
         if (this.guardStreaming()) break;
@@ -1596,28 +1634,35 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     const offer = known >= 0 ? known : this.materializeRetryOffer(session);
     const sourceLeafId = session.sessionManager.getLeafId();
     if (!sourceLeafId) return;
+    const active = { offerIndex: offer, sourceLeafId, succeeded: false };
+    this.activeManualRetries.set(session.sessionId, active);
     this.markRetryOffer(session, offer, "running", sourceLeafId);
     try {
       await resumeAfterError(session);
-      // Thinking/tool activity proves the retry started, but only a settled
-      // branch that moved past an interrupted tail proves it succeeded.
+      // A terminal answer can be inferred from the settled branch for tests or
+      // SDK paths that do not deliver message events to this bridge. During a
+      // normal run, message_end above resolves the offer earlier — including a
+      // tool request followed by a separate provider failure.
       this.markRetryOffer(
         session,
         offer,
-        isResumable(session) ? "failed" : "succeeded",
+        active.succeeded || !isResumable(session) ? "succeeded" : "failed",
         sourceLeafId,
       );
     } catch (error) {
       this.reportError(session, "retry failed", error);
-      this.markRetryOffer(session, offer, "failed", sourceLeafId);
+      this.markRetryOffer(session, offer, active.succeeded ? "succeeded" : "failed", sourceLeafId);
     } finally {
+      if (this.activeManualRetries.get(session.sessionId) === active) {
+        this.activeManualRetries.delete(session.sessionId);
+      }
       await this.postState();
     }
   }
 
   /**
-   * Single-session mode: while a run is in progress the active session must
-   * not be replaced (switch/new/fork would abort the run mid-flight).
+   * One runtime cannot replace its own session while it is running. Parallel
+   * top-level work uses another surface/controller instead of aborting this one.
    */
   private guardStreaming(): boolean {
     if (!this.runtime.session.isStreaming && !this.runtime.session.isCompacting) return false;
@@ -1649,15 +1694,11 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   }
 
   /**
-   * Open another session's transcript read-only, without touching the runtime
-   * session: the JSONL file is replayed into events. Used while a run is in
-   * progress, when switching the active session is not allowed.
+   * Replay a historical subagent whose live child session no longer exists.
+   * Ordinary top-level sessions never take this path: selecting one constructs
+   * a writable top-level controller, even while the current controller runs.
    */
-  private async previewSession(file: string, laneTitle?: string): Promise<void> {
-    // Asking to replay the live session means "take me back to it" — what the
-    // sessions list sends when the user picks the parent while a lane is on
-    // screen. Replaying it for real would swap a live transcript for a static
-    // copy of itself.
+  private async replayLaneSession(file: string, laneTitle: string): Promise<void> {
     if (file === this.runtime.session.sessionFile) {
       this.setView({ kind: "live" });
       return;
@@ -1669,15 +1710,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       this.setView({ kind: "replay", file, title: (firstUser?.text ?? "").split("\n")[0] ?? "", events, laneTitle });
       this.refreshSessions();
     } catch (error) {
-      this.reportError(this.runtime.session, "session preview failed", error, "command");
+      this.reportError(this.runtime.session, "subagent replay failed", error, "command");
     }
-  }
-
-  /** Return from a read-only replay to the live transcript. */
-  private closePreview(): void {
-    if (this.view.kind !== "replay") return;
-    this.setView({ kind: "live" });
-    this.refreshSessions();
   }
 
   /** Answer a webview @ picker query; errors are reported inline, never thrown. */
@@ -1894,8 +1928,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
           { title: t("resumeSessionTitle") },
         );
         if (!picked) return;
-        await this.runtime.switchSession(picked.file);
-        await this.attach();
+        if (await this.runtime.switchSession(picked.file)) await this.attach();
       },
       pickModel: async (argument: string) => {
         if (argument.includes("/")) {
@@ -2012,6 +2045,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         : this.activeRun && info.path === this.runtime.session.sessionFile
           ? "parent"
           : undefined,
+      claimedElsewhere: this.host.claimedSessionLocation?.(info.path),
     }));
     // The SDK defers writing a brand-new session to disk until its first
     // assistant message completes, so a session that already has messages may
@@ -2026,6 +2060,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         current: live.sessionFile === displayedFile,
         running: live.isStreaming || live.isCompacting,
         delegationRole: undefined,
+        claimedElsewhere: this.host.claimedSessionLocation?.(live.sessionFile),
       });
     }
     return items;
@@ -2033,8 +2068,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
   /**
    * Scanning session files costs O(total JSONL size), so it only happens
-   * while the sessions page is visible, and bursts of triggers (agent events
-   * arrive in clusters) coalesce into a single delayed scan.
+   * while the sessions page/rail is visible, and bursts of local or window-level
+   * invalidations coalesce into a single delayed scan.
    */
   private refreshSessions(): void {
     if (!this.sessionsVisible || this.disposed) return;
@@ -2047,11 +2082,19 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
   private async pushSessions(): Promise<void> {
     if (!this.sessionsVisible || this.disposed) return;
-    this.host.post({ type: "sessions", items: await this.listSessions() });
+    if (this.sessionsRefreshTimer) {
+      clearTimeout(this.sessionsRefreshTimer);
+      this.sessionsRefreshTimer = undefined;
+    }
+    const version = ++this.sessionsPostVersion;
+    const items = await this.listSessions();
+    if (this.disposed || !this.sessionsVisible || version !== this.sessionsPostVersion) return;
+    this.host.post({ type: "sessions", items });
   }
 
   /** Delete a session file after confirmation; sessions of the active run cannot be deleted. */
   private async deleteSession(file: string): Promise<void> {
+    if (this.host.revealClaimedSession?.(file)) return;
     const runningLaneFiles = this.activeRun
       ? new Set(this.lanes.map((lane) => lane.sessionFile).filter(Boolean) as string[])
       : new Set<string>();
@@ -2068,33 +2111,37 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     if (answer !== confirmLabel) return;
     await vscode.workspace.fs.delete(vscode.Uri.file(file));
     await this.pushSessions();
+    this.host.notifySessionsChanged?.();
   }
 
   /**
-   * Rename a session (the `/name` flow, reachable from the sessions list).
-   * The active session goes through `setSessionName()` so the SDK emits its
-   * change event; any other session file gets a `session_info` entry appended
-   * via a short-lived SessionManager. Subagent sessions of a running call are
-   * skipped (their JSONL is being appended to by the run).
+   * Rename a session (the `/name` flow, reachable from the header and sessions
+   * list). The header omits `file` so even an empty, not-yet-persisted session
+   * can be named. The active session goes through `setSessionName()` so the SDK
+   * emits its change event; any other session file gets a `session_info` entry
+   * appended via a short-lived SessionManager. Subagent sessions of a running
+   * call are skipped (their JSONL is being appended to by the run).
    */
-  private async renameSession(file: string): Promise<void> {
+  private async renameSession(file?: string): Promise<void> {
+    // Renaming just appends metadata — it does not interfere with a running
+    // session, so claimed sessions can be renamed from any surface.
     const runningLaneFiles = this.activeRun
       ? new Set(this.lanes.map((lane) => lane.sessionFile).filter(Boolean) as string[])
       : new Set<string>();
-    if (runningLaneFiles.has(file)) {
+    if (file && runningLaneFiles.has(file)) {
       this.emitCommandError(t("renameRunningSession"));
       return;
     }
-    const isActive = file === this.runtime.session.sessionFile;
+    const isActive = !file || file === this.runtime.session.sessionFile;
     // Prefill the input with the title the list shows so a rename always edits
     // it instead of starting from scratch: an unnamed session is titled by its
     // first user message, so `getSessionName()` alone would leave the box empty
     // next to a row that clearly has a title. Inactive sessions read it off
     // their own file.
-    let manager: SessionManager | undefined;
+    let manager: SessionManager;
     let currentName: string | undefined;
     try {
-      manager = isActive ? this.runtime.session.sessionManager : SessionManager.open(file);
+      manager = isActive ? this.runtime.session.sessionManager : SessionManager.open(file!);
       currentName = sessionTitle(manager);
     } catch (error) {
       this.reportError(this.runtime.session, "rename session failed", error, "command");
@@ -2115,11 +2162,13 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       return;
     }
     await this.pushSessions();
+    this.host.notifySessionsChanged?.();
   }
 
   dispose(): void {
     this.disposed = true;
     this.statePostVersion++;
+    this.sessionsPostVersion++;
     this.modelsConfigWatcher?.dispose();
     this.modelsConfigWatcher = undefined;
     this.settingsWatcher?.dispose();
@@ -2142,6 +2191,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       clearTimeout(this.sessionsRefreshTimer);
       this.sessionsRefreshTimer = undefined;
     }
+    this.sessionsChangedSubscription?.dispose();
+    this.sessionsChangedSubscription = undefined;
     this.runtime.subagents.setObserver(undefined);
     this.unsubscribe?.();
     this.unsubscribe = undefined;

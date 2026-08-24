@@ -16,7 +16,7 @@ import { copyButton } from "./clipboard.js";
 import { button, el } from "./dom.js";
 import { BUBBLE_FOLD_CHARS_PER_LINE } from "./format.js";
 import { getDict } from "./i18n.js";
-import { renderMarkdown } from "./markdown.js";
+import { renderMarkdown, renderMarkdownNoHighlight } from "./markdown.js";
 import { DEFAULT_FOLD_LINES } from "../shared/protocol.js";
 
 const t = getDict();
@@ -49,7 +49,13 @@ export interface MessageBubble {
    * alone — "if I expanded an old message, it stays expanded".
    */
   readonly pinned: boolean;
+  /** Full re-render with syntax highlighting (used for final text). */
   setText(text: string): void;
+  /**
+   * Incremental streaming render: only re-parses the tail after the last
+   * stable block boundary. No syntax highlighting (fences are incomplete).
+   */
+  setStreamingText(text: string): void;
   setFolded(folded: boolean): void;
 }
 
@@ -90,7 +96,56 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
 
   const setText = (next: string) => {
     text = next;
+    // Full render with highlighting: used for final/complete messages.
     content.replaceChildren(renderMarkdown(next));
+    // Reset incremental state since this is a full render.
+    stablePrefix = "";
+    stableNodes = 0;
+    foldable = isLongMessage(next);
+    applyFold();
+  };
+
+  /**
+   * Incremental streaming: split at the last double-newline that ends a
+   * complete Markdown block (paragraph/fence/list). The stable prefix is
+   * rendered once; only the unstable tail is re-parsed on each frame.
+   * No syntax highlighting (streaming fences are usually incomplete).
+   */
+  let stablePrefix = "";
+  let stableNodes = 0;
+
+  const setStreamingText = (next: string) => {
+    text = next;
+    // Find the last block boundary: double newline with a complete block before it.
+    // A code fence that is still open (odd number of ```) must not be split.
+    const boundary = findStableBoundary(next, stablePrefix.length);
+    const prefix = next.slice(0, boundary);
+    const tail = next.slice(boundary);
+
+    if (prefix.length > stablePrefix.length) {
+      // New stable content: render it and append.
+      const newStable = prefix.slice(stablePrefix.length);
+      const fragment = renderMarkdownNoHighlight(newStable);
+      const newNodeCount = fragment.childNodes.length;
+      // Remove the old tail nodes (everything after the previously stable ones)
+      while (content.childNodes.length > stableNodes) {
+        content.lastChild!.remove();
+      }
+      content.appendChild(fragment);
+      stablePrefix = prefix;
+      stableNodes += newNodeCount;
+    } else {
+      // Same stable prefix: just replace the tail nodes.
+      while (content.childNodes.length > stableNodes) {
+        content.lastChild!.remove();
+      }
+    }
+
+    // Render the unstable tail (cheap: usually just one paragraph).
+    if (tail) {
+      content.appendChild(renderMarkdownNoHighlight(tail));
+    }
+
     foldable = isLongMessage(next);
     applyFold();
   };
@@ -114,8 +169,51 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
       return pinned;
     },
     setText,
+    setStreamingText,
     setFolded,
   };
+}
+
+/**
+ * Find the last position in `text` where the prefix up to that point forms
+ * complete Markdown blocks (safe to render independently). Returns 0 if no
+ * safe split point exists yet.
+ *
+ * Rules:
+ * - A double newline (`\n\n`) is a potential block boundary.
+ * - But not if an odd number of triple-backtick fences precede it (we'd be
+ *   inside a code block where `\n\n` is just content).
+ * - We never split before `minOffset` (the previously committed prefix length)
+ *   since going backwards would require discarding already-rendered stable DOM.
+ */
+function findStableBoundary(text: string, minOffset: number): number {
+  // Count open fences in the entire text up to each candidate position.
+  let boundary = 0;
+  let fenceOpen = false;
+  let i = 0;
+  while (i < text.length) {
+    // Detect triple-backtick fences at line start (possibly indented).
+    if (i === 0 || text.charCodeAt(i - 1) === 10) {
+      let j = i;
+      while (j < text.length && text.charCodeAt(j) === 32) j++; // skip indent
+      if (text.startsWith("```", j)) {
+        fenceOpen = !fenceOpen;
+        i = j + 3;
+        continue;
+      }
+    }
+    // Double newline outside a fence = block boundary candidate.
+    if (!fenceOpen && text.charCodeAt(i) === 10 && i + 1 < text.length && text.charCodeAt(i + 1) === 10) {
+      const pos = i + 2; // position right after the double newline
+      if (pos > minOffset) {
+        boundary = pos;
+      }
+      i += 2;
+      continue;
+    }
+    i++;
+  }
+  return boundary;
 }
 
 /**

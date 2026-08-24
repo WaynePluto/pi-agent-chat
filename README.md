@@ -2,7 +2,7 @@
 
 English | [简体中文](./readme.zh-CN.md)
 
-The [Pi Coding Agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent), running natively in your VS Code sidebar — **no Pi CLI installation required**.
+The [Pi Coding Agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent), running natively in your VS Code sidebar or an editor tab — **no Pi CLI installation required**.
 
 This extension is implemented with the **official** `@earendil-works/pi-coding-agent` SDK (**v0.84.2**) bundled directly inside — no RPC bridge, no separate Pi CLI. The agent loop, tools and LLM calls all run in-process, reading and writing your existing Pi configuration and sessions in place. Compatibility is drawn on the **data** side rather than promised feature for feature: both hosts share the same files, but a second host cannot run CLI extensions that need a terminal Pi process (see [Host boundaries](#host-boundaries)).
 
@@ -26,15 +26,17 @@ Like Pi itself, this extension stays minimal:
 
 - **A second Pi host, not a CLI front-end.** The agent loop, tools, LLM calls and extension/skill loading all come from the SDK, unmodified; the extension adds the UI and what any host has to do itself (auth dialogs, proxy, its own settings). Compatibility is drawn on the **data** side: the same `~/.pi/agent/`, the same sessions, either host able to pick up the other's work. VS Code settings are used only for capabilities unique to this host (currently the subagent and terminal tools).
 - **Shares the Pi ecosystem.** Context (AGENTS.md), skills, extensions, prompt templates, models and auth are read from the same place and behave as they do in the CLI — except for extensions that need a terminal Pi process ([Host boundaries](#host-boundaries)). The UI itself follows your VS Code color theme (Pi TUI themes are not used).
-- **No feature sprawl.** One task line at a time (below), and exactly two tools on top of pi's own set — `subagent` and `vscode_terminal`, both off by default. Everything else comes from pi or from a pi extension in `~/.pi/agent/extensions/`, shared with the CLI.
+- **No feature sprawl.** The sidebar and one editor tab are the two equivalent top-level chat surfaces, and exactly two tools sit on top of pi's own set — `subagent` and `vscode_terminal`, both off by default. Everything else comes from pi or from a pi extension in `~/.pi/agent/extensions/`, shared with the CLI.
 
-## Single-session mode (by design)
+## Sidebar and editor sessions
 
-One task line runs at a time. While a run is in progress you cannot switch to unrelated sessions or create one, but you can open any session as a **read-only preview** (a banner shows on top; go back to the running session to send messages). Different VS Code windows (different projects) are independent.
+The chat header keeps six direct text actions: **New, Sessions, Session tree, Search, Resources, Settings**. Surface movement has one separate entry point: the native `…` icon in the VS Code title area. From the sidebar it offers **Move session to the editor area** / **Move session to a new window**; from an editor tab it offers **Move session to the auxiliary sidebar** / **Move session to a new window**. Moving to the auxiliary sidebar closes the source editor tab. When both sidebar/editor surfaces are occupied, moving between them swaps their controllers before the source tab closes.
 
-Parallel *sessions* are not planned. The scarce resource is your attention, not the model's time: two conversations mean two contexts to hold in your head, and reviewing the result is the part that actually costs you. Several tasks work better as one task list in one session, where the agent also keeps a better grasp of the whole picture — send it, go get a coffee, come back and review.
+The two surfaces are equivalent and may run independent sessions concurrently. **New** is local to the surface where it is clicked. If that surface's controller is running, it continues headlessly while a fresh controller and session take over the same GUI. Closing an editor tab follows the same rule: an in-flight agent keeps running in the extension host. A claimed headless session can be selected from the sessions list to bring it back into that surface without opening a second writer on its JSONL file. Headless runtimes are released after they settle; their persisted sessions remain resumable.
 
-**Subagents follow from this rule.** What gets parallelized is the *execution*: still one task line, one report to read, one agent to answer to. Subagent panels have no input box by design — you can watch a lane and stop it, so "who am I talking to now?" never becomes a question. Delegation multiplies the machine's work without multiplying the conversations you have to hold.
+Both top-level agents work in the same workspace. The extension does not create worktrees, serialize their runs or detect overlapping writes; use git and decide yourself which tasks are safe to run concurrently. Read-only previews remain available inside either surface while its own runtime is busy.
+
+**Subagents remain one conversation within their parent session.** A subagent panel has no input box by design — you can watch a lane and stop it, but you only talk to that top-level session's parent. Delegation can still fan execution out without creating more user-facing conversations.
 
 Overall, this extension bets on simplicity and on the continued progress of the models themselves: the less the agent harness interferes with the model, the better.
 
@@ -44,14 +46,14 @@ Overall, this extension bets on simplicity and on the continued progress of the 
 - Message bubbles: only the newest message of each role is expanded, older long ones fold to a preview (a fold you undo by hand stays undone; the threshold — and `0` for never folding — is the `piAgentChat.transcript.foldLines` setting, default `14`); copy buttons for the raw message and for each code block
 - Tool cards: argument summary, collapsible output, compact colored diff for edit results
 - One-click native `vscode.diff` for edit results (reverse-applies the patch to reconstruct the old content) and open-target-file
-- Session new / list / resume / delete, with full transcript replay; while a run is in progress, other sessions can be opened as a read-only preview
+- Session new / list / resume / delete, with full transcript replay; the sidebar and one editor tab can host independent sessions concurrently, while each surface can still open other sessions as read-only previews
 - Session tree navigation: the **Tree** button or `/tree` opens a QuickPick to switch branches, fork from any node, and label nodes; `/fork` forks from a past user message (original text refilled into the composer), `/clone` copies the current session in place
 - Slash command autocomplete: type `/` for candidates covering built-ins, prompt templates, extension commands and `/skill:*`, named and described consistently with the CLI
 - Model and thinking-level switching (QuickPick), abort, steer / follow-up
 - Retry a request that failed for good: whenever a turn ends on a request that never came back (a connection error automatic retry gave up on, a timeout, an error that was never retriable), the transcript closes with a **Retry** button that re-issues the same request. Carrying on no longer costs a "continue" message that ends up in the transcript and in the model context. The offer is recomputed when a session is reopened, so it survives a window reload
 - Provider sign-in (OAuth / API key) plus a **custom provider** entry that opens the shared `~/.pi/agent/models.json` with a fresh commented template every time — the whole file when it is empty, one more provider entry (unsaved, so `Ctrl+Z` drops it) when it already has content. No sign-in is involved there: a `baseUrl`, a model id and any `apiKey` value (a placeholder is enough for endpoints that ignore it) make the model selectable. Saving the file reloads it, lists the models it added, and explains the ones that stay hidden; providers defined in that file carry a 🗑 row action that removes their entry (comments and formatting are preserved)
 - Resource listing pinned above the transcript (Context / Skills / Prompts / Extensions), same as the CLI startup listing
-- Reopens the session the sidebar was last showing (a fresh, still-empty session included), falling back to the workspace's most recent session when there is nothing to restore or the file is gone
+- Remembers sidebar and editor sessions separately (fresh, still-empty sessions included); a retained editor tab is restored by VS Code, while missing files fall back safely
 - `@` project file references: type `@` in the composer to fuzzy-search workspace files (respecting `.gitignore`; `Ctrl+→` toggles showing ignored files, which are labeled along with potentially sensitive ones); selected files become removable chips and are sent as plain relative paths for the model to `read` itself
 - Shell-style input history: `↑` / `↓` recall previously sent prompts (references restored as chips; the half-written draft is kept while browsing), claimed on the outer lines of the text so multi-line editing keeps its arrows; never during IME composition. Opening a session also seeds the history with its earlier questions, like the Pi CLI
 - Subagent (opt-in): one call fans out into several child sessions that each write directly to your working tree within a declared path range, shown as live rows in the parent's transcript
@@ -79,7 +81,7 @@ All three are `resource`-scoped, so a `.vscode/settings.json` can enable it in a
 
 **Nothing is rolled back.** A failed subagent may leave half-finished work in your tree, so the report lists exactly which files each one wrote before it stopped, and whether it stopped early. In practice this means: use a git repository, so partial work can be inspected and discarded.
 
-**You only ever talk to the parent.** Subagent transcripts are read-only; each row in the parent's card can be opened to watch, or stopped on its own (the others carry on, and the report says it was you who stopped it, so the parent does not helpfully restart it). Opening a subagent is always your own move — if the run finishes while you are reading one, the back button just grows a marker. This is [single-session mode](#single-session-mode-by-design) holding: the execution fans out, the conversation does not.
+**You only ever talk to the parent.** Subagent transcripts are read-only; each row in the parent's card can be opened to watch, or stopped on its own (the others carry on, and the report says it was you who stopped it, so the parent does not helpfully restart it). Opening a subagent is always your own move — if the run finishes while you are reading one, the back button just grows a marker. This keeps each top-level session's conversation singular: the execution fans out, that conversation does not.
 
 **Roles live in your prompt files.** A subagent starts from the task the parent wrote plus the paths it may write to. To give it a role — or to steer *when* delegation happens and how work is split — write that in your project `AGENTS.md` or `~/.pi/agent/APPEND_SYSTEM.md`, which pi feeds to the agent in both hosts. If you already keep role files in a directory — `.claude/agents/` and `~/.claude/agents/` (Claude Code), `.opencode/agents/` and `~/.config/opencode/agents/` (OpenCode), `~/.pi/agent/agents/` (the CLI's subagent extension) — point at it instead of restating them:
 

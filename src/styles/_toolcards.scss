@@ -1,0 +1,281 @@
+/* Collapsible cards (thinking + tool calls): single-line header, lazy body */
+.thinking-card,
+.tool-card {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.tool-card {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.92em;
+
+  &.running {
+    border-color: var(--accent);
+  }
+
+  &.error {
+    border-color: var(--vscode-errorForeground);
+  }
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  color: var(--vscode-foreground);
+  background: transparent;
+  padding: 6px 10px;
+
+  &:hover {
+    background: var(--vscode-list-hoverBackground, var(--hover-bg));
+  }
+}
+
+.thinking-card {
+  .card-header {
+    font-style: italic;
+    color: var(--vscode-descriptionForeground);
+  }
+
+  .card-body {
+    color: var(--vscode-descriptionForeground);
+    font-size: 0.92em;
+  }
+}
+
+.card-label {
+  font-weight: 600;
+  /* Italic glyphs overhang their box; keep the last char from being clipped. */
+  padding-right: 0.15em;
+}
+
+.card-status {
+  color: var(--vscode-descriptionForeground);
+
+  &:not(:empty)::before {
+    content: "- ";
+  }
+}
+
+/*
+ * Skill attribution on tool cards: a skill the model loads on its own arrives
+ * as a plain `read`, so the badge is the only thing telling the two apart.
+ */
+.skill-badge {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--vscode-keybindingLabel-border, var(--border));
+  border-radius: 8px;
+  font-size: 0.85em;
+  font-weight: 400;
+  color: var(--vscode-descriptionForeground);
+
+  &.load {
+    border-color: transparent;
+    color: var(--vscode-badge-foreground);
+    background: var(--vscode-badge-background, rgba(128, 128, 128, 0.3));
+  }
+}
+
+.card-pulse {
+  display: none;
+  width: 8px;
+  height: 8px;
+
+  .streaming & {
+    display: inline-block;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+}
+
+.card-body {
+  padding: 4px 10px 8px 20px;
+  line-height: 1.5;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.tool-args {
+  color: var(--vscode-descriptionForeground);
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 2px 0;
+}
+
+.tool-body {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Generic tree for a tool's own `details` payload; collapsed by default. */
+/* Subagent card: one row per subagent -------------------------- */
+
+.lane-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0;
+}
+
+.lane-row {
+  border-left: 2px solid var(--vscode-panel-border);
+  padding: 2px 0 2px 8px;
+}
+
+.lane-running {
+  border-left-color: var(--vscode-progressBar-background);
+}
+
+.lane-completed {
+  border-left-color: var(--vscode-charts-green);
+}
+
+.lane-failed {
+  border-left-color: var(--vscode-errorForeground);
+}
+
+.lane-stopped {
+  border-left-color: var(--vscode-descriptionForeground);
+}
+
+.lane-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.lane-mark {
+  flex: none;
+}
+
+.lane-title {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.lane-scope,
+.lane-detail,
+.lane-files {
+  color: var(--vscode-descriptionForeground);
+  word-break: break-all;
+}
+
+.lane-detail,
+.lane-files {
+  margin-top: 2px;
+}
+
+.lane-warning {
+  color: var(--vscode-editorWarning-foreground);
+  margin-top: 2px;
+}
+
+.lane-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.tool-details-block {
+  margin-top: 6px;
+  border-top: 1px solid var(--vscode-panel-border);
+
+  > .card-header {
+    padding: 4px 0;
+    opacity: 0.85;
+  }
+
+  > .card-body {
+    padding-left: 2px;
+    /* Nested inside another .card-body: reserving a second gutter would eat 10px
+       of an already narrow tree, and this one scrolls with its parent in
+       practice. */
+    scrollbar-gutter: auto;
+  }
+}
+
+.detail-row {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 1px 0;
+  word-break: break-word;
+
+  /* A nested value stacks under its key instead of sitting beside it. */
+  &.nested {
+    display: block;
+  }
+}
+
+.detail-key {
+  color: var(--vscode-descriptionForeground);
+  flex: 0 0 auto;
+
+  &::after {
+    content: ":";
+  }
+}
+
+.detail-value {
+  white-space: pre-wrap;
+  min-width: 0;
+}
+
+.detail-children {
+  padding-left: 12px;
+  border-left: 1px solid var(--vscode-panel-border);
+  margin-left: 2px;
+}
+
+.detail-empty {
+  color: var(--vscode-descriptionForeground);
+}
+
+.tool-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* Compact unified-diff preview inside edit tool cards */
+.diff-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 0 2px;
+
+  &.added {
+    background: var(--vscode-diffEditor-insertedLineBackground, rgba(80, 200, 120, 0.16));
+  }
+
+  &.removed {
+    background: var(--vscode-diffEditor-removedLineBackground, rgba(230, 90, 90, 0.16));
+  }
+
+  &.hunk {
+    color: var(--vscode-descriptionForeground);
+  }
+}
+
+.composer {
+  position: relative;
+  /* Above the header, so its popups (autocomplete, overflow menu) open over
+     everything they can reach. */
+  z-index: 4;
+  background: var(--surface-bg);
+}
+
+.composer-content {
+  position: relative;
+  padding: 0 12px 12px;
+  background: var(--surface-bg);
+  /* Restore depth around the input area, but constrain it to the readable
+     column: a full-width footer shadow creates dark shelves on both sides. */
+  box-shadow:
+    0 -8px 18px -7px var(--shadow),
+    0 -3px 8px -4px var(--shadow);
+}

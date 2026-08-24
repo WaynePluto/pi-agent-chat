@@ -4,15 +4,16 @@ import { post } from "./host.js";
 import { setFoldMaxLines } from "./bubble.js";
 import { getDict } from "./i18n.js";
 import { SEND_ICON, STOP_ICON } from "./icons.js";
-import { hasResources, isResourcesShown, renderResources, toggleResources } from "./resources-view.js";
+import { hasResources, initializeResourcesState, isResourcesShown, renderResources, toggleResources } from "./resources-view.js";
 import { renderExtensionWidgets } from "./widgets.js";
-import { initSessions, isSessionsOpen, renderSessions } from "./sessions-view.js";
+import { initSessions, isSessionsVisible, renderSessions, setSessionsVisible } from "./sessions-view.js";
 import { closePicker, openPicker, refreshPicker, setModelCatalog, togglePicker } from "./picker.js";
 import { closeSearch, toggleSearch } from "./search.js";
 import { createOverflowGroup } from "./overflow.js";
 import {
   authEl,
   byId,
+  chatColumnEl,
   composerActionsEl,
   composerEl,
   composerMenuEl,
@@ -22,7 +23,7 @@ import {
   delegationPeerBtn,
   followUpBtn,
   headerActionsEl,
-  headerEl,
+  headerContentEl,
   headerMenuEl,
   headerMoreBtn,
   headerTitleEl,
@@ -32,11 +33,11 @@ import {
   newBtn,
   recallBtn,
   resourcesBtn,
+  rootEl,
   searchBtn,
   resourcesEl,
   sendBtn,
   sessionsBtn,
-  sessionsEl,
   settingsBtn,
   steerBtn,
   thinkingBtn,
@@ -56,26 +57,41 @@ import { applyEvent, applyHistory, assignEntryIds, clearMessages, hasPendingBubb
 
 const t = getDict();
 
+/** Enough room for two useful 230-320px rails and a readable center column. */
+const WIDE_LAYOUT_MIN_WIDTH = 1440;
+let wideLayout = false;
+let sessionsPageOpen = false;
+/** The sessions page and wide rail are distinct; resources deliberately are not. */
+let wideSessionsShown = true;
+
 /* ---------------------------------------------------------------- */
 /* Page layout                                                       */
 /* ---------------------------------------------------------------- */
 
-/** The sessions page replaces the chat: hide messages, composer and Tree. */
+/** Keep the host subscribed exactly while the narrow page or wide rail is visible. */
+function setSessionListVisible(visible: boolean): void {
+  const changed = visible !== isSessionsVisible();
+  setSessionsVisible(visible);
+  if (changed) post({ type: "sessionsVisible", visible });
+}
+
+/** On narrow surfaces the sessions page replaces the chat. */
 function openSessions(): void {
+  if (wideLayout) return;
   closePicker();
   closeSearch();
-  sessionsEl.classList.remove("hidden");
-  messagesWrapEl.classList.add("hidden");
-  composerEl.classList.add("hidden");
+  sessionsPageOpen = true;
+  setSessionListVisible(true);
+  chatColumnEl.classList.add("hidden");
+  authEl.classList.add("hidden");
   applyResourcesVisibility();
-  delegationBarEl.classList.add("hidden");
   updateHeaderButtons();
-  post({ type: "sessionsVisible", visible: true });
 }
 
 function closeSessions(): void {
-  if (isSessionsOpen()) post({ type: "sessionsVisible", visible: false });
-  sessionsEl.classList.add("hidden");
+  sessionsPageOpen = false;
+  if (!wideLayout) setSessionListVisible(false);
+  chatColumnEl.classList.remove("hidden");
   updateHeaderButtons();
   if (state.needsAuth) {
     applyAuthGate();
@@ -90,18 +106,23 @@ function closeSessions(): void {
  */
 function updateHeaderButtons(): void {
   const emptySession = (state.messageCount ?? 0) === 0;
-  const busy = state.isStreaming || state.isCompacting || isDelegating() || Boolean(state.preview);
+  const busy = state.isStreaming || state.isCompacting || isDelegating() || Boolean(state.inputDisabled);
   // "New" is pointless on an already-empty chat page, but on the sessions
   // page it doubles as "back to a fresh session", so keep it clickable there.
-  newBtn.disabled = (emptySession && !isSessionsOpen()) || busy;
-  treeBtn.disabled = emptySession || busy || isSessionsOpen();
-  // On the sessions page the button is disabled; the way back to the chat is
-  // picking a session row (or the current one).
-  sessionsBtn.disabled = isSessionsOpen();
-  // Nothing to reveal without a listing, and the panel belongs to the chat.
-  resourcesBtn.disabled = !hasResources() || isSessionsOpen();
+  // A running session does not disable it: the host detaches that controller
+  // to finish in the background and gives this same surface a fresh one.
+  newBtn.disabled = (emptySession && !sessionsPageOpen) || Boolean(state.inputDisabled);
+  treeBtn.disabled = emptySession || busy || sessionsPageOpen;
+  // The narrow sessions page disables its own entry; in wide mode the same
+  // button remains live and toggles the left rail.
+  sessionsBtn.disabled = !wideLayout && sessionsPageOpen;
+  const sessionsShown = wideLayout ? wideSessionsShown : sessionsPageOpen;
+  sessionsBtn.setAttribute("aria-pressed", String(sessionsShown));
+  sessionsBtn.classList.toggle("active", sessionsShown);
+  // Resources use one toggle state across both layouts.
+  resourcesBtn.disabled = !hasResources() || sessionsPageOpen;
   // The transcript is the search corpus; off the chat page there is nothing to search.
-  searchBtn.disabled = isSessionsOpen() || (state.ready && Boolean(state.needsAuth));
+  searchBtn.disabled = sessionsPageOpen || (state.ready && Boolean(state.needsAuth));
 }
 
 /**
@@ -111,16 +132,17 @@ function updateHeaderButtons(): void {
 function applyResourcesVisibility(): void {
   const shown = isResourcesShown();
   const gated = state.ready && Boolean(state.needsAuth);
-  resourcesEl.classList.toggle("hidden", !(shown && hasResources() && !gated && !isSessionsOpen()));
+  resourcesEl.classList.toggle("hidden", !(shown && hasResources() && !gated && !sessionsPageOpen));
   resourcesBtn.setAttribute("aria-pressed", String(shown));
   resourcesBtn.classList.toggle("active", shown);
 }
 
 function showChat(): void {
+  chatColumnEl.classList.remove("hidden");
   messagesWrapEl.classList.remove("hidden");
   composerEl.classList.remove("hidden");
   applyResourcesVisibility();
-  delegationBarEl.classList.toggle("hidden", !isInLane() && !state.preview);
+  delegationBarEl.classList.toggle("hidden", !isInLane());
   // The composer was unmeasurable while hidden; settle its layout now.
   updateResponsiveLayout();
 }
@@ -131,61 +153,59 @@ function showChat(): void {
  */
 function applyAuthGate(): void {
   const gated = state.ready && Boolean(state.needsAuth);
-  authEl.classList.toggle("hidden", !gated);
+  // Match the previous narrow-page contract: authentication setup supersedes
+  // an open sessions page. The wide rail is independent and stays visible.
+  if (gated && sessionsPageOpen && !wideLayout) {
+    sessionsPageOpen = false;
+    setSessionListVisible(false);
+  }
+  authEl.classList.toggle("hidden", !gated || sessionsPageOpen);
+  if (sessionsPageOpen) {
+    chatColumnEl.classList.add("hidden");
+    applyResourcesVisibility();
+    return;
+  }
+  chatColumnEl.classList.remove("hidden");
   if (gated) {
     messagesWrapEl.classList.add("hidden");
     composerEl.classList.add("hidden");
     delegationBarEl.classList.add("hidden");
-    sessionsEl.classList.add("hidden");
     applyResourcesVisibility();
-  } else if (!isSessionsOpen()) {
+  } else {
     showChat();
   }
 }
 
 /**
- * Banner above the transcript.
- *
- * Shown for a preview, and while the user is inside a subagent's transcript so
- * there is always a way back. Not shown on the parent during a run: the lane
- * card in the transcript already says everything, and duplicating it here would
- * push the conversation down for no gain.
+ * Banner above a subagent transcript, including a historical lane replay.
+ * Not shown on the parent during a run: the lane card in the transcript already
+ * says everything, and duplicating it here would push the conversation down.
  */
 function renderDelegationBar(): void {
   const delegation = state.delegation;
-  // Checked before the preview banner, not after: a subagent whose live session
-  // is gone is shown by replaying its session file, so both are true at once
-  // and the subagent framing is the more specific one. The generic banner would
-  // offer "back to the running session" with nothing running.
-  if (delegation && isInLane()) {
-    delegationBarEl.classList.remove("hidden");
-    const lane = currentLane();
-    delegationLabelEl.textContent = t.subagentRunning(lane?.title ?? "");
-    // The parent is never switched to automatically — that would yank the user
-    // out of what they chose to read — so say instead that it moved on.
-    delegationPeerBtn.textContent = delegation.parentHasNewActivity ? t.backToParentNew : t.backToParent;
+  if (!delegation || !isInLane()) {
+    delegationBarEl.classList.add("hidden");
     return;
   }
-  if (state.preview) {
-    delegationBarEl.classList.remove("hidden");
-    delegationLabelEl.textContent = t.previewBanner;
-    delegationPeerBtn.textContent = t.previewBack;
-    return;
-  }
-  delegationBarEl.classList.add("hidden");
+  delegationBarEl.classList.remove("hidden");
+  const lane = currentLane();
+  delegationLabelEl.textContent = t.subagentRunning(lane?.title ?? "");
+  // The parent is never switched to automatically — that would yank the user
+  // out of what they chose to read — so say instead that it moved on.
+  delegationPeerBtn.textContent = delegation.parentHasNewActivity ? t.backToParentNew : t.backToParent;
 }
 
 /**
- * The header title shows where the user is: the preview target, the current
- * session's display name (or first message), or a "new session" placeholder.
+ * The header title shows where the user is: a historical subagent's title, the
+ * current session's display name (or first message), or a "new session" placeholder.
  * The extension name itself already appears in the VS Code view title.
  */
 function renderHeaderTitle(): void {
-  const text = state.preview
-    ? t.previewLabel(state.preview.title)
-    : state.sessionName || t.newSessionLabel;
+  const text = state.preview?.title || state.sessionName || t.newSessionLabel;
+  const renamable = state.ready && !state.preview && !state.inputDisabled;
   headerTitleEl.textContent = text;
-  headerTitleEl.title = text;
+  headerTitleEl.classList.toggle("renamable", renamable);
+  headerTitleEl.title = renamable ? `${text}\n${t.headerRenameTitle}` : text;
 }
 
 /* ---------------------------------------------------------------- */
@@ -195,7 +215,7 @@ function renderHeaderTitle(): void {
 function applyState(next: ChatState): void {
   setState(next);
   renderHeaderTitle();
-  const childReadOnly = Boolean(state.inputDisabled) && !state.preview;
+  const childReadOnly = Boolean(state.inputDisabled);
   const parentWaiting = state.delegation?.role === "parent" && isDelegating();
   const active = state.isStreaming || state.isCompacting;
   sendBtn.innerHTML = active ? STOP_ICON : SEND_ICON;
@@ -210,14 +230,14 @@ function applyState(next: ChatState): void {
     : t.sendIconTitle;
   sendBtn.classList.toggle("stop", active);
   inputEl.disabled = Boolean(state.inputDisabled);
-  inputEl.placeholder = state.preview
-    ? t.previewInputDisabled
-    : childReadOnly
-      ? t.subagentInputDisabled
-      : state.isCompacting
-        ? t.compactionInputPlaceholder
-        : t.inputPlaceholder;
-  sendBtn.disabled = !state.ready || Boolean(state.preview);
+  inputEl.placeholder = childReadOnly
+    ? t.subagentInputDisabled
+    : state.isCompacting
+      ? t.compactionInputPlaceholder
+      : t.inputPlaceholder;
+  // A running live lane keeps the stop control active; a historical replay has
+  // nothing to stop and is fully disabled.
+  sendBtn.disabled = !state.ready || (childReadOnly && !active);
   steerBtn.classList.toggle("hidden", !state.isStreaming || state.isCompacting || childReadOnly);
   followUpBtn.classList.toggle("hidden", !active || childReadOnly);
   updateRecallButton();
@@ -235,8 +255,8 @@ function applyState(next: ChatState): void {
   // (usually "off"); hiding the control avoids a dead-end picker.
   const canSelectThinkingLevel = (state.thinkingLevels?.length ?? 0) > 1;
   thinkingBtn.classList.toggle("hidden", !canSelectThinkingLevel);
-  modelBtn.disabled = childReadOnly || Boolean(state.preview);
-  thinkingBtn.disabled = !canSelectThinkingLevel || childReadOnly || Boolean(state.preview);
+  modelBtn.disabled = childReadOnly;
+  thinkingBtn.disabled = !canSelectThinkingLevel || childReadOnly;
   // A disabled chip must not keep its popup open, and an open one has to show
   // the new current model / level.
   if (modelBtn.disabled && thinkingBtn.disabled) closePicker();
@@ -247,7 +267,7 @@ function applyState(next: ChatState): void {
   // Per-message tree actions need a settled, live transcript to act on: not
   // while subagents run, and not while a subagent's transcript is on screen
   // (its entries are not the parent's to fork or relabel).
-  setEntryActionsLocked(active || isDelegating() || isInLane() || Boolean(state.preview));
+  setEntryActionsLocked(active || isDelegating() || isInLane());
   renderDelegationBar();
   applyAuthGate();
   renderStatusLine();
@@ -270,11 +290,14 @@ const headerOverflow = createOverflowGroup({
   items: [newBtn, sessionsBtn, treeBtn, searchBtn, resourcesBtn, settingsBtn],
   toggle: headerMoreBtn,
   menu: headerMenuEl,
-  // What is left of the header once the title has been given its floor.
+  // Editor tabs carry the title, so their hidden header title consumes no
+  // budget. The auxiliary sidebar keeps the title and its minimum readable width.
   available: () => {
-    const style = getComputedStyle(headerEl);
-    const inner = headerEl.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-    const titleFloor = parseFloat(getComputedStyle(headerTitleEl).minWidth) || 0;
+    const style = getComputedStyle(headerContentEl);
+    const inner = headerContentEl.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const titleStyle = getComputedStyle(headerTitleEl);
+    if (titleStyle.display === "none") return inner;
+    const titleFloor = parseFloat(titleStyle.minWidth) || 0;
     return inner - titleFloor - (parseFloat(style.columnGap) || 0);
   },
 });
@@ -293,14 +316,44 @@ function updateResponsiveLayout(): void {
   updateStatusLineFit();
 }
 
+function setWideLayout(wide: boolean): void {
+  if (wideLayout === wide) return;
+  wideLayout = wide;
+  rootEl.classList.toggle("layout-wide", wide);
+
+  if (wide) {
+    // A narrow full-page listing becomes a dock. Each wide rail remembers the
+    // user's last toggle independently from the narrow page/panel state.
+    sessionsPageOpen = false;
+    setSessionListVisible(wideSessionsShown);
+    chatColumnEl.classList.remove("hidden");
+  } else {
+    // Wide mode never carries a hidden full-page state back to a narrow panel.
+    setSessionListVisible(sessionsPageOpen);
+  }
+
+  applyAuthGate();
+  applyResourcesVisibility();
+  updateHeaderButtons();
+}
+
 // Only width matters here, and re-measuring on every height change (the input
-// box is user-resizable) would be wasted work.
-let lastWidth = 0;
-new ResizeObserver((entries) => {
-  const width = entries[0]?.contentRect.width ?? 0;
-  if (Math.round(width) === lastWidth) return;
-  lastWidth = Math.round(width);
+// box is user-resizable) would be wasted work. ResizeObserver is event-driven;
+// it does not poll the surface.
+let lastWidth = -1;
+function applyViewportWidth(width: number): void {
+  const rounded = Math.round(width);
+  if (rounded === lastWidth) return;
+  // A retained/hidden webview may briefly measure 0; wait for the first real
+  // width before choosing the one-time resource defaults.
+  if (rounded > 0) initializeResourcesState(rounded >= WIDE_LAYOUT_MIN_WIDTH);
+  lastWidth = rounded;
+  setWideLayout(rounded >= WIDE_LAYOUT_MIN_WIDTH);
   updateResponsiveLayout();
+}
+
+new ResizeObserver((entries) => {
+  applyViewportWidth(entries[0]?.contentRect.width ?? 0);
 }).observe(document.documentElement);
 
 /* ---------------------------------------------------------------- */
@@ -331,34 +384,45 @@ function prependToInput(texts: string[]): void {
 }
 modelBtn.addEventListener("click", () => togglePicker("model"));
 thinkingBtn.addEventListener("click", () => togglePicker("thinking"));
+headerTitleEl.addEventListener("dblclick", () => {
+  if (headerTitleEl.classList.contains("renamable")) post({ type: "renameCurrentSession" });
+});
 newBtn.addEventListener("click", () => {
   closeSessions();
-  clearFileRefs();
-  // A new session has no history to wait for: showing the loading spinner
-  // here would flash it for the duration of one round trip.
-  showNewSession();
+  // While this runtime is occupied the host replaces only this surface's GUI
+  // controller. Do not clear the running transcript before the new one is ready.
+  const preserveCurrent = state.isStreaming || state.isCompacting || isDelegating() || Boolean(state.inputDisabled);
+  if (!preserveCurrent) {
+    clearFileRefs();
+    // A new session has no history to wait for: showing the loading spinner
+    // here would flash it for the duration of one round trip.
+    showNewSession();
+  }
   post({ type: "newSession" });
 });
 treeBtn.addEventListener("click", () => post({ type: "openSessionTree" }));
 resourcesBtn.addEventListener("click", () => {
   toggleResources();
   applyResourcesVisibility();
+  updateHeaderButtons();
 });
 searchBtn.addEventListener("click", () => toggleSearch());
 byId("btn-login").addEventListener("click", () => post({ type: "login" }));
 byId("btn-logout").addEventListener("click", () => post({ type: "logout" }));
 byId("btn-settings").addEventListener("click", () => post({ type: "openSettings" }));
 byId("btn-sessions").addEventListener("click", () => {
-  if (!isSessionsOpen()) openSessions();
+  if (wideLayout) {
+    wideSessionsShown = !wideSessionsShown;
+    setSessionListVisible(wideSessionsShown);
+    updateHeaderButtons();
+  } else if (!sessionsPageOpen) {
+    openSessions();
+  }
 });
 delegationPeerBtn.addEventListener("click", () => {
-  // Same precedence as the banner: leaving a subagent goes back to the parent,
-  // even when that subagent is being shown as a replay of its session file.
-  if (isInLane()) {
-    post({ type: "showLane" });
-    return;
-  }
-  if (state.preview) post({ type: "closePreview" });
+  // A historical subagent is still framed as a lane while its session file is
+  // replayed, so every visible peer action returns through this one route.
+  if (isInLane()) post({ type: "showLane" });
 });
 
 window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
@@ -398,3 +462,4 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
 });
 
 post({ type: "ready" });
+applyViewportWidth(document.documentElement.clientWidth);

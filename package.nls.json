@@ -1,6 +1,6 @@
 {
   "//": "Manifest strings shown by VS Code itself (Marketplace entry, Settings editor, command palette). The UI inside the sidebar is localized separately in src/shared/messages.ts and src/webview/i18n.ts. Add a package.nls.<locale>.json next to this file for each additional language.",
-  "extension.description": "VS Code sidebar chat for the Pi Coding Agent, powered by the official SDK (0.84.2) bundled inside the extension — no Pi CLI required. Unofficial community project.",
+  "extension.description": "VS Code sidebar and editor-tab chat for the Pi Coding Agent, powered by the official SDK (0.84.2) bundled inside the extension — no Pi CLI required. Unofficial community project.",
   "configuration.title": "Pi Agent Chat",
   "configuration.subagent.enabled": "Offer the `subagent` tool, which lets the agent delegate several tasks at once to child sessions that **write to your working tree directly**. Each task must declare the paths it may write to; writes outside that range are refused. Failed tasks are reported, not rolled back — use a git repository so partial work can be inspected and discarded. Off by default.",
   "configuration.subagent.maxSubagents": "Largest number of subagents one `subagent` call may start. This value is published to the model as the schema limit, so it also caps what the model can ask for. Higher values cost proportionally more and get harder to follow.",
@@ -9,5 +9,11 @@
   "configuration.terminal.maxTerminals": "How many terminals the `vscode_terminal` tool may keep open at once. Each one is a real shell in your terminal panel, and a command that is waiting for input holds its terminal until it finishes or you take over. Creating a terminal costs about 4 seconds before its first command runs, so reuse is the normal case and this limit is only reached when several commands are open at the same time.",
   "configuration.transcript.foldLines": "A message longer than this many lines folds to a preview once a newer message of the same role arrives, so older long messages stop dominating the scroll. Text without line breaks counts towards the same budget at about 50 characters per line, so a long paragraph folds too. Set `0` to never fold message text. Folds you undo by hand always stay undone.",
   "command.newSession.title": "Pi Agent Chat: New Session",
-  "command.focus.title": "Pi Agent Chat: Focus Chat"
+  "command.focus.title": "Pi Agent Chat: Focus Chat",
+  "menu.moveSession.label": "Move this session",
+  "command.moveSessionToEditor.title": "Move session to the editor area",
+  "command.moveSessionToSidebar.title": "Move session to the auxiliary sidebar",
+  "command.moveSessionToWindow.title": "Move session to a new window",
+  "command.newEditorSession.title": "Open new session in the editor area",
+  "command.newWindowSession.title": "Open new session in a new window"
 }

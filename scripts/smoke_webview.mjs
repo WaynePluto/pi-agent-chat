@@ -154,6 +154,19 @@ const SCRIPT = [
     ],
   },
   {
+    label: "header keeps the six direct text actions",
+    messages: [],
+    beforeSnapshot: (window) => {
+      const ids = [...window.document.querySelectorAll("#header-actions > button:not(#btn-header-more)")]
+        .map((button) => button.id);
+      const expected = ["btn-new", "btn-sessions", "btn-tree", "btn-search", "btn-resources", "btn-settings"];
+      if (ids.join(",") !== expected.join(",")) throw new Error(`unexpected header actions: ${ids.join(",")}`);
+      if (window.document.getElementById("peer-session-bar")) throw new Error("peer-session notice must not be rendered");
+      window.document.getElementById("header-title")
+        .dispatchEvent(new window.MouseEvent("dblclick", { bubbles: true }));
+    },
+  },
+  {
     label: "empty state: overridden system prompt drops the docs hint",
     messages: [{ type: "history", events: [], systemPromptOverridden: true }],
   },
@@ -392,6 +405,11 @@ const SCRIPT = [
       { type: "event", event: { kind: "text_delta", delta: "Here is the **result**." } },
       { type: "event", event: { kind: "queue_update", steering: ["steer me"], followUp: ["later"] } },
     ],
+    beforeSnapshot: (window) => {
+      const button = window.document.getElementById("btn-new");
+      if (button.disabled) throw new Error("New must remain enabled while a top-level session is running");
+      button.click();
+    },
   },
   {
     // A tool from a pi extension has no dedicated card, so the host forwards
@@ -605,7 +623,8 @@ const SCRIPT = [
         type: "sessions",
         items: [
           { file: "/workspace/a.jsonl", title: "current session", timestamp: "2026-01-02T03:04:05.000Z", current: true },
-          { file: "/workspace/b.jsonl", title: "older session", timestamp: "2026-01-01T00:00:00.000Z", current: false },
+          { file: "/workspace/b.jsonl", title: "visible elsewhere", timestamp: "2026-01-01T00:00:00.000Z", current: false, claimedElsewhere: "visible" },
+          { file: "/workspace/d.jsonl", title: "background run", timestamp: "2026-01-01T01:00:00.000Z", current: false, claimedElsewhere: "background" },
           {
             file: "/workspace/c.jsonl",
             title: "delegated child",
@@ -616,6 +635,12 @@ const SCRIPT = [
         ],
       },
     ],
+    beforeSnapshot: (window) => {
+      const visible = window.document.querySelector(".session-row.claimed-visible .session-main");
+      if (!visible || visible.disabled) throw new Error("a session visible on another surface must be movable here");
+      const background = window.document.querySelector(".session-row.claimed-background .session-main");
+      if (!background || background.disabled) throw new Error("a background run must remain recoverable");
+    },
   },
   {
     label: "auth gate",
@@ -1125,6 +1150,50 @@ const SCRIPT = [
       if (problems.length > 0) throw new Error(`history populate: ${problems.join("; ")}`);
     },
   },
+  // Auto-folding is right only while the user is following the latest output.
+  // Scrolled up they are reading something older — usually the very message
+  // the rule wants to collapse — so the fold waits (`deferredFolds` in
+  // transcript.ts) until following resumes. Following is switched off here the
+  // only way it can be: an upward wheel, whose intent a scrollTop assignment
+  // can never counterfeit. Last in the script, because these two steps replace
+  // the displayed transcript and several scenarios above build on the one they
+  // inherit.
+  {
+    label: "reading further up: a superseded long message is not folded away",
+    messages: [
+      {
+        type: "history",
+        transcriptId: "deferred-fold",
+        events: [
+          { kind: "user_message", text: "walk me through it" },
+          { kind: "assistant_message", text: LONG_ANSWER },
+        ],
+      },
+      { type: "state", state: baseState },
+    ],
+    beforeSnapshot: (window) => {
+      const messages = window.document.getElementById("messages");
+      messages.dispatchEvent(new window.WheelEvent("wheel", { deltaY: -120 }));
+      messages.dispatchEvent(new window.Event("scroll"));
+      window.dispatchEvent(
+        new window.MessageEvent("message", {
+          data: { type: "event", event: { kind: "assistant_message", text: LONG_PROMPT } },
+        }),
+      );
+      const folded = window.document.querySelectorAll(".bubble.assistant.folded").length;
+      if (folded !== 0) throw new Error(`no assistant bubble may fold while scrolled up, got ${folded}`);
+    },
+  },
+  {
+    label: "back at the bottom: the deferred fold is applied",
+    messages: [],
+    beforeSnapshot: (window) => {
+      window.document.getElementById("scroll-down").click();
+      const bubbles = [...window.document.querySelectorAll(".bubble.assistant")];
+      if (!bubbles[0].classList.contains("folded")) throw new Error("the superseded answer should fold on resume");
+      if (bubbles[1].classList.contains("folded")) throw new Error("the newest answer must stay open");
+    },
+  },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -1176,14 +1245,18 @@ async function run() {
     process.exit(1);
   }
 
-  const dom = new JSDOM(`<!DOCTYPE html><html lang="en"><body><div id="root"></div></body></html>`, {
+  const dom = new JSDOM(`<!DOCTYPE html><html lang="en"><body class="surface-sidebar"><div id="root"></div></body></html>`, {
     runScripts: "outside-only",
     pretendToBeVisual: true,
   });
   const { window } = dom;
-  // jsdom has no ResizeObserver; the responsive collapse it drives is a layout
-  // concern jsdom could not evaluate anyway (every element measures 0).
+  // jsdom has no layout, but retaining the callback lets the characterization
+  // drive the event-based wide/narrow mode switch and assert visibility/state.
+  let resizeCallback;
   window.ResizeObserver = class {
+    constructor(callback) {
+      resizeCallback = callback;
+    }
     observe() {}
     unobserve() {}
     disconnect() {}
@@ -1224,6 +1297,46 @@ async function run() {
     await step.beforeSnapshot?.(window);
     await flush(window);
     sections.push(`===== ${step.label} =====\n${snapshot(window)}`);
+  }
+
+  const rootEl = window.document.getElementById("root");
+  const sessionsEl = window.document.getElementById("sessions");
+  const resourcesEl = window.document.getElementById("resources");
+  const chatColumnEl = window.document.getElementById("chat-column");
+  const resourcesPanel = () => window.document.querySelector(".resources-panel");
+  const narrowResourcesShown = !resourcesEl.classList.contains("hidden");
+  const narrowResourcesCollapsed = resourcesPanel()?.classList.contains("collapsed");
+
+  resizeCallback?.([{ contentRect: { width: 1600 } }]);
+  await flush(window);
+  if (!rootEl.classList.contains("layout-wide")) throw new Error("1600px must enter wide layout");
+  if (sessionsEl.classList.contains("hidden") || chatColumnEl.classList.contains("hidden")) {
+    throw new Error("wide layout must show sessions and chat");
+  }
+  if (resourcesEl.classList.contains("hidden") === narrowResourcesShown) {
+    throw new Error("resource visibility must survive the narrow-to-wide switch");
+  }
+  if (resourcesPanel()?.classList.contains("collapsed") !== narrowResourcesCollapsed) {
+    throw new Error("resource expansion must survive the narrow-to-wide switch");
+  }
+  const sessionsBtn = window.document.getElementById("btn-sessions");
+  const resourcesBtn = window.document.getElementById("btn-resources");
+  sessionsBtn.click();
+  if (!sessionsEl.classList.contains("hidden") || chatColumnEl.classList.contains("hidden")) {
+    throw new Error("the wide sessions button must hide only the left rail");
+  }
+  sessionsBtn.click();
+  resourcesBtn.click();
+  const toggledWideResourcesShown = !resourcesEl.classList.contains("hidden");
+  sections.push(`===== wide layout: fixed chat column + inherited resources =====\n${snapshot(window)}`);
+
+  resizeCallback?.([{ contentRect: { width: 1200 } }]);
+  await flush(window);
+  if (rootEl.classList.contains("layout-wide") || !sessionsEl.classList.contains("hidden")) {
+    throw new Error("1200px must restore narrow layout with the sessions page closed");
+  }
+  if (resourcesEl.classList.contains("hidden") === toggledWideResourcesShown) {
+    throw new Error("resource visibility must survive the wide-to-narrow switch");
   }
 
   const actual = `${sections.join("\n\n")}\n\n===== posted to host =====\n${posted
