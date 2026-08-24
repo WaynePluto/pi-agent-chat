@@ -24,7 +24,7 @@ import {
 } from "./vscode-terminal.js";
 import { ProjectFileIndex } from "./project-files.js";
 import { isResumable, resumeAfterError, supportsResume } from "./resume.js";
-import { readFoldLines } from "./config.js";
+import { readContentMaxWidth, readFoldLines } from "./config.js";
 import type { ChatState, HostMessage } from "../shared/protocol.js";
 import { claimedSessionSourceStartup, editorPanelTitle, MAX_EDITOR_TAB_TITLE_CHARS, replacementStartupForRunningController, SessionClaimRegistry, shouldDisposeHeadlessRuntime } from "../chat-surfaces.js";
 
@@ -1604,6 +1604,14 @@ export async function runViewStateTest(cwd: string): Promise<DiagnosticResult[]>
     expect(
       "ready: fold threshold delivered",
       foldThreshold !== undefined && foldThreshold.type === "foldThreshold" && foldThreshold.maxLines === readFoldLines(),
+    );
+    // Same ownership rule as the fold threshold: the webview cannot read VS
+    // Code settings, so `ready` must also deliver the chat column width before
+    // the first layout decisions matter.
+    const contentWidth = [...posted].reverse().find((message) => message?.type === "contentWidth");
+    expect(
+      "ready: content width delivered",
+      contentWidth !== undefined && contentWidth.type === "contentWidth" && contentWidth.maxWidth === readContentMaxWidth(),
     );
     expect("ready: replay populates input history", lastHistoryFlag() === true);
 

@@ -1,10 +1,16 @@
 
+// Wide workspace geometry: rail and column sizes mirror the constants in
+// `src/shared/protocol.ts` (RAIL_MIN_WIDTH, CHAT_COLUMN_MIN_WIDTH and the
+// grid chrome behind WIDE_GRID_CHROME_WIDTH) and the threshold formula in
+// `webview/main.ts` (`wideLayoutMinWidth`). Keep them in sync.
 #root.layout-wide .surface-body {
   display: grid;
   grid-template-areas: "sessions chat resources";
+  // The chat track's floor clamps to the configured column width so a narrower
+  // configured column never leaves the track min above its max.
   grid-template-columns:
     minmax(230px, 320px)
-    minmax(700px, var(--content-max-width))
+    minmax(min(700px, var(--content-max-width)), var(--content-max-width))
     minmax(230px, 320px);
   justify-content: center;
   gap: 12px;

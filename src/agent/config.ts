@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { DEFAULT_FOLD_LINES } from "../shared/protocol.js";
+import { CONTENT_WIDTH_MAX, CONTENT_WIDTH_MIN, DEFAULT_CONTENT_MAX_WIDTH, DEFAULT_FOLD_LINES } from "../shared/protocol.js";
 
 /**
  * The plugin's own VS Code settings.
@@ -137,6 +137,29 @@ export function clampTerminalLimit(value: number): number {
 /** Whether a settings change event touches the terminal tool's settings. */
 export function affectsTerminalConfig(event: vscode.ConfigurationChangeEvent, cwd: string): boolean {
   return event.affectsConfiguration(TERMINAL_SECTION, vscode.Uri.file(cwd));
+}
+
+/* -- Chat column width --------------------------------------------------- */
+
+const LAYOUT_SECTION = "piAgentChat.layout";
+
+/**
+ * Max width in pixels of the centered chat column (transcript and composer).
+ *
+ * The manifest's `minimum`/`maximum` only constrain the settings UI, so the
+ * clamp is repeated here for hand-edited `settings.json` values. The floor is
+ * deliberately low: the composer's overflow controller degrades gracefully,
+ * so the clamp only guards against degenerate values, not uncomfortable ones.
+ */
+export function readContentMaxWidth(): number {
+  const raw = vscode.workspace.getConfiguration(LAYOUT_SECTION).get<number>("contentMaxWidth");
+  if (raw === undefined || !Number.isFinite(raw)) return DEFAULT_CONTENT_MAX_WIDTH;
+  return Math.min(CONTENT_WIDTH_MAX, Math.max(CONTENT_WIDTH_MIN, Math.round(raw)));
+}
+
+/** Whether a settings change event touches the chat column width. */
+export function affectsLayoutConfig(event: vscode.ConfigurationChangeEvent): boolean {
+  return event.affectsConfiguration(`${LAYOUT_SECTION}.contentMaxWidth`);
 }
 
 /* -- Message folding ----------------------------------------------------- */

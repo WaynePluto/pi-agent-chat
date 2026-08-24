@@ -7,6 +7,7 @@
   "configuration.subagent.defaultModel": "未自行指定模型的子代理所使用的模型，格式为 `provider/modelId`。留空表示继承父会话的模型。这里通常适合选更便宜、更快的模型：子代理执行的是范围明确的改动，而不是做规划。",
   "configuration.terminal.enabled": "提供 `vscode_terminal` 工具：在**你能看见、也能直接键入的 VS Code 终端**中执行命令，命令运行期间你敲进去的内容会一并进入代理读到的输出。终端在多次调用之间保留 shell 状态（工作目录、环境变量、shell 变量），且不会被自动关闭。依赖 VS Code 的 shell 集成；集成不可用时该工具拒绝执行，而不是返回空结果。默认关闭。",
   "configuration.terminal.maxTerminals": "`vscode_terminal` 工具最多同时保持打开的终端数量。每一个都是终端面板里真实的 shell；正在等待输入的命令会一直占用它，直到命令结束或你接手。新建终端在第一条命令执行前约需 4 秒，因此复用才是常态，只有多条命令同时挂着时才会触及该上限。",
+  "configuration.layout.contentMaxWidth": "居中聊天列（消息与输入区）的最大宽度，单位像素，适用于任何展示位置。宽屏三栏布局（会话列表 / 聊天 / 资源栏）会在 webview 宽到能以最小尺寸在两侧放下会话列表与资源栏并容纳该列时自动开启，因此调小该值也会降低宽屏模式的触发宽度。",
   "configuration.transcript.foldLines": "消息超过该行数后，一旦出现同角色的更新消息，就会折叠为预览，避免较早的长消息占据滚动空间。不含换行的文本按约每 50 字符折算成一行，计入同一预算，因此超长段落同样会折叠。设为 `0` 则永不折叠消息正文。手动展开过的消息始终保持展开。",
   "command.newSession.title": "Pi Agent Chat：新建会话",
   "command.focus.title": "Pi Agent Chat：聚焦聊天窗口",

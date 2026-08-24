@@ -1276,7 +1276,17 @@ async function run() {
   };
   window.cancelAnimationFrame = () => {};
   const posted = [];
-  window.acquireVsCodeApi = () => ({ postMessage: (message) => posted.push(message) });
+  // The persisted-state half of the api, as VS Code provides it: an opaque
+  // object that survives webview reloads. Kept on the window so a test could
+  // inspect it, but never pre-seeded — the smoke starts from a fresh webview.
+  window.__persistedState = null;
+  window.acquireVsCodeApi = () => ({
+    postMessage: (message) => posted.push(message),
+    getState: () => window.__persistedState,
+    setState: (state) => {
+      window.__persistedState = state;
+    },
+  });
 
   window.eval(readFileSync(bundlePath, "utf8"));
 

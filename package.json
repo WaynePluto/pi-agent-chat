@@ -74,6 +74,14 @@
           "scope": "resource",
           "markdownDescription": "%configuration.terminal.maxTerminals%"
         },
+        "piAgentChat.layout.contentMaxWidth": {
+          "type": "number",
+          "default": 950,
+          "minimum": 500,
+          "maximum": 1400,
+          "scope": "window",
+          "markdownDescription": "%configuration.layout.contentMaxWidth%"
+        },
         "piAgentChat.transcript.foldLines": {
           "type": "number",
           "default": 14,

@@ -20,7 +20,11 @@
   --code-bg: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.15));
   /* Any VS Code surface can become arbitrarily wide (including a dragged-out
      auxiliary sidebar). Keep readable controls and text in one centered column
-     while section backgrounds continue across the full webview. */
+     while section backgrounds continue across the full webview.
+     The value here is the documented default of `piAgentChat.layout.
+     contentMaxWidth`; the host pushes the configured value into this property
+     (see the `contentWidth` message), and every column — transcript, composer,
+     wide grid — sizes from it. */
   --content-max-width: 950px;
 }
 

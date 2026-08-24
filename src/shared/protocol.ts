@@ -30,6 +30,36 @@ export const MAX_FILE_REFERENCES = 10;
  */
 export const DEFAULT_FOLD_LINES = 14;
 
+/**
+ * Default of `piAgentChat.layout.contentMaxWidth`. Same triple-agreement rule as
+ * `DEFAULT_FOLD_LINES`: the manifest default, the host that pushes the value,
+ * and the webview's fallback before the first push must all agree on it.
+ */
+export const DEFAULT_CONTENT_MAX_WIDTH = 950;
+/**
+ * Bounds for that setting, shared by the settings manifest, the host-side
+ * clamp (`agent/config.ts`) and the webview's clamp on incoming values: the
+ * manifest's `minimum`/`maximum` only constrain the settings UI, so every
+ * consumer of a hand-edited `settings.json` value must clamp for itself.
+ * The floor is deliberately permissive: the composer's overflow controller
+ * collapses its buttons before the column gets this tight, so it only guards
+ * against a degenerate column, not against an uncomfortable one.
+ */
+export const CONTENT_WIDTH_MIN = 500;
+export const CONTENT_WIDTH_MAX = 1400;
+/**
+ * Wide-layout geometry, mirrored in `src/styles/_wide.scss` (grid tracks) —
+ * keep the two in sync. The wide layout activates once the webview is wide
+ * enough to fit the chat column at its floor plus both rails at their
+ * minimum, plus the grid's fixed horizontal chrome (two 12px gaps and two
+ * 12px track-area paddings): see `wideLayoutMinWidth()` in `webview/main.ts`.
+ */
+export const CHAT_COLUMN_MIN_WIDTH = 700;
+/** Minimum width of the sessions / resources rails in the wide grid. */
+export const RAIL_MIN_WIDTH = 230;
+/** Fixed horizontal chrome of the wide grid: two gaps + two paddings, 12px each. */
+export const WIDE_GRID_CHROME_WIDTH = 48;
+
 /** CLI-style footer statistics (mirrors the pi TUI status line). */
 export interface ChatStats {
   inputTokens: number;
@@ -409,6 +439,15 @@ export type HostMessage =
    * travels outside `ChatState` and only when it changes.
    */
   | { type: "foldThreshold"; maxLines: number }
+  /**
+   * Max width of the centered chat column (`piAgentChat.layout.contentMaxWidth`),
+   * pushed on `ready` and whenever the setting changes. The webview writes it
+   * into the `--content-max-width` custom property (transcript, composer and
+   * the wide grid all size from it) and derives the wide-layout threshold from
+   * it. Pure presentation with no baked-in decisions, so unlike the fold
+   * threshold it needs no history replay.
+   */
+  | { type: "contentWidth"; maxWidth: number }
   | { type: "event"; event: ChatEvent }
   /** Full transcript replay after startup or a session switch. */
   | {

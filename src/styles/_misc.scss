@@ -151,6 +151,7 @@
 
 /* ---------------------------------------------------------------- */
 /* Wide workspace: persistent sessions / chat / resources columns.   */
-/* JS applies this at 1440px so visibility and host subscriptions     */
-/* change on the same ResizeObserver event as the geometry.           */
+/* JS applies this once the three columns fit (see main.ts's          */
+/* wideLayoutMinWidth) so visibility and host subscriptions change    */
+/* on the same ResizeObserver event as the geometry.                  */
 /* ---------------------------------------------------------------- */

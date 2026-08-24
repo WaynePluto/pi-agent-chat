@@ -10,7 +10,7 @@ import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, 
 import { formatLocalTimestamp } from "../shared/time.js";
 import { loginFlow, logoutFlow } from "./auth.js";
 import { ActivityTracker, type ResourceActivity } from "./activity.js";
-import { affectsFoldConfig, affectsSubagentConfig, affectsTerminalConfig, readFoldLines, readSubagentConfig, readTerminalConfig } from "./config.js";
+import { affectsFoldConfig, affectsLayoutConfig, affectsSubagentConfig, affectsTerminalConfig, readContentMaxWidth, readFoldLines, readSubagentConfig, readTerminalConfig } from "./config.js";
 import { collectSlashCommands, formatHelp, runBuiltinCommand } from "./commands.js";
 import { describe } from "./errors.js";
 import { t, tf } from "./i18n.js";
@@ -286,6 +286,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
           this.applyFoldConfigChange();
         }, SETTINGS_DEBOUNCE_MS);
       }
+      // The column width is applied by writing one CSS custom property, so it
+      // needs neither a session rebuild nor a transcript replay — and therefore
+      // no debounce either; an extra postMessage per keystroke is free.
+      if (affectsLayoutConfig(event)) this.postContentWidth();
     });
   }
 
@@ -377,6 +381,18 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     const lines = readFoldLines();
     this.foldLines = lines;
     this.host.post({ type: "foldThreshold", maxLines: lines });
+  }
+
+  /**
+   * Push the configured chat column width to the webview (same ownership rule
+   * as the fold threshold: the webview cannot read VS Code settings). Always
+   * sent on `ready`: a webview reload — a controller swap reassigns
+   * `webview.html` — starts a fresh webview that knows nothing but the
+   * documented default, so "already pushed" is a property of the webview, not
+   * of this bridge.
+   */
+  private postContentWidth(): void {
+    this.host.post({ type: "contentWidth", maxWidth: readContentMaxWidth() });
   }
 
   /**
@@ -1442,6 +1458,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         // webview may also have been (re)loaded with an empty input history —
         // its own per-transcript memory decides whether this re-populates.
         this.postFoldThreshold();
+        this.postContentWidth();
         this.postHistory(true);
         this.postCommands();
         this.postResources();

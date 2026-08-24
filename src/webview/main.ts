@@ -1,6 +1,14 @@
 import type { ChatState, HostMessage } from "../shared/protocol.js";
+import {
+  CHAT_COLUMN_MIN_WIDTH,
+  CONTENT_WIDTH_MAX,
+  CONTENT_WIDTH_MIN,
+  DEFAULT_CONTENT_MAX_WIDTH,
+  RAIL_MIN_WIDTH,
+  WIDE_GRID_CHROME_WIDTH,
+} from "../shared/protocol.js";
 import { clearFileRefs, initComposer, onProjectFiles, populateInputHistoryFromEvents, send, setInput, setSlashCommands } from "./composer.js";
-import { post } from "./host.js";
+import { getPersisted, post, setPersisted } from "./host.js";
 import { setFoldMaxLines } from "./bubble.js";
 import { getDict } from "./i18n.js";
 import { SEND_ICON, STOP_ICON } from "./icons.js";
@@ -57,8 +65,55 @@ import { applyEvent, applyHistory, assignEntryIds, clearMessages, hasPendingBubb
 
 const t = getDict();
 
-/** Enough room for two useful 230-320px rails and a readable center column. */
-const WIDE_LAYOUT_MIN_WIDTH = 1440;
+/**
+ * Max width of the centered chat column, `piAgentChat.layout.contentMaxWidth`.
+ * Restored from the webview's persisted state before the first layout: a
+ * controller swap reassigns `webview.html`, and the fresh webview would
+ * otherwise re-classify the viewport with the documented default until the
+ * `ready` round trip delivers the configured value — wide/narrow must not
+ * hinge on message timing. The default covers a genuinely first load.
+ */
+function initialContentMaxWidth(): number {
+  const saved = getPersisted<number>("contentMaxWidth");
+  if (saved === undefined || !Number.isFinite(saved)) return DEFAULT_CONTENT_MAX_WIDTH;
+  return Math.min(CONTENT_WIDTH_MAX, Math.max(CONTENT_WIDTH_MIN, Math.round(saved)));
+}
+
+let contentMaxWidth = initialContentMaxWidth();
+// Inline styles do not survive a webview reload, so the restored value must be
+// re-applied to the custom property before first paint — otherwise the layout
+// classifies the viewport with the configured width but *sizes* the columns
+// with the stylesheet default until the `ready` round trip catches up.
+document.documentElement.style.setProperty("--content-max-width", `${contentMaxWidth}px`);
+
+/**
+ * Wide mode turns on once the three-column grid fits at its minimum sizes:
+ * the chat column at its floor, both rails at theirs, plus the grid's fixed
+ * gaps and padding (geometry mirrored in `src/styles/_wide.scss`). Lowering
+ * the configured column width lowers the threshold with it.
+ */
+function wideLayoutMinWidth(): number {
+  return Math.min(CHAT_COLUMN_MIN_WIDTH, contentMaxWidth) + RAIL_MIN_WIDTH * 2 + WIDE_GRID_CHROME_WIDTH;
+}
+
+/**
+ * Apply a pushed column width: it sizes the transcript, the composer and the
+ * wide grid through the `--content-max-width` custom property, and moves the
+ * wide-mode threshold, so the current viewport must be re-classified even
+ * though its own width did not change.
+ */
+function applyContentMaxWidth(maxWidth: number): void {
+  const width = Number.isFinite(maxWidth)
+    ? Math.min(CONTENT_WIDTH_MAX, Math.max(CONTENT_WIDTH_MIN, Math.round(maxWidth)))
+    : DEFAULT_CONTENT_MAX_WIDTH;
+  if (width === contentMaxWidth) return;
+  contentMaxWidth = width;
+  document.documentElement.style.setProperty("--content-max-width", `${width}px`);
+  setPersisted("contentMaxWidth", width);
+  lastWidth = -1;
+  applyViewportWidth(document.documentElement.clientWidth);
+}
+
 let wideLayout = false;
 let sessionsPageOpen = false;
 /** The sessions page and wide rail are distinct; resources deliberately are not. */
@@ -346,9 +401,9 @@ function applyViewportWidth(width: number): void {
   if (rounded === lastWidth) return;
   // A retained/hidden webview may briefly measure 0; wait for the first real
   // width before choosing the one-time resource defaults.
-  if (rounded > 0) initializeResourcesState(rounded >= WIDE_LAYOUT_MIN_WIDTH);
+  if (rounded > 0) initializeResourcesState(rounded >= wideLayoutMinWidth());
   lastWidth = rounded;
-  setWideLayout(rounded >= WIDE_LAYOUT_MIN_WIDTH);
+  setWideLayout(rounded >= wideLayoutMinWidth());
   updateResponsiveLayout();
 }
 
@@ -431,6 +486,8 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   // No re-render of our own: the host always follows a threshold change with
   // a history replay, which is how bubbles that already exist re-decide.
   else if (message.type === "foldThreshold") setFoldMaxLines(message.maxLines);
+  // Pure CSS-geometry config; applied where it lands, nothing to re-render.
+  else if (message.type === "contentWidth") applyContentMaxWidth(message.maxWidth);
   else if (message.type === "event") {
     applyEvent(message.event);
     updateRecallButton();
