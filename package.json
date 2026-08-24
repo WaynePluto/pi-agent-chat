@@ -245,16 +245,16 @@
     "package-and-install:vsix": "npm run package:vsix && npm run install:vsix"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.84.2",
-    "@earendil-works/pi-coding-agent": "0.84.2",
+    "@earendil-works/pi-ai": "0.84.3",
+    "@earendil-works/pi-coding-agent": "0.84.3",
     "diff": "9.0.0",
     "highlight.js": "11.12.0",
     "jsonc-parser": "3.3.1",
-    "marked": "18.0.9",
+    "marked": "18.0.11",
     "undici": "8.10.0"
   },
   "devDependencies": {
-    "@types/node": "26.2.0",
+    "@types/node": "26.3.0",
     "@types/vscode": "1.99.0",
     "@vscode/vsce": "3.9.2",
     "esbuild": "0.28.2",
