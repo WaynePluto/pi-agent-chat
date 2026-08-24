@@ -273,6 +273,16 @@
   position: relative;
   padding: 0 12px 12px;
   background: var(--surface-bg);
+  /* The composer column overhangs the transcript column by 10px on each side
+     (its 12px padding against `.messages`' 22px insets) as long as neither is
+     capped. When the cap binds, the transcript fills it edge to edge while a
+     composer capped at the same width would lose its padding and end up 24px
+     narrower than the messages — the "input smaller than the transcript"
+     mismatch on medium-wide surfaces. Capping at content-max-width + 44px
+     (the transcript's own horizontal insets) keeps the overhang identical in
+     every regime; the 44px must track `.messages`' 22px + 22px. */
+  width: min(100%, calc(var(--content-max-width) + 44px));
+  box-sizing: border-box;
   /* Restore depth around the input area, but constrain it to the readable
      column: a full-width footer shadow creates dark shelves on both sides. */
   box-shadow:
