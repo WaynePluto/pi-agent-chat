@@ -1,14 +1,13 @@
-/* ---------------------------------------------------------------- */
-/* Auth setup page (no provider configured)                          */
-/* ---------------------------------------------------------------- */
-
+/* 未配置任何供应商时的登录页。
+   这里只有宿主报出的一个事实（「没有配置供应商」），所以不做逐项前置条件清单——
+   那只会是一排编造出来的对勾。留下的是排版：一行强标题、说明、动作。 */
 .auth-page {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 14px;
   padding: 24px;
   text-align: center;
 
@@ -18,22 +17,26 @@
 }
 
 .auth-title {
-  font-weight: 600;
-  font-size: 1.1em;
+  font-weight: 650;
+  font-size: 1.25em;
+  letter-spacing: -0.01em;
+  color: var(--text);
 }
 
 .auth-body {
-  opacity: 0.8;
   max-width: 420px;
+  line-height: 1.6;
+  color: var(--text-dim);
 }
 
 .auth-actions {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-top: 4px;
 }
 
-/* Floating "jump to latest" arrow, shown when the user scrolled up. */
+/* 用户向上滚动后出现的「跳到最新」浮动箭头。 */
 .scroll-down {
   position: absolute;
   right: 18px;
@@ -46,22 +49,23 @@
   height: 28px;
   padding: 0;
   border-radius: 50%;
-  color: var(--vscode-foreground);
-  background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
+  color: var(--text);
+  background: var(--bg-float);
   border: 1px solid var(--widget-border);
-  box-shadow: 0 2px 6px var(--shadow);
   opacity: 0.9;
 
   &.hidden {
     display: none;
   }
 
+  /* 只叠一层 hover 色（background-image），不拿半透明的 hover 色把底色换掉：
+     它浮在 transcript 上，换掉就又变回能透字的状态。 */
   &:hover:not(:disabled) {
-    background: var(--hover-bg-strong);
+    background-image: linear-gradient(var(--hover-bg-strong), var(--hover-bg-strong));
     opacity: 1;
   }
 
-  /* New content arrived below: fill with the accent color like the send button. */
+  /* 下方有新内容：像发送按钮一样填充强调色。 */
   &.news {
     color: var(--vscode-button-foreground);
     background: var(--vscode-button-background);
@@ -73,9 +77,9 @@
   }
 }
 
-/* Transcript search bar (header button), overlaid at the top of the
-   message list. Styled after the workbench find widget: the match count lives
-   inside the input, and the three controls are flat icon buttons. */
+/* transcript 搜索栏，浮在消息列表顶部。仿工作台的查找控件：
+   匹配计数落在输入框内，三个控件是扁平图标按钮。
+   底色用 `--bg-float`（不透明），否则下面的 transcript 会从搜索框里透上来。 */
 .search-bar {
   position: absolute;
   top: 6px;
@@ -85,10 +89,9 @@
   align-items: center;
   gap: 4px;
   padding: 2px;
-  background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
+  background: var(--bg-float);
   border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
-  border-radius: 4px;
-  box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
+  border-radius: var(--r-sm);
 
   &.hidden {
     display: none;
@@ -96,7 +99,7 @@
 
   input {
     width: 170px;
-    /* Right padding keeps typed text clear of the in-field match count. */
+    /* 右内边距为框内的匹配计数让位。 */
     padding: 2px 46px 2px 4px;
     color: var(--vscode-input-foreground);
     background: var(--vscode-input-background);
@@ -107,14 +110,14 @@
     font-size: inherit;
 
     &:focus {
-      border-color: var(--vscode-focusBorder);
+      border-color: var(--accent);
     }
   }
 
   .icon-button {
     width: 22px;
     height: 22px;
-    border-radius: 5px;
+    border-radius: var(--r-md);
     color: var(--vscode-editorWidget-foreground, var(--vscode-icon-foreground));
     background: transparent;
 
@@ -130,9 +133,15 @@
   align-items: center;
 }
 
+/* 贴着输入框右侧，纵向靠 flex 居中（撑满上下再 align-items: center），
+   不用偏移量去凑。 */
 .search-count {
   position: absolute;
   right: 9px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
   color: var(--vscode-input-foreground);
   opacity: 0.7;
   font-size: 11px;
@@ -140,7 +149,7 @@
   pointer-events: none;
 }
 
-/* Match paint for the CSS Custom Highlight API; no DOM nodes are injected. */
+/* CSS Custom Highlight API 的匹配涂色，不注入任何 DOM 节点。 */
 ::highlight(pi-search) {
   background-color: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.33));
 }
@@ -148,10 +157,3 @@
 ::highlight(pi-search-current) {
   background-color: var(--vscode-editor-findMatchBackground, rgba(247, 151, 30, 0.6));
 }
-
-/* ---------------------------------------------------------------- */
-/* Wide workspace: persistent sessions / chat / resources columns.   */
-/* JS applies this once the three columns fit (see main.ts's          */
-/* wideLayoutMinWidth) so visibility and host subscriptions change    */
-/* on the same ResizeObserver event as the geometry.                  */
-/* ---------------------------------------------------------------- */

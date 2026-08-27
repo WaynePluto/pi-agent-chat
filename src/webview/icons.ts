@@ -34,5 +34,18 @@ export const COPY_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="
 
 /* Composer quick menus (model / thinking level). */
 
+
+/** Pencil: rename a session. */
+export const RENAME_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M13.23 1h-1.46L3.52 9.25l-.16.22L1 13.59 2.41 15l4.12-2.36.22-.16L15 4.23V2.77L13.23 1zM2.41 13.59l1.51-3 1.45 1.45-2.96 1.55zm3.83-2.06L4.47 9.76l8-8 1.77 1.77-8 8z"/></svg>`;
+
+/** Split view: open a session in the editor area. */
+export const OPEN_IN_EDITOR_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M14.5 2h-13l-.5.5v11l.5.5h13l.5-.5v-11l.5-.5zm-7 11H2V3h5.5v10zm6.5 0H8.5V3H14v10z"/></svg>`;
+
+/** Window with arrow: open a session in a new window. */
+export const NEW_WINDOW_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M11.85 2h-7.7l-.5.5V6h1V3h7v5H9v1h3.35l.5-.5v-6l-.5-.5z"/><path d="M8.35 7h-7.7l-.5.5v6l.5.5h7.7l.5-.5v-6l-.5-.5zM7.85 13H1.15V8h6.7v5z"/><path d="M5 6V5l3 2.5L5 10V9H2V6h3z"/></svg>`;
+
+/** Trash can: delete a session. */
+export const TRASH_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M10 3h3v1h-1v9l-1 1H5l-1-1V4H3V3h3V2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1zM9 2H7v1h2V2zM5 13h6V4H5v9zm2-8H6v7h1V5zm1 0h1v7H8V5z"/></svg>`;
+
 /** Checkmark: the row that is currently active. */
 export const CHECK_ICON = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M6.2 12.3L2.4 8.5l1.06-1.06 2.74 2.74 6.34-6.34L13.6 4.9z"/></svg>`;

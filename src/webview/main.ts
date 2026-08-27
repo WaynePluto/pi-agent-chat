@@ -1,22 +1,22 @@
 import type { ChatState, HostMessage } from "../shared/protocol.js";
 import {
-  CHAT_COLUMN_MIN_WIDTH,
-  CONTENT_WIDTH_MAX,
   CONTENT_WIDTH_MIN,
   DEFAULT_CONTENT_MAX_WIDTH,
-  RAIL_MIN_WIDTH,
-  WIDE_GRID_CHROME_WIDTH,
+  DEFAULT_WIDE_THRESHOLD,
+  WIDE_THRESHOLD_MIN,
 } from "../shared/protocol.js";
 import { clearFileRefs, initComposer, onProjectFiles, populateInputHistoryFromEvents, send, setInput, setSlashCommands } from "./composer.js";
 import { getPersisted, post, setPersisted } from "./host.js";
 import { setFoldMaxLines } from "./bubble.js";
 import { getDict } from "./i18n.js";
 import { SEND_ICON, STOP_ICON } from "./icons.js";
-import { hasResources, initializeResourcesState, isResourcesShown, renderResources, toggleResources } from "./resources-view.js";
+import { hasResources, isResourcesShown, renderResources, setResourcesLayout, setResourcesShown, toggleResources } from "./resources-view.js";
 import { renderExtensionWidgets } from "./widgets.js";
 import { initSessions, isSessionsVisible, renderSessions, setSessionsVisible } from "./sessions-view.js";
 import { closePicker, openPicker, refreshPicker, setModelCatalog, togglePicker } from "./picker.js";
 import { closeSearch, toggleSearch } from "./search.js";
+import { initSplitters, reflowRails, setAvailableWidth, setRailOpen } from "./splitter.js";
+import { initScrollbars } from "./scrollbars.js";
 import { createOverflowGroup } from "./overflow.js";
 import {
   authEl,
@@ -76,10 +76,18 @@ const t = getDict();
 function initialContentMaxWidth(): number {
   const saved = getPersisted<number>("contentMaxWidth");
   if (saved === undefined || !Number.isFinite(saved)) return DEFAULT_CONTENT_MAX_WIDTH;
-  return Math.min(CONTENT_WIDTH_MAX, Math.max(CONTENT_WIDTH_MIN, Math.round(saved)));
+  return Math.max(CONTENT_WIDTH_MIN, Math.round(saved));
+}
+
+/** Same restore-before-first-layout rule as the column width. */
+function initialWideThreshold(): number {
+  const saved = getPersisted<number>("wideMinWidth");
+  if (saved === undefined || !Number.isFinite(saved)) return Math.max(WIDE_THRESHOLD_MIN, DEFAULT_WIDE_THRESHOLD);
+  return Math.max(WIDE_THRESHOLD_MIN, Math.round(saved));
 }
 
 let contentMaxWidth = initialContentMaxWidth();
+let wideMinWidth = initialWideThreshold();
 // Inline styles do not survive a webview reload, so the restored value must be
 // re-applied to the custom property before first paint — otherwise the layout
 // classifies the viewport with the configured width but *sizes* the columns
@@ -87,37 +95,64 @@ let contentMaxWidth = initialContentMaxWidth();
 document.documentElement.style.setProperty("--content-max-width", `${contentMaxWidth}px`);
 
 /**
- * Wide mode turns on once the three-column grid fits at its minimum sizes:
- * the chat column at its floor, both rails at theirs, plus the grid's fixed
- * gaps and padding (geometry mirrored in `src/styles/_wide.scss`). Lowering
- * the configured column width lowers the threshold with it.
+ * Persist which session this webview is showing, so the tab can reopen it after
+ * a window reload.
+ *
+ * The host cannot keep this for us: VS Code restores every retained panel
+ * separately and hands each one back only its own webview state, so N chat tabs
+ * need N memories. Only the live parent session counts — a lane or a replay is
+ * a view of someone else's transcript, not this tab's session.
  */
-function wideLayoutMinWidth(): number {
-  return Math.min(CHAT_COLUMN_MIN_WIDTH, contentMaxWidth) + RAIL_MIN_WIDTH * 2 + WIDE_GRID_CHROME_WIDTH;
+function rememberSessionForRestore(next: ChatState): void {
+  if (next.inputDisabled) return;
+  setPersisted("session", next.sessionFile ? { cwd: next.cwd, file: next.sessionFile } : undefined);
 }
 
 /**
- * Apply a pushed column width: it sizes the transcript, the composer and the
- * wide grid through the `--content-max-width` custom property, and moves the
- * wide-mode threshold, so the current viewport must be re-classified even
- * though its own width did not change.
+ * Wide mode becomes available once the webview reaches the configured
+ * threshold (`piAgentChat.layout.wideModeMinWidth`, clamped host-side to a
+ * width the three columns can actually satisfy).
+ *
+ * Crossing it **opens nothing**. It only changes what the header's sessions and
+ * resources toggles mean — a full-page listing and an overlay panel below the
+ * threshold, a docked rail above it — and makes the dividers draggable. The
+ * threshold is therefore not a point at which the surface rearranges itself
+ * behind the user's back; it is the point at which a rail becomes possible.
+ *
+ * It used to be derived from the column width, which tied "how wide may the
+ * transcript get" to "when do the rails appear": widening the transcript also
+ * pushed the rails further away, for no reason the user could see.
  */
-function applyContentMaxWidth(maxWidth: number): void {
-  const width = Number.isFinite(maxWidth)
-    ? Math.min(CONTENT_WIDTH_MAX, Math.max(CONTENT_WIDTH_MIN, Math.round(maxWidth)))
-    : DEFAULT_CONTENT_MAX_WIDTH;
-  if (width === contentMaxWidth) return;
+function applyLayoutGeometry(maxWidth: number, minWide: number): void {
+  const width = Number.isFinite(maxWidth) ? Math.max(CONTENT_WIDTH_MIN, Math.round(maxWidth)) : DEFAULT_CONTENT_MAX_WIDTH;
+  const threshold = Number.isFinite(minWide)
+    ? Math.max(WIDE_THRESHOLD_MIN, Math.round(minWide))
+    : Math.max(WIDE_THRESHOLD_MIN, DEFAULT_WIDE_THRESHOLD);
+  if (width === contentMaxWidth && threshold === wideMinWidth) return;
   contentMaxWidth = width;
+  wideMinWidth = threshold;
   document.documentElement.style.setProperty("--content-max-width", `${width}px`);
   setPersisted("contentMaxWidth", width);
+  setPersisted("wideMinWidth", threshold);
   lastWidth = -1;
   applyViewportWidth(document.documentElement.clientWidth);
 }
 
 let wideLayout = false;
 let sessionsPageOpen = false;
-/** The sessions page and wide rail are distinct; resources deliberately are not. */
-let wideSessionsShown = true;
+/**
+ * Whether each wide rail is docked open.
+ *
+ * Both start closed and are restored from this webview's own persisted state.
+ * Entering wide mode must not open a panel the user never asked for, but
+ * reopening a window — or resizing out to narrow and back — must not discard a
+ * choice they did make. Those are different things, and only the first one is
+ * "automatic".
+ */
+const wideRailsOpen = {
+  sessions: getPersisted<boolean>("wideSessionsOpen") === true,
+  resources: getPersisted<boolean>("wideResourcesOpen") === true,
+};
 
 /* ---------------------------------------------------------------- */
 /* Page layout                                                       */
@@ -162,32 +197,39 @@ function closeSessions(): void {
 function updateHeaderButtons(): void {
   const emptySession = (state.messageCount ?? 0) === 0;
   const busy = state.isStreaming || state.isCompacting || isDelegating() || Boolean(state.inputDisabled);
+  const gated = state.ready && Boolean(state.needsAuth);
   // "New" is pointless on an already-empty chat page, but on the sessions
   // page it doubles as "back to a fresh session", so keep it clickable there.
   // A running session does not disable it: the host detaches that controller
   // to finish in the background and gives this same surface a fresh one.
   newBtn.disabled = (emptySession && !sessionsPageOpen) || Boolean(state.inputDisabled);
-  treeBtn.disabled = emptySession || busy || sessionsPageOpen;
-  // The narrow sessions page disables its own entry; in wide mode the same
-  // button remains live and toggles the left rail.
-  sessionsBtn.disabled = !wideLayout && sessionsPageOpen;
-  const sessionsShown = wideLayout ? wideSessionsShown : sessionsPageOpen;
+  treeBtn.disabled = emptySession || busy || gated;
+  // Sessions is a toggle in both layouts: a narrow page and a wide left rail.
+  sessionsBtn.disabled = gated;
+  const sessionsShown = wideLayout ? wideRailsOpen.sessions : sessionsPageOpen;
   sessionsBtn.setAttribute("aria-pressed", String(sessionsShown));
   sessionsBtn.classList.toggle("active", sessionsShown);
-  // Resources use one toggle state across both layouts.
+  // Each layout mode owns its resources toggle; see `setResourcesLayout`.
   resourcesBtn.disabled = !hasResources() || sessionsPageOpen;
-  // The transcript is the search corpus; off the chat page there is nothing to search.
-  searchBtn.disabled = sessionsPageOpen || (state.ready && Boolean(state.needsAuth));
+  // Search is meaningful only once the current session has a transcript. On a
+  // narrow sessions page, invoking it first returns to that transcript.
+  searchBtn.disabled = emptySession || gated;
 }
 
 /**
  * The resources panel is shown only when the header toggle asks for it and
  * there is a listing to show, and never over the sessions or auth pages.
+ *
+ * In wide mode the panel is a docked rail, so its visibility also has to reach
+ * the grid: a closed rail must collapse its track and its divider, which is
+ * what lets the chat column take the space over.
  */
 function applyResourcesVisibility(): void {
   const shown = isResourcesShown();
   const gated = state.ready && Boolean(state.needsAuth);
-  resourcesEl.classList.toggle("hidden", !(shown && hasResources() && !gated && !sessionsPageOpen));
+  const visible = shown && hasResources() && !gated && !sessionsPageOpen;
+  resourcesEl.classList.toggle("hidden", !visible);
+  if (wideLayout) setRailOpen("resources", visible);
   resourcesBtn.setAttribute("aria-pressed", String(shown));
   resourcesBtn.classList.toggle("active", shown);
 }
@@ -269,6 +311,7 @@ function renderHeaderTitle(): void {
 
 function applyState(next: ChatState): void {
   setState(next);
+  rememberSessionForRestore(next);
   renderHeaderTitle();
   const childReadOnly = Boolean(state.inputDisabled);
   const parentWaiting = state.delegation?.role === "parent" && isDelegating();
@@ -375,21 +418,32 @@ function setWideLayout(wide: boolean): void {
   if (wideLayout === wide) return;
   wideLayout = wide;
   rootEl.classList.toggle("layout-wide", wide);
+  // The rail and the narrow overlay panel are separate surfaces with separate
+  // state; hand the panel over to the incoming mode before anything reads it.
+  setResourcesLayout(wide);
 
   if (wide) {
-    // A narrow full-page listing becomes a dock. Each wide rail remembers the
-    // user's last toggle independently from the narrow page/panel state.
+    // A narrow full-page listing does not survive as a dock: reaching the
+    // threshold opens nothing the user did not open in wide mode before.
     sessionsPageOpen = false;
-    setSessionListVisible(wideSessionsShown);
+    setSessionListVisible(wideRailsOpen.sessions);
     chatColumnEl.classList.remove("hidden");
+    // The wide panel state is the shell's memory, not the panel's default.
+    setResourcesShown(wideRailsOpen.resources);
   } else {
     // Wide mode never carries a hidden full-page state back to a narrow panel.
     setSessionListVisible(sessionsPageOpen);
   }
+  applySessionsRail();
 
   applyAuthGate();
   applyResourcesVisibility();
   updateHeaderButtons();
+}
+
+/** Mirror the sessions rail's open state into the wide grid. */
+function applySessionsRail(): void {
+  if (wideLayout) setRailOpen("sessions", wideRailsOpen.sessions);
 }
 
 // Only width matters here, and re-measuring on every height change (the input
@@ -399,11 +453,15 @@ let lastWidth = -1;
 function applyViewportWidth(width: number): void {
   const rounded = Math.round(width);
   if (rounded === lastWidth) return;
-  // A retained/hidden webview may briefly measure 0; wait for the first real
-  // width before choosing the one-time resource defaults.
-  if (rounded > 0) initializeResourcesState(rounded >= wideLayoutMinWidth());
   lastWidth = rounded;
-  setWideLayout(rounded >= wideLayoutMinWidth());
+  // The dividers size against the observed width rather than measuring the
+  // surface, so it has to land before anything asks them to re-clamp.
+  setAvailableWidth(rounded);
+  setWideLayout(rounded >= wideMinWidth);
+  // A shrinking window walks the rails back rather than squeezing the chat
+  // column past its minimum; a rail that can no longer meet its own minimum
+  // closes, exactly as dragging it there would.
+  if (wideLayout) reflowRails();
   updateResponsiveLayout();
 }
 
@@ -455,24 +513,66 @@ newBtn.addEventListener("click", () => {
   }
   post({ type: "newSession" });
 });
-treeBtn.addEventListener("click", () => post({ type: "openSessionTree" }));
+treeBtn.addEventListener("click", () => {
+  if (sessionsPageOpen) closeSessions();
+  post({ type: "openSessionTree" });
+});
 resourcesBtn.addEventListener("click", () => {
   toggleResources();
+  if (wideLayout) {
+    wideRailsOpen.resources = isResourcesShown();
+    setPersisted("wideResourcesOpen", wideRailsOpen.resources);
+  }
   applyResourcesVisibility();
   updateHeaderButtons();
 });
-searchBtn.addEventListener("click", () => toggleSearch());
+searchBtn.addEventListener("click", () => {
+  if (sessionsPageOpen) closeSessions();
+  toggleSearch();
+});
 byId("btn-login").addEventListener("click", () => post({ type: "login" }));
 byId("btn-logout").addEventListener("click", () => post({ type: "logout" }));
 byId("btn-settings").addEventListener("click", () => post({ type: "openSettings" }));
 byId("btn-sessions").addEventListener("click", () => {
   if (wideLayout) {
-    wideSessionsShown = !wideSessionsShown;
-    setSessionListVisible(wideSessionsShown);
-    updateHeaderButtons();
-  } else if (!sessionsPageOpen) {
+    setWideSessionsOpen(!wideRailsOpen.sessions);
+  } else if (sessionsPageOpen) {
+    closeSessions();
+  } else {
     openSessions();
   }
+});
+
+/** Single write path for the sessions rail, shared by the toggle and by a drag. */
+function setWideSessionsOpen(open: boolean): void {
+  wideRailsOpen.sessions = open;
+  setPersisted("wideSessionsOpen", open);
+  setSessionListVisible(open);
+  applySessionsRail();
+  updateHeaderButtons();
+}
+
+// The overlay scrollbars only paint while a container is actually moving, and
+// CSS has no "is scrolling" state to key that off. One capture-phase listener
+// covers every scroller in the view, including ones rendered later.
+initScrollbars();
+
+// Dragging a divider past a rail's minimum closes that rail, so the header
+// toggle and the persisted choice have to follow it: the two are the same
+// decision made with different gestures.
+initSplitters((rail) => {
+  if (rail === "sessions") {
+    wideRailsOpen.sessions = false;
+    setPersisted("wideSessionsOpen", false);
+    setSessionListVisible(false);
+    updateHeaderButtons();
+    return;
+  }
+  if (isResourcesShown()) toggleResources();
+  wideRailsOpen.resources = false;
+  setPersisted("wideResourcesOpen", false);
+  applyResourcesVisibility();
+  updateHeaderButtons();
 });
 delegationPeerBtn.addEventListener("click", () => {
   // A historical subagent is still framed as a lane while its session file is
@@ -487,7 +587,7 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   // a history replay, which is how bubbles that already exist re-decide.
   else if (message.type === "foldThreshold") setFoldMaxLines(message.maxLines);
   // Pure CSS-geometry config; applied where it lands, nothing to re-render.
-  else if (message.type === "contentWidth") applyContentMaxWidth(message.maxWidth);
+  else if (message.type === "contentWidth") applyLayoutGeometry(message.maxWidth, message.wideMinWidth);
   else if (message.type === "event") {
     applyEvent(message.event);
     updateRecallButton();

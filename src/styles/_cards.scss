@@ -1,16 +1,42 @@
-/* A compact, UI-only group for non-formal agent output. The transcript keeps
-   each work block at the top level, while its individual cards are nested in
-   the body so a long tool-heavy turn occupies one collapsible unit. */
+/* 「执行过程」块：一轮里所有非正式输出（思考、工具调用）收进一个可折叠单元。
+
+   三种状态的视觉重量只回答一个问题——需不需要你看一眼：
+     折叠   = 不需要。只有一条 `--line-soft` 细边，够把它划成一个对象，
+              又弱到一整列不会变成一摞盒子（完全无框时它就不再读成独立对象了）。
+     展开   = 你自己要看的，整框 + 抬起底色，范围一目了然。
+     运行中 = 正在发生。边框 + 扫描带 + 脉冲点三重冗余，光靠颜色会同时失败两次；
+              但不含淡底——填充会让一个跑着的块比旁边那段回答还重，
+              而那是本产品最常见的状态。 */
 .work-block {
   flex: 0 0 auto;
-  border: 1px solid var(--border);
-  border-radius: 5px;
+  position: relative;
+  /* 下面按状态覆盖颜色；在这里先声明，边框换色时盒子不会跳 2px。 */
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
   overflow: hidden;
-  background: var(--vscode-editorWidget-background, transparent);
   font-size: 0.82em;
 
+  &:hover:where(.collapsed):not(.running) {
+    background: var(--hover-bg);
+  }
+
+  /* 用 `:not(.collapsed)` 而不是 `.open`——`collapsible.ts` 只 toggle `.collapsed`。 */
+  &:not(.collapsed) {
+    border-color: var(--border);
+    background: var(--section-bg);
+  }
+
   &.running {
-    border-color: var(--accent);
+    border-color: var(--pulse);
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--pulse), transparent);
+      animation: workScan 1.9s linear infinite;
+    }
 
     .work-pulse {
       opacity: 1;
@@ -19,28 +45,94 @@
   }
 }
 
+@keyframes workScan {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .work-block.running::before {
+    animation: none;
+  }
+}
+
 .work-header {
   display: flex;
-  align-items: center;
+  /* 基线对齐而不是居中：这一行混排了等宽小标签与比例 UI 文字，`align-items: center`
+     对齐的是行盒，两种字体在等高行盒里的基线位置不同，实测两段文字会错开 0.69px。
+     混排文字所谓「在同一行上」指的就是基线对齐；下面两个无字形的子元素再单独居中。 */
+  align-items: baseline;
   gap: 8px;
   width: 100%;
   padding: 7px 10px;
-  color: var(--vscode-foreground);
+  color: var(--text);
   background: transparent;
   text-align: left;
+  /* 显式行高，保证标题栏高度不随平台解析到的字体变化。 */
+  line-height: 1.45;
 }
 
+/* 脉冲点与箭头没有字形，也就没有值得共享的基线，改为相对标题栏居中。 */
+.work-pulse,
+.work-chevron {
+  align-self: center;
+}
+
+/* 眉标而非标题：它标注的是一段机器活动，等宽 + 大写是本视图区分机器声音的手段。
+   用 `--text-dim`——一个已完成的块是旁边那段回答的背景，不该是屏幕上最亮的一行字；
+   运行中也不改色，边框与扫描带已经把状态说完了。 */
 .work-label {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
   font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-dim);
 }
 
+/* 标题栏四个文字字段的顺序是机制：被截掉的必须是「此刻在干什么」（长度无界、尾巴最
+   不重要），而不是计数或失败数，所以只有 `.work-action` 可伸缩。 */
 .work-status {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
-  opacity: 0.7;
+  color: var(--text-dim);
 
   &::before {
-    content: "- ";
+    content: "· ";
+  }
+}
+
+/* 失败计数与前面的计数读作同一句话：同样大小、颜色与分隔符。把它涂红会让一次常规
+   重试成为整列里最响的东西。位置在计数与 `.work-action` 之间，因为尾字段才是窄面板
+   下被吃掉的那个。 */
+.work-failures {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+
+  &:not(:empty)::before {
+    content: "· ";
+  }
+}
+
+/* 「正在调用 X / 最近 X」。远大于 1 的 flex-shrink 让它在固定字段被要求让位之前，
+   先吸收掉几乎全部收缩量。 */
+.work-action {
+  flex: 0 100 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+
+  &:not(:empty)::before {
+    content: "· ";
   }
 }
 
@@ -48,6 +140,9 @@
   width: 7px;
   height: 7px;
   opacity: 0;
+  /* 标题栏里唯一的空间吸收者：摘要字段靠左排布，它与箭头一起靠右。
+     没在运行时也保留（`opacity: 0`），开跑时箭头才不会横移 7px。 */
+  margin-left: auto;
 }
 
 .work-body {
@@ -56,21 +151,20 @@
   gap: 8px;
   max-height: 420px;
   overflow-y: auto;
-  padding: 8px 8px 10px 18px;
-  border-top: 1px solid var(--border);
+  padding: 10px 8px 10px 14px;
+  border-top: 1px solid var(--line-soft);
 
   > * {
     flex: 0 0 auto;
   }
 
-  /* Cards keep comfortable click targets and readable separation while the
-     work block itself supplies the smaller font size. */
+  /* 卡片保留舒适的点击区与间距，字号则由 work block 统一压小。 */
   .card-header {
-    padding: 6px 10px;
+    padding: 5px 8px;
   }
 
   .card-body {
-    padding: 4px 10px 8px 20px;
+    padding: 6px 8px 8px;
   }
 
   .notice-card.flat {
@@ -78,32 +172,35 @@
   }
 }
 
-/* Persistent marker appended after manual or automatic context compaction.
-   It is a transcript checkpoint, not another agent work block. */
+/* 上下文压缩后留下的检查点。它是 transcript 的分界，不是另一个执行过程块，
+   所以用与折叠块同形的细框来陈述自己，而不是横跨整列画一条线。 */
 .compaction-boundary {
   flex: 0 0 auto;
   overflow: hidden;
-  border-top: 1px solid var(--vscode-editorWarning-foreground);
-  border-bottom: 1px solid var(--vscode-editorWarning-foreground);
-  background: var(--vscode-textBlockQuote-background, var(--vscode-editorWidget-background));
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
 
   .card-header {
-    color: var(--vscode-editorWarning-foreground);
+    color: var(--text-faint);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
 
   .card-status {
-    color: var(--vscode-descriptionForeground);
+    color: var(--text-faint);
   }
 
   .card-body {
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--line-soft);
     max-height: 420px;
   }
 }
 
 .compaction-note {
   margin: 0 0 8px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
 }
 
 .compaction-summary-label {
@@ -140,13 +237,13 @@
 
   code,
   pre {
-    font-family: var(--vscode-editor-font-family);
+    font-family: var(--mono);
   }
 
   pre {
     overflow-x: auto;
     padding: 6px 8px;
-    border-radius: 4px;
+    border-radius: var(--r-sm);
     background: var(--code-bg);
   }
 }

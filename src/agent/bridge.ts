@@ -10,7 +10,7 @@ import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, 
 import { formatLocalTimestamp } from "../shared/time.js";
 import { loginFlow, logoutFlow } from "./auth.js";
 import { ActivityTracker, type ResourceActivity } from "./activity.js";
-import { affectsFoldConfig, affectsLayoutConfig, affectsSubagentConfig, affectsTerminalConfig, readContentMaxWidth, readFoldLines, readSubagentConfig, readTerminalConfig } from "./config.js";
+import { affectsFoldConfig, affectsLayoutConfig, affectsSubagentConfig, affectsTerminalConfig, readContentMaxWidth, readFoldLines, readSubagentConfig, readTerminalConfig, readWideThreshold } from "./config.js";
 import { collectSlashCommands, formatHelp, runBuiltinCommand } from "./commands.js";
 import { describe } from "./errors.js";
 import { t, tf } from "./i18n.js";
@@ -19,7 +19,7 @@ import { openSettingsMenu } from "./settings-menu.js";
 import type { OriginalContentProvider } from "./diff-view.js";
 import { openEditDiff } from "./diff-view.js";
 import { ProjectFileIndex } from "./project-files.js";
-import { isResumable, resumeAfterError } from "./resume.js";
+import { isResumable, resumeAfterError, supportsResume } from "./resume.js";
 import { buildModelCatalog, manageScopedModels, pickModel } from "./model-picker.js";
 import { isModelsConfigPath, repairEmptyModelsConfig } from "./model-config.js";
 import type { PiRuntime } from "./runtime.js";
@@ -167,6 +167,18 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     succeeded: boolean;
   }>();
   /**
+   * Sessions whose latest *live* provider response ended in `stopReason:error`.
+   *
+   * Usually `isResumable()` can rediscover that fact from SessionManager at
+   * `agent_settled`. Keep the event fact as well: `message_end` is the direct,
+   * typed evidence that produced the visible "Request timed out." card, while
+   * extensions/session persistence and settlement are separate SDK stages.
+   * A retry offer must not disappear merely because those stages expose the
+   * new tail at slightly different moments. A later non-error assistant
+   * response (including a successful automatic retry) clears the fact.
+   */
+  private readonly liveFailedResponses = new Set<string>();
+  /**
    * Extension-owned status entries and widgets per session (`ctx.ui.setStatus`,
    * `ctx.ui.setWidget`). Cleared on attach: rebinding extensions re-runs their
    * handlers, which republish whatever is still true, exactly as in the CLI.
@@ -286,7 +298,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
           this.applyFoldConfigChange();
         }, SETTINGS_DEBOUNCE_MS);
       }
-      // The column width is applied by writing one CSS custom property, so it
+      // The layout geometry is applied by writing CSS custom properties, so it
       // needs neither a session rebuild nor a transcript replay — and therefore
       // no debounce either; an extra postMessage per keystroke is free.
       if (affectsLayoutConfig(event)) this.postContentWidth();
@@ -392,7 +404,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    * of this bridge.
    */
   private postContentWidth(): void {
-    this.host.post({ type: "contentWidth", maxWidth: readContentMaxWidth() });
+    this.host.post({ type: "contentWidth", maxWidth: readContentMaxWidth(), wideMinWidth: readWideThreshold() });
   }
 
   /**
@@ -524,6 +536,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.extensionStatuses.clear();
     this.extensionWidgets.clear();
     this.compactionQueues.clear();
+    this.liveFailedResponses.clear();
     this.activity.reset();
     this.skillIndex = buildSkillIndex(session);
     this.promptIndex = buildPromptIndex(session);
@@ -872,7 +885,13 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    * only controls over a subagent are "watch" and "stop").
    */
   private offerRetry(session: AgentSession): void {
-    if (session !== this.runtime.session || !isResumable(session)) return;
+    const liveFailure = this.liveFailedResponses.delete(session.sessionId);
+    if (session !== this.runtime.session || !supportsResume(session)) return;
+    // `isResumable()` is the durable/replay path. `liveFailure` is the direct
+    // message_end fact for the run that just settled, and closes the small gap
+    // where the visible provider error exists before SessionManager exposes it
+    // as the active branch tail. Neither path guesses from display text.
+    if (!liveFailure && !isResumable(session)) return;
     this.emit(session, { kind: "status", text: t("retryInterrupted"), retry: "offered" });
   }
 
@@ -1145,6 +1164,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       }
       case "message_end":
         this.emit(session, { kind: "assistant_end" });
+        if (event.message.role === "assistant") {
+          if (event.message.stopReason === "error") this.liveFailedResponses.add(session.sessionId);
+          else this.liveFailedResponses.delete(session.sessionId);
+        }
         if (
           event.message.role === "assistant" &&
           event.message.stopReason !== "error" &&

@@ -1,6 +1,7 @@
 import type { SessionListItem } from "../shared/protocol.js";
 import { formatLocalTimestamp } from "../shared/time.js";
-import { button, el } from "./dom.js";
+import { button, el, icon } from "./dom.js";
+import { RENAME_ICON, OPEN_IN_EDITOR_ICON, NEW_WINDOW_ICON, TRASH_ICON } from "./icons.js";
 import { MAX_SESSION_TITLE_CHARS, truncate } from "./format.js";
 import { post } from "./host.js";
 import { getDict } from "./i18n.js";
@@ -133,28 +134,40 @@ function appendRows(items: SessionListItem[], upTo: number): void {
 }
 
 function sessionRow(item: SessionListItem): HTMLElement {
+  // `running` drives the 2px status bar, which reports activity only — being
+  // the current session is said by the selected background instead. A session
+  // claimed by a background controller is running too, just not here.
+  const running = item.running || item.claimedElsewhere === "background";
   const row = el(
     "div",
-    `session-row${item.current ? " current" : ""}${item.claimedElsewhere ? ` claimed-${item.claimedElsewhere}` : ""}${item.delegationRole ? ` delegation-${item.delegationRole}` : ""}`,
+    `session-row${item.current ? " current" : ""}${running ? " running" : ""}${item.claimedElsewhere ? ` claimed-${item.claimedElsewhere}` : ""}${item.delegationRole ? ` delegation-${item.delegationRole}` : ""}`,
   );
   row.title = item.file;
 
   const main = button("session-main", undefined, () => onRowClick(item));
   main.title = claimTitle(item) ?? t.sessionResumeTitle;
   const titleRow = el("span", "session-title");
-  const badge = statusBadge(item);
-  if (badge) titleRow.appendChild(badge);
   titleRow.appendChild(el("span", "session-title-text", truncate(item.title, MAX_SESSION_TITLE_CHARS)));
-  main.append(
-    titleRow,
-    el("span", "session-meta", formatLocalTimestamp(item.timestamp)),
-  );
+  // The badge leads the meta row rather than the title row. Inline before the
+  // title it indents that title by its own width, so a list where only some
+  // sessions are running gets a ragged left edge -- and the titles are what
+  // the eye scans down. On the meta row it leads a line that is already
+  // secondary, and every title starts at the same x.
+  const metaRow = el("span", "session-meta");
+  const badge = statusBadge(item);
+  if (badge) metaRow.appendChild(badge);
+  metaRow.appendChild(el("span", "session-time", formatLocalTimestamp(item.timestamp)));
+  main.append(titleRow, metaRow);
   row.appendChild(main);
 
   // Action buttons occupy fixed slots on every row; unavailable actions are
-  // disabled rather than hidden. Status badges live inline before the title.
-  row.appendChild(renameButton(item));
-  row.appendChild(deleteButton(item));
+  // disabled rather than hidden.
+  const actions = el("div", "session-actions");
+  actions.appendChild(renameButton(item));
+  actions.appendChild(openInEditorButton(item));
+  actions.appendChild(openInNewWindowButton(item));
+  actions.appendChild(deleteButton(item));
+  row.appendChild(actions);
   return row;
 }
 
@@ -194,16 +207,24 @@ function onRowClick(item: SessionListItem): void {
 function statusBadge(item: SessionListItem): HTMLElement | undefined {
   const badge = el("span", "session-badge");
   if (item.claimedElsewhere === "visible") {
+    // Neutral on purpose: this describes *this window's* claim, not a state of
+    // the session, so it must not read as "running" (see `_sessions.scss`).
     badge.textContent = t.sessionOpenElsewhere;
   } else if (item.claimedElsewhere === "background") {
-    badge.append(spinner(), document.createTextNode(` ${t.sessionRunningInBackground}`));
+    badge.classList.add("running");
+    badge.append(spinner(), document.createTextNode(t.sessionRunningInBackground));
   } else if (item.delegationRole === "child") {
-    badge.append(spinner(), document.createTextNode(` ${t.sessionSubagentRunning}`));
+    badge.classList.add("subagent");
+    badge.append(spinner(), document.createTextNode(t.sessionSubagentRunning));
   } else if (item.delegationRole === "parent") {
+    badge.classList.add("subagent");
     badge.textContent = t.sessionParentWaiting;
   } else if (item.running) {
-    // Same braille spinner as the bottom "Working..." indicator.
-    badge.append(spinner(), document.createTextNode(` ${t.sessionRunning}`));
+    badge.classList.add("running");
+    // Same braille spinner as the bottom "Working..." indicator. No separating
+    // space in the text: the badge is a flex row and its `gap` sets the
+    // distance, so a literal space would double it.
+    badge.append(spinner(), document.createTextNode(t.sessionRunning));
   } else if (item.current && state.preview) {
     badge.textContent = t.sessionPreviewing;
   } else {
@@ -213,10 +234,11 @@ function statusBadge(item: SessionListItem): HTMLElement | undefined {
 }
 
 function deleteButton(item: SessionListItem): HTMLElement {
-  const del = button("session-delete", t.sessionDelete, (event) => {
+  const del = button("session-action session-delete", undefined, (event) => {
     event.stopPropagation();
     post({ type: "deleteSession", file: item.file });
   });
+  del.appendChild(icon(TRASH_ICON));
   if (item.current || item.running || item.delegationRole || item.claimedElsewhere) {
     del.disabled = true;
     del.title = claimTitle(item) ?? t.sessionDeleteCurrentTitle;
@@ -232,11 +254,34 @@ function claimTitle(item: SessionListItem): string | undefined {
   return undefined;
 }
 
+function openInEditorButton(item: SessionListItem): HTMLElement {
+  const btn = button("session-action session-open-editor", undefined, (event) => {
+    event.stopPropagation();
+    post({ type: "openSessionInEditor", file: item.file });
+    hooks.close();
+  });
+  btn.appendChild(icon(OPEN_IN_EDITOR_ICON));
+  btn.title = t.sessionOpenInEditorTitle;
+  return btn;
+}
+
+function openInNewWindowButton(item: SessionListItem): HTMLElement {
+  const btn = button("session-action session-open-window", undefined, (event) => {
+    event.stopPropagation();
+    post({ type: "openSessionInNewWindow", file: item.file });
+    hooks.close();
+  });
+  btn.appendChild(icon(NEW_WINDOW_ICON));
+  btn.title = t.sessionOpenInNewWindowTitle;
+  return btn;
+}
+
 function renameButton(item: SessionListItem): HTMLElement {
-  const rename = button("session-rename", t.sessionRename, (event) => {
+  const rename = button("session-action session-rename", undefined, (event) => {
     event.stopPropagation();
     post({ type: "renameSession", file: item.file });
   });
+  rename.appendChild(icon(RENAME_ICON));
   // A running subagent appends to its session file, so renaming it must wait
   // for the run to finish. Sessions claimed by another surface can still be
   // renamed — the rename just appends metadata, it does not interfere.

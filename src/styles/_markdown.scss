@@ -1,18 +1,15 @@
-/* Markdown output (assistant/user bubbles) */
+/* Markdown 渲染结果（agent / 用户气泡） */
 .bubble {
   &.markdown {
     white-space: normal;
-    /* Anchor for the footer (fold + copy), which floats over the last line. */
+    /* footer（折叠 + 复制）浮在最后一行上方，需要这个定位锚点。 */
     position: relative;
 
-    /* Rendered Markdown lives in its own element so that folding a long message
-       clamps the text only — the badges, the footer and the hover action bar must
-       stay reachable.
-
-       The bubble selector is kept in front on purpose: these have to outrank
-       `.bubble.markdown p` (0,2,1) below, which sets the block spacing. Written as
-       the obvious `.bubble-content > :first-child` they land at (0,2,0), lose, and
-       every message grows an extra 0.4em at both ends. */
+    /* 渲染出的 Markdown 必须住在 `.bubble-content` 里：折叠只能裁剪它，
+       徽章、footer 与 hover 动作条要保持可点。
+       选择器故意带上 `.bubble` 前缀，好压过下面 (0,2,1) 的 `.bubble.markdown p`；
+       写成 `.bubble-content > :first-child` 只有 (0,2,0)，会输，
+       于是每条消息上下各多出 0.4em。 */
     .bubble-content > :first-child {
       margin-top: 0;
     }
@@ -38,17 +35,17 @@
     }
 
     code {
-      font-family: var(--vscode-editor-font-family);
+      font-family: var(--mono);
       font-size: 0.92em;
       color: var(--vscode-textPreformat-foreground, inherit);
       background: var(--code-bg);
-      border-radius: 3px;
+      border-radius: var(--r-sm);
       padding: 0 3px;
     }
 
     pre {
       background: var(--code-bg);
-      border-radius: 4px;
+      border-radius: var(--r-sm);
       padding: 6px 8px;
       overflow-x: auto;
 
@@ -62,15 +59,15 @@
       border-left: 2px solid var(--vscode-textBlockQuote-border, var(--border));
       background: var(--vscode-textBlockQuote-background, transparent);
       padding-left: 8px;
-      color: var(--vscode-descriptionForeground);
+      color: var(--text-dim);
     }
 
     a {
-      color: var(--vscode-textLink-foreground);
+      color: var(--signal);
 
       &:hover,
       &:active {
-        color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+        color: var(--vscode-textLink-activeForeground, var(--signal));
       }
     }
 
@@ -85,13 +82,14 @@
     }
   }
 
-  /* Folded: a preview of the message with the rest masked out. The height is in
-     `em` so it follows the editor font size the bubbles use. */
+  /* 折叠：留一段预览，其余用 mask 淡出。高度用 `em`，跟随气泡字号。
+     用 `mask-image` 而不是盖一层渐变遮罩——遮罩要知道背景色，而 agent 消息没有底色；
+     不透明端用 `currentColor`，因为 mask 只读 alpha，写字面色只是多一个硬编码。 */
   &.folded > .bubble-content {
-    max-height: 11em;
+    max-height: 13em;
     overflow: hidden;
-    mask-image: linear-gradient(to bottom, #000 65%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, #000 65%, transparent 100%);
+    mask-image: linear-gradient(to bottom, currentColor 72%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, currentColor 72%, transparent 100%);
   }
 
   &:hover > .bubble-footer,
@@ -106,10 +104,9 @@
   }
 }
 
-/* Per-message footer: "show full message" and "copy".
-   Absolutely positioned, so an ordinary short message costs no extra row in
-   the transcript; it is revealed on hover, and pinned open while folded (the
-   fold has to be undoable without hunting for a hover target). */
+/* 每条消息的 footer：「显示完整消息」与「复制」。浮在气泡右下角，
+   靠 `background: inherit` 拿到不透明底色才不会压住正文；两侧内边距保证它不压最后一行。
+   hover 时显示，折叠状态下常驻——折叠必须能在不找 hover 目标的情况下撤销。 */
 .bubble-footer {
   position: absolute;
   right: 6px;
@@ -118,56 +115,59 @@
   align-items: center;
   gap: 2px;
   padding: 0 2px;
-  border-radius: 4px;
-  /* Same surface as the bubble, so the buttons never sit on top of text. */
+  border-radius: var(--r-sm);
   background: inherit;
   opacity: 0;
   pointer-events: none;
   transition: opacity 80ms ease-in;
 }
 
-/* The toggle only exists for messages long enough to be worth folding. */
+.bubble.assistant > .bubble-footer {
+  gap: 4px;
+}
+
+/* 只有长到值得折叠的消息才有这个开关。 */
 .bubble-fold {
   display: none;
-  /* Absolutely positioned: keep the label on one line and inside the bubble. */
+  /* 绝对定位在气泡内，保持单行不外溢。 */
   max-width: 40vw;
   overflow: hidden;
   white-space: nowrap;
   padding: 0 4px;
   border: none;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   background: none;
-  color: var(--vscode-textLink-foreground);
+  color: var(--signal);
   font-family: inherit;
   font-size: 0.85em;
   line-height: 1.6;
   cursor: pointer;
 
   &:hover {
-    color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+    color: var(--vscode-textLink-activeForeground, var(--signal));
     background: var(--hover-bg-strong);
   }
 }
 
-/* Copy buttons (message bubbles, code blocks). */
+/* 复制按钮（消息气泡、代码块共用）。 */
 button.copy-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 2px;
   border: none;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   background: none;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
   cursor: pointer;
 
   &:hover {
     background: var(--hover-bg-strong);
-    color: var(--vscode-foreground);
+    color: var(--text);
   }
 
   &.copied {
-    color: var(--vscode-charts-green, var(--accent));
+    color: var(--verdant);
   }
 
   svg {
@@ -175,15 +175,11 @@ button.copy-button {
   }
 }
 
-/* Fenced code blocks get their own copy button, parked in the top-right
-   corner of the block and revealed on hover. */
+/* 围栏代码块自带复制按钮，停在右上角，hover 时显示。 */
 .code-block {
   position: relative;
-  /* The wrapper carries the block spacing and the `pre` inside goes flush.
-     Otherwise the wrapper contributes no margin of its own, the `pre` falls
-     back to the browser default `1em 0`, and the first/last-child resets on
-     the bubble can no longer reach it — every message with a code fence grows
-     an extra line of padding at both ends. */
+  /* 块间距由包裹元素承担，里面的 `pre` 贴平。否则 `pre` 会退回浏览器默认的
+     `1em 0`，而气泡上的首尾子元素重置够不到它，每条含代码围栏的消息上下都会多一行。 */
   margin: 0.4em 0;
 
   > pre {
@@ -205,20 +201,15 @@ button.copy-button {
   }
 }
 
-/* Syntax highlighting: highlight.js class names mapped onto VS Code colors.
-
-   A webview cannot read the active theme's TextMate token colors, so this maps
-   each token onto the closest *workbench* color instead — those are injected as
-   `--vscode-*` variables and follow the theme (light, dark, high contrast),
-   which a hard-coded highlight.js stylesheet would not. Every variable has a
-   fallback: a theme that leaves one undefined must not drop the color entirely.
-
-   Tokens deliberately left at the surrounding text color: punctuation,
-   operators, plain identifiers. */
+/* 语法高亮：把 highlight.js 的类名映射到 VS Code 颜色变量。
+   webview 读不到当前主题的 TextMate token 颜色，所以映射到最接近的「工作台」颜色——
+   它们以 `--vscode-*` 注入并跟随明/暗/高对比度主题，而 highlight.js 自带的主题 CSS
+   是硬编码颜色。每个变量都带回退：主题没定义某一个时不能整个丢掉颜色。
+   标点、运算符、普通标识符故意留用周围文本色。 */
 .hljs {
   .hljs-comment,
   .hljs-quote {
-    color: var(--vscode-descriptionForeground);
+    color: var(--text-dim);
     font-style: italic;
   }
 
@@ -271,10 +262,10 @@ button.copy-button {
   }
 
   .hljs-meta {
-    color: var(--vscode-descriptionForeground);
+    color: var(--text-dim);
   }
 
-  /* Fenced `diff` blocks, kept in step with the tool cards' own diff rendering. */
+  /* 围栏 `diff` 块，与工具卡片自己的 diff 渲染保持一致。 */
   .hljs-addition {
     color: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green, inherit));
   }

@@ -1,39 +1,34 @@
-/* ---------------------------------------------------------------- */
-/* Startup resources listing (CLI-style [Context]/[Skills]/...)      */
-/* ---------------------------------------------------------------- */
+/* 启动资源清单（CLI 风格的 [Context]/[Skills]/…） */
 
 .resources {
   padding: 8px 12px 12px;
   position: relative;
   z-index: 1;
   font-size: 0.9em;
-  /* Same family as the header block; separated from the chat area below. */
   background: var(--section-bg);
-  box-shadow: none;
 }
 
-/* Only the lowest visible narrow-mode top section casts a shadow into the
-   transcript. In wide mode the rails sit beside the transcript, so the header
-   alone separates the whole workspace from the title row. */
+/* 区域边界是 hairline 而不是投影。header 永远声明自己的下沿；窄屏下由当前显示的
+   顶部面板声明它自己的，transcript 上方因此不会叠出两条线。 */
 #root {
   &:not(.layout-wide):not(:has(.resources:not(.hidden), .delegation-bar:not(.hidden))) > .header,
   &:not(.layout-wide) .resources:not(.hidden):not(:has(~ .chat-column .delegation-bar:not(.hidden))),
   &:not(.layout-wide) .delegation-bar:not(.hidden),
   &.layout-wide > .header {
-    box-shadow:
-      0 6px 16px -5px var(--shadow),
-      0 2px 5px -2px var(--shadow);
+    border-bottom: 1px solid var(--border);
   }
 }
 
-/* Bordered container; collapsed = only the slim toggle row is visible. */
+/* 带框容器；折叠时只剩那条细的开关行。 */
 .resources-panel {
   display: flex;
   flex-direction: column;
   max-height: min(30vh, 320px);
   border: 1px solid var(--widget-border);
-  border-radius: 6px;
-  background: var(--vscode-editorWidget-background, transparent);
+  border-radius: var(--r-md);
+  /* 与宽屏停靠栏同一个底色，窄↔宽切换时它仍是同一个可识别的对象；
+     抬起而不是凹陷，因为窄屏下这张浮层确实是「盖在」transcript 上的。 */
+  background: var(--bg-raised);
   overflow: hidden;
 }
 
@@ -45,24 +40,25 @@
   width: 100%;
   padding: 5px 10px;
   background: transparent;
-  color: var(--vscode-foreground);
+  color: var(--text);
   border: none;
   text-align: left;
   cursor: pointer;
 
   &:hover {
-    background: var(--vscode-list-hoverBackground, var(--hover-bg));
+    background: var(--hover-bg);
   }
 }
 
 .resources-title {
+  flex: 0 0 auto;
   font-weight: 600;
-  flex-shrink: 0;
 }
 
 .resources-counts {
-  flex: 1;
-  color: var(--vscode-descriptionForeground);
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-dim);
 }
 
 .resources-body {
@@ -85,56 +81,60 @@
   width: 100%;
   padding: 2px 4px;
   background: transparent;
-  color: var(--vscode-foreground);
+  color: var(--text);
   border: none;
   text-align: left;
   cursor: pointer;
 
   &:hover {
-    background: var(--vscode-list-hoverBackground, var(--hover-bg));
+    background: var(--hover-bg);
   }
 }
 
+/* 分节名是机器填充列表的标签，与本 UI 里其他机器来源的名字一样用等宽体。 */
 .resource-name {
+  flex: 0 0 auto;
+  font-family: var(--mono);
   font-weight: 600;
-  color: var(--vscode-textLink-foreground);
-  flex-shrink: 0;
+  font-size: 0.92em;
+  color: var(--signal);
 }
 
 .resource-summary {
-  flex: 1;
-  color: var(--vscode-descriptionForeground);
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-dim);
 }
 
 .resource-details {
   padding: 2px 4px 4px 16px;
-  /* Rows are plain foreground text: everything listed here is loaded and in
-     effect unless it says otherwise. Dimming is reserved for `.resource-inactive`
-     so "grey" has exactly one meaning in this panel. */
-  color: var(--vscode-foreground);
+  /* 行是普通前景色：列在这里的东西除非另有说明，都是已加载且生效的。
+     灰色只留给 `.resource-inactive`，「灰」在这个面板里才只有一个意思。 */
+  color: var(--text);
   word-break: break-all;
 
-  /* Rows sit one level below their scope heading. */
+  /* 条目比它所属的作用域标题低一级。 */
   > .resource-file,
   > div:not(.resource-scope) {
     padding-left: 10px;
   }
 }
 
-/* Scope group heading inside an expanded section (Global / Project / ...) */
+/* 展开分节内的作用域标题（Global / Project / …） */
 .resource-scope {
   margin: 2px 0 1px;
-  font-size: 0.92em;
-  color: var(--vscode-descriptionForeground);
+  font-family: var(--mono);
+  font-size: 0.9em;
+  color: var(--text-faint);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.1em;
 
   &:not(:first-child) {
     margin-top: 6px;
   }
 }
 
-/* Clickable file rows inside expanded resource sections */
+/* 展开分节里可点击的文件行 */
 .resource-file {
   display: block;
   width: 100%;
@@ -148,27 +148,24 @@
   word-break: break-all;
 
   &:hover {
-    color: var(--vscode-textLink-foreground);
+    color: var(--signal);
     text-decoration: underline;
   }
 }
 
-/* Skills loaded, tools called, prompt templates invoked and extensions exercised
-   in the displayed transcript. Same green as the assistant bubble's left edge:
-   "the agent used this". */
+/* 本会话中生效过：技能被加载、工具被调用、提示词模板被使用、扩展钩子跑过。
+   绿色是全局的「生效过」色，本面板是它唯一出现的地方。 */
 .resource-file.resource-used,
 .resource-details .resource-used,
 .resource-summary .resource-used {
-  color: var(--vscode-charts-green, var(--accent));
+  color: var(--verdant);
   font-weight: 600;
 }
 
-/* Configured but not in effect: a tool outside the agent's active set, or an
-   extension that failed to load. Dimmed rather than hidden, so "off" stays
-   distinguishable from "gone". */
+/* 已配置但未生效：不在 agent 激活集里的工具、加载失败的扩展。
+   第三档文本色正是为它存在——暗到读作「关着」，又没暗到读作「没有」。 */
 .resource-summary .resource-inactive,
 .resource-details .resource-inactive {
-  color: var(--vscode-descriptionForeground);
-  opacity: 0.6;
+  color: var(--text-faint);
   font-style: italic;
 }

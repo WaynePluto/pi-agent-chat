@@ -1,21 +1,27 @@
-/* Collapsible cards (thinking + tool calls): single-line header, lazy body */
+/* work block 内部的可折叠条目（思考 + 工具调用）。
+
+   与列表里其他条目一样带框：同一个 body 里还会出现天生带框的 `.notice-card`
+   （重试、压缩提示），平行的无框行在旁边会读成另一种没做完的东西。
+   左边固定 2px、静止时为 `--border`，运行中/失败只换颜色不换宽度，
+   开跑或失败时内容不会横移一个像素。 */
 .thinking-card,
 .tool-card {
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-left-width: 2px;
+  border-radius: var(--r-sm);
   overflow: hidden;
 }
 
 .tool-card {
-  font-family: var(--vscode-editor-font-family);
+  font-family: var(--mono);
   font-size: 0.92em;
 
   &.running {
-    border-color: var(--accent);
+    border-left-color: var(--pulse);
   }
 
   &.error {
-    border-color: var(--vscode-errorForeground);
+    border-left-color: var(--ember);
   }
 }
 
@@ -25,45 +31,50 @@
   gap: 6px;
   width: 100%;
   text-align: left;
-  color: var(--vscode-foreground);
+  color: var(--text);
   background: transparent;
   padding: 6px 10px;
+  border-radius: var(--r-sm);
 
   &:hover {
-    background: var(--vscode-list-hoverBackground, var(--hover-bg));
+    background: var(--hover-bg);
   }
 }
 
 .thinking-card {
   .card-header {
     font-style: italic;
-    color: var(--vscode-descriptionForeground);
+    color: var(--text-dim);
   }
 
   .card-body {
-    color: var(--vscode-descriptionForeground);
+    color: var(--text-dim);
     font-size: 0.92em;
   }
 }
 
+/* 工具名。安静而不是加粗：二十条调用里它是最重复的一列，读者扫的是旁边的目标与结果。 */
 .card-label {
-  font-weight: 600;
-  /* Italic glyphs overhang their box; keep the last char from being clipped. */
+  flex: 0 0 auto;
+  font-weight: 500;
+  color: var(--text-dim);
+  /* 斜体字形会伸出盒子，留一点右内边距免得末字被裁。 */
   padding-right: 0.15em;
 }
 
 .card-status {
-  color: var(--vscode-descriptionForeground);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
 
   &:not(:empty)::before {
-    content: "- ";
+    content: "· ";
   }
 }
 
-/*
- * Skill attribution on tool cards: a skill the model loads on its own arrives
- * as a plain `read`, so the badge is the only thing telling the two apart.
- */
+/* 技能归属徽章：模型自己加载技能时来的是一次普通 `read`，这枚徽章是区分两者的唯一信号。 */
 .skill-badge {
   margin-left: 6px;
   padding: 0 6px;
@@ -71,7 +82,7 @@
   border-radius: 8px;
   font-size: 0.85em;
   font-weight: 400;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
 
   &.load {
     border-color: transparent;
@@ -91,28 +102,34 @@
   }
 }
 
+/* body 归属上面那一行：条目已经有框，分隔就用顶部一条 hairline，
+   与 work block 分隔自己的标题栏和 body 是同一手法。 */
 .card-body {
-  padding: 4px 10px 8px 20px;
+  padding: 4px 10px 8px;
   line-height: 1.5;
   max-height: 320px;
   overflow-y: auto;
+  border-top: 1px solid var(--line-soft);
 }
 
 .tool-args {
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
   white-space: pre-wrap;
   word-break: break-all;
   margin: 2px 0;
 }
 
+/* 工具输出是机器输出：嵌入一层，读作被引用的区域而不是周围 UI 的延续。 */
 .tool-body {
   margin: 4px 0 0;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  background: var(--bg-sunken);
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-/* Generic tree for a tool's own `details` payload; collapsed by default. */
-/* Subagent card: one row per subagent -------------------------- */
+/* -- subagent 卡片：每一路一行 -------------------------------------------- */
 
 .lane-list {
   display: flex;
@@ -122,24 +139,24 @@
 }
 
 .lane-row {
-  border-left: 2px solid var(--vscode-panel-border);
+  border-left: 2px solid var(--border);
   padding: 2px 0 2px 8px;
 }
 
 .lane-running {
-  border-left-color: var(--vscode-progressBar-background);
+  border-left-color: var(--pulse);
 }
 
 .lane-completed {
-  border-left-color: var(--vscode-charts-green);
+  border-left-color: var(--verdant);
 }
 
 .lane-failed {
-  border-left-color: var(--vscode-errorForeground);
+  border-left-color: var(--ember);
 }
 
 .lane-stopped {
-  border-left-color: var(--vscode-descriptionForeground);
+  border-left-color: var(--text-dim);
 }
 
 .lane-head {
@@ -161,7 +178,7 @@
 .lane-scope,
 .lane-detail,
 .lane-files {
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
   word-break: break-all;
 }
 
@@ -181,9 +198,10 @@
   margin-top: 4px;
 }
 
+/* 工具自带 `details` 负载的通用树，默认折叠。 */
 .tool-details-block {
   margin-top: 6px;
-  border-top: 1px solid var(--vscode-panel-border);
+  border-top: 1px solid var(--border);
 
   > .card-header {
     padding: 4px 0;
@@ -192,9 +210,9 @@
 
   > .card-body {
     padding-left: 2px;
-    /* Nested inside another .card-body: reserving a second gutter would eat 10px
-       of an already narrow tree, and this one scrolls with its parent in
-       practice. */
+    border-top: 0;
+    /* 嵌在另一个 .card-body 里：再预留一条滚动条槽会吃掉这棵窄树 10px，
+       而它实际上跟着父容器一起滚。 */
     scrollbar-gutter: auto;
   }
 }
@@ -206,14 +224,14 @@
   padding: 1px 0;
   word-break: break-word;
 
-  /* A nested value stacks under its key instead of sitting beside it. */
+  /* 嵌套值堆在键的下面，而不是并排。 */
   &.nested {
     display: block;
   }
 }
 
 .detail-key {
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
   flex: 0 0 auto;
 
   &::after {
@@ -228,12 +246,12 @@
 
 .detail-children {
   padding-left: 12px;
-  border-left: 1px solid var(--vscode-panel-border);
+  border-left: 1px solid var(--border);
   margin-left: 2px;
 }
 
 .detail-empty {
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
 }
 
 .tool-actions {
@@ -242,7 +260,7 @@
   margin-top: 6px;
 }
 
-/* Compact unified-diff preview inside edit tool cards */
+/* edit 工具卡片里的紧凑 unified diff 预览 */
 .diff-line {
   white-space: pre-wrap;
   word-break: break-word;
@@ -257,35 +275,6 @@
   }
 
   &.hunk {
-    color: var(--vscode-descriptionForeground);
+    color: var(--text-dim);
   }
-}
-
-.composer {
-  position: relative;
-  /* Above the header, so its popups (autocomplete, overflow menu) open over
-     everything they can reach. */
-  z-index: 4;
-  background: var(--surface-bg);
-}
-
-.composer-content {
-  position: relative;
-  padding: 0 12px 12px;
-  background: var(--surface-bg);
-  /* The composer column overhangs the transcript column by 10px on each side
-     (its 12px padding against `.messages`' 22px insets) as long as neither is
-     capped. When the cap binds, the transcript fills it edge to edge while a
-     composer capped at the same width would lose its padding and end up 24px
-     narrower than the messages — the "input smaller than the transcript"
-     mismatch on medium-wide surfaces. Capping at content-max-width + 44px
-     (the transcript's own horizontal insets) keeps the overhang identical in
-     every regime; the 44px must track `.messages`' 22px + 22px. */
-  width: min(100%, calc(var(--content-max-width) + 44px));
-  box-sizing: border-box;
-  /* Restore depth around the input area, but constrain it to the readable
-     column: a full-width footer shadow creates dark shelves on both sides. */
-  box-shadow:
-    0 -8px 18px -7px var(--shadow),
-    0 -3px 8px -4px var(--shadow);
 }

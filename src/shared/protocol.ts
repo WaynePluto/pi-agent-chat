@@ -37,28 +37,113 @@ export const DEFAULT_FOLD_LINES = 14;
  */
 export const DEFAULT_CONTENT_MAX_WIDTH = 950;
 /**
- * Bounds for that setting, shared by the settings manifest, the host-side
- * clamp (`agent/config.ts`) and the webview's clamp on incoming values: the
- * manifest's `minimum`/`maximum` only constrain the settings UI, so every
- * consumer of a hand-edited `settings.json` value must clamp for itself.
- * The floor is deliberately permissive: the composer's overflow controller
- * collapses its buttons before the column gets this tight, so it only guards
- * against a degenerate column, not against an uncomfortable one.
+ * Floor for that setting, shared by the settings manifest, the host-side clamp
+ * (`agent/config.ts`) and the webview's clamp on incoming values: the
+ * manifest's `minimum` only constrains the settings UI, so every consumer of a
+ * hand-edited `settings.json` value must clamp for itself. The floor is
+ * deliberately permissive: the composer's overflow controller collapses its
+ * buttons before the column gets this tight, so it only guards against a
+ * degenerate column, not against an uncomfortable one.
+ *
+ * There is deliberately **no ceiling**. The setting means exactly one thing —
+ * how wide the message area may grow — and a user with a 5K display who wants
+ * a 2000px transcript is not making a mistake we need to prevent. What used to
+ * justify a ceiling (the value also decided when wide mode turned on) moved
+ * out into {@link DEFAULT_WIDE_THRESHOLD}.
  */
 export const CONTENT_WIDTH_MIN = 500;
-export const CONTENT_WIDTH_MAX = 1400;
 /**
- * Wide-layout geometry, mirrored in `src/styles/_wide.scss` (grid tracks) —
- * keep the two in sync. The wide layout activates once the webview is wide
- * enough to fit the chat column at its floor plus both rails at their
- * minimum, plus the grid's fixed horizontal chrome (two 12px gaps and two
- * 12px track-area paddings): see `wideLayoutMinWidth()` in `webview/main.ts`.
+ * Wide-layout geometry, mirrored in `src/styles/_wide.scss` (grid tracks) and
+ * driven from `webview/splitter.ts` — keep the three in sync.
+ *
+ * The wide layout is three columns: a sessions rail, the chat column, a
+ * resources rail, with a draggable divider between each pair. The rails are
+ * glued to the webview's edges and the chat column is centred in whatever is
+ * left, capped at `--chat-column-width`. That choice is what makes the
+ * narrow-to-wide switch continuous: a narrow surface already centres the
+ * transcript and turns the surplus into symmetric margins, so crossing the
+ * threshold only slides the rails in from the edges — the transcript does not
+ * move. Centring the three-column block as a whole would instead shift the
+ * transcript sideways at the threshold.
  */
-export const CHAT_COLUMN_MIN_WIDTH = 700;
-/** Minimum width of the sessions / resources rails in the wide grid. */
-export const RAIL_MIN_WIDTH = 230;
+/**
+ * Horizontal insets of the transcript (`.messages`: 22px left, 12px right
+ * plus a 10px stable scrollbar gutter), mirrored from `--content-gutter` in
+ * `src/styles/_tokens.scss`. The chat column is this much wider than the
+ * readable column.
+ */
+export const CHAT_COLUMN_GUTTER_WIDTH = 44;
+/**
+ * Width below which a rail closes instead of getting narrower.
+ *
+ * Dragging a divider past this point is how the user closes a rail, so the
+ * value is also the smallest rail that can exist: there is no state between
+ * "open at the minimum" and "closed".
+ *
+ * 180 is where a rail stops being able to do its job rather than where it
+ * starts looking cramped: below it a session's meta row (badge + timestamp)
+ * wraps to two lines and titles truncate to a few characters. Keeping the
+ * floor low matters more than keeping rails comfortable, because this number
+ * is not only a minimum -- it is the point at which a drag becomes a close,
+ * and a high floor takes away the width range in between.
+ */
+export const RAIL_MIN_WIDTH = 180;
+/**
+ * Width past which a rail may not be dragged.
+ *
+ * Unlike the chat column's cap this is not about readability. A rail holds
+ * single-line labels — session titles, resource names and paths — which are
+ * bounded by *truncation*, not by line length: past the width at which nothing
+ * is being clipped any more, further pixels only add blank space to the right
+ * of every label. This is roughly where session titles and resource paths stop
+ * needing an ellipsis.
+ */
+export const RAIL_MAX_WIDTH = 420;
+/**
+ * Width a rail opens at when the user has never sized it.
+ *
+ * Deliberately not {@link RAIL_MIN_WIDTH}: that value marks where a rail stops
+ * being able to do its job (session meta rows wrap, titles clip to a few
+ * characters), which is the wrong place to *start*. It is a floor for dragging,
+ * not a default. This is roughly where a session title reads without an
+ * ellipsis in the common case, while still leaving the chat column the larger
+ * share at the wide-mode threshold.
+ */
+export const RAIL_DEFAULT_WIDTH = 280;
+/**
+ * Narrowest the chat column may be squeezed to by dragging a divider.
+ *
+ * Below this the composer's overflow controller is already collapsing its
+ * buttons into the `…` menu, so it marks the point where the column stops
+ * being a chat column. Dragging stops here; it does not close anything.
+ */
+export const CENTER_MIN_WIDTH = 480;
 /** Fixed horizontal chrome of the wide grid: two gaps + two paddings, 12px each. */
 export const WIDE_GRID_CHROME_WIDTH = 48;
+/**
+ * Default of `piAgentChat.layout.wideModeMinWidth`: the webview width at which
+ * the three-column layout becomes available.
+ *
+ * It used to be *derived* from the column width (`contentMaxWidth + gutter +
+ * two minimum rails + chrome`), which tied two unrelated decisions together —
+ * widening the transcript also pushed the rails further away. It is its own
+ * setting now, and `contentMaxWidth` went back to meaning only what its name
+ * says.
+ *
+ * Crossing the threshold no longer opens anything by itself; it only makes the
+ * rails *possible*, and the header toggles switch from a narrow page/overlay to
+ * a docked rail. So the value is safe to lower: it costs nothing until the user
+ * asks for a rail.
+ */
+export const DEFAULT_WIDE_THRESHOLD = 1200;
+/**
+ * Hard floor for that setting: below this the three columns cannot coexist —
+ * two minimum rails plus a chat column at {@link CENTER_MIN_WIDTH} plus the
+ * grid's chrome. A smaller configured value would let the layout switch into a
+ * shape it cannot satisfy, so every consumer clamps to this instead of
+ * trusting the manifest's `minimum` (which only constrains the settings UI).
+ */
+export const WIDE_THRESHOLD_MIN = CENTER_MIN_WIDTH + CHAT_COLUMN_GUTTER_WIDTH + RAIL_MIN_WIDTH * 2 + WIDE_GRID_CHROME_WIDTH;
 
 /** CLI-style footer statistics (mirrors the pi TUI status line). */
 export interface ChatStats {
@@ -443,11 +528,13 @@ export type HostMessage =
    * Max width of the centered chat column (`piAgentChat.layout.contentMaxWidth`),
    * pushed on `ready` and whenever the setting changes. The webview writes it
    * into the `--content-max-width` custom property (transcript, composer and
-   * the wide grid all size from it) and derives the wide-layout threshold from
-   * it. Pure presentation with no baked-in decisions, so unlike the fold
-   * threshold it needs no history replay.
+   * the wide grid all size from it). Pure presentation with no baked-in
+   * decisions, so unlike the fold threshold it needs no history replay.
+   *
+   * `wideMinWidth` travels with it because both are layout geometry the webview
+   * cannot read for itself, and both are needed before the first classification.
    */
-  | { type: "contentWidth"; maxWidth: number }
+  | { type: "contentWidth"; maxWidth: number; wideMinWidth: number }
   | { type: "event"; event: ChatEvent }
   /** Full transcript replay after startup or a session switch. */
   | {
@@ -554,6 +641,10 @@ export type WebviewMessage =
   | { type: "deleteSession"; file: string }
   /** Rename a session from the sessions list (host shows an input box; writes a session_info entry). */
   | { type: "renameSession"; file: string }
+  /** Open a session file in the editor area (not the sidebar). */
+  | { type: "openSessionInEditor"; file: string }
+  /** Open a session file in a new floating window. */
+  | { type: "openSessionInNewWindow"; file: string }
   /** Rename the live session from its header, including an empty session that has no file yet. */
   | { type: "renameCurrentSession" }
   /** Open the session tree navigator (switch branch / fork / label). */

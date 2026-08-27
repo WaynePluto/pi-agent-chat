@@ -636,6 +636,32 @@ const SCRIPT = [
       },
     ],
     beforeSnapshot: (window) => {
+      const sessions = window.document.getElementById("sessions");
+      const chat = window.document.getElementById("chat-column");
+      const sessionsButton = window.document.getElementById("btn-sessions");
+      const treeButton = window.document.getElementById("btn-tree");
+      const searchButton = window.document.getElementById("btn-search");
+      if (sessionsButton.disabled || treeButton.disabled || searchButton.disabled) {
+        throw new Error("an existing session must keep sessions, tree and transcript search available on the sessions page");
+      }
+
+      sessionsButton.click();
+      if (!sessions.classList.contains("hidden") || chat.classList.contains("hidden")) {
+        throw new Error("the narrow sessions button must toggle back to the transcript");
+      }
+      sessionsButton.click();
+      treeButton.click();
+      if (!sessions.classList.contains("hidden") || chat.classList.contains("hidden")) {
+        throw new Error("session tree must leave the narrow sessions page");
+      }
+      sessionsButton.click();
+      searchButton.click();
+      if (!sessions.classList.contains("hidden") || window.document.getElementById("search-bar").classList.contains("hidden")) {
+        throw new Error("transcript search must leave the narrow sessions page and open over the transcript");
+      }
+      searchButton.click();
+      sessionsButton.click();
+
       const visible = window.document.querySelector(".session-row.claimed-visible .session-main");
       if (!visible || visible.disabled) throw new Error("a session visible on another surface must be movable here");
       const background = window.document.querySelector(".session-row.claimed-background .session-main");
@@ -1202,6 +1228,14 @@ const SCRIPT = [
 
 /** Attributes that carry behaviour we care about; everything else is noise. */
 const KEPT_ATTRIBUTES = ["id", "class", "title", "placeholder", "disabled", "hidden", "aria-expanded", "aria-pressed", "aria-checked", "type"];
+/**
+ * Classes that are pointer/scroll-driven decoration rather than structure.
+ * `pi-scrolling` is put on whatever container was last scrolled and taken off
+ * ~900ms later, so whether it is present in a snapshot depends on how long the
+ * run took to get there -- a baseline that records it would fail on a slow
+ * machine and pass on a fast one, for no change in behaviour.
+ */
+const TRANSIENT_CLASSES = new Set(["pi-scrolling"]);
 const SPINNER_FRAMES = /[\u280b\u2819\u2839\u2838\u283c\u2834\u2826\u2827\u2807\u280f]/g;
 
 function serialize(node, depth = 0, lines = []) {
@@ -1220,9 +1254,19 @@ function serialize(node, depth = 0, lines = []) {
   }
   const attributes = KEPT_ATTRIBUTES.filter((name) => node.hasAttribute(name))
     .map((name) => {
-      const value = node.getAttribute(name);
+      let value = node.getAttribute(name);
+      if (name === "class" && value) {
+        value = value
+          .split(/\s+/)
+          .filter((c) => c && !TRANSIENT_CLASSES.has(c))
+          .join(" ");
+        // Only vanishes when stripping emptied it; an element that always had
+        // `class=""` keeps serializing as before.
+        if (!value) return undefined;
+      }
       return value === "" ? name : `${name}="${value}"`;
     })
+    .filter((entry) => entry !== undefined)
     .join(" ");
   lines.push(`${indent}<${tag}${attributes ? ` ${attributes}` : ""}>`);
   for (const child of node.childNodes) serialize(child, depth + 1, lines);
@@ -1314,40 +1358,102 @@ async function run() {
   const resourcesEl = window.document.getElementById("resources");
   const chatColumnEl = window.document.getElementById("chat-column");
   const resourcesPanel = () => window.document.querySelector(".resources-panel");
+  const sessionsBtn = window.document.getElementById("btn-sessions");
+  const resourcesBtn = window.document.getElementById("btn-resources");
+  // Put the narrow panel in a state the wide rail's defaults differ from, so
+  // the assertions below tell "each mode keeps its own" apart from "the other
+  // mode's state was inherited".
+  if (resourcesEl.classList.contains("hidden")) resourcesBtn.click();
+  if (!resourcesPanel()?.classList.contains("collapsed")) {
+    window.document.querySelector(".resources-toggle")?.click();
+  }
   const narrowResourcesShown = !resourcesEl.classList.contains("hidden");
   const narrowResourcesCollapsed = resourcesPanel()?.classList.contains("collapsed");
+  if (!narrowResourcesShown || !narrowResourcesCollapsed) {
+    throw new Error("the narrow resources panel must be shown and collapsed before the width sweep");
+  }
 
   resizeCallback?.([{ contentRect: { width: 1600 } }]);
   await flush(window);
   if (!rootEl.classList.contains("layout-wide")) throw new Error("1600px must enter wide layout");
+  if (chatColumnEl.classList.contains("hidden")) {
+    throw new Error("wide layout must keep the chat column");
+  }
+  // Reaching the threshold opens nothing. It only makes the rails *possible*:
+  // a window resize must not rearrange the surface behind the user's back, and
+  // the rails' own tracks stay collapsed until asked for.
+  if (!sessionsEl.classList.contains("hidden")) {
+    throw new Error("entering wide layout must not open the sessions rail on its own");
+  }
+  if (!resourcesEl.classList.contains("hidden")) {
+    throw new Error("entering wide layout must not open the resources rail on its own");
+  }
+  if (rootEl.style.getPropertyValue("--rail-sessions") !== "0px" || rootEl.style.getPropertyValue("--split-sessions") !== "0px") {
+    throw new Error("a closed rail must collapse both its own track and its divider");
+  }
+  sessionsBtn.click();
   if (sessionsEl.classList.contains("hidden") || chatColumnEl.classList.contains("hidden")) {
-    throw new Error("wide layout must show sessions and chat");
+    throw new Error("the wide sessions button must open only the left rail");
   }
-  if (resourcesEl.classList.contains("hidden") === narrowResourcesShown) {
-    throw new Error("resource visibility must survive the narrow-to-wide switch");
+  if (rootEl.style.getPropertyValue("--rail-sessions") === "0px") {
+    throw new Error("an open rail must give its grid track a width");
   }
-  if (resourcesPanel()?.classList.contains("collapsed") !== narrowResourcesCollapsed) {
-    throw new Error("resource expansion must survive the narrow-to-wide switch");
-  }
-  const sessionsBtn = window.document.getElementById("btn-sessions");
-  const resourcesBtn = window.document.getElementById("btn-resources");
-  sessionsBtn.click();
-  if (!sessionsEl.classList.contains("hidden") || chatColumnEl.classList.contains("hidden")) {
-    throw new Error("the wide sessions button must hide only the left rail");
-  }
-  sessionsBtn.click();
   resourcesBtn.click();
-  const toggledWideResourcesShown = !resourcesEl.classList.contains("hidden");
-  sections.push(`===== wide layout: fixed chat column + inherited resources =====\n${snapshot(window)}`);
+  if (resourcesEl.classList.contains("hidden")) {
+    throw new Error("the wide resources button must open the rail");
+  }
+  // The rail and the narrow panel are separate surfaces with separate state:
+  // a rail the user opened comes up expanded whatever the narrow panel was.
+  if (resourcesPanel()?.classList.contains("collapsed")) {
+    throw new Error("the wide resources rail must open expanded");
+  }
+  sections.push(`===== wide layout: draggable rails, nothing auto-opened =====\n${snapshot(window)}`);
 
-  resizeCallback?.([{ contentRect: { width: 1200 } }]);
+  // Every section rendered above was opened by hand, and such a decision is
+  // the user's and shared by both modes, so the per-mode default needs a
+  // section that has never been touched. The probe payload is dispatched after
+  // the snapshot: it replaces the panel's contents (highlights included), and
+  // only the collapse state the assertions below read survives a rebuild.
+  const showResources = async (payload) => {
+    window.dispatchEvent(new window.MessageEvent("message", { data: { type: "resources", sections: payload } }));
+    await flush(window);
+  };
+  const probeSections = [{ name: "Probe", items: [{ label: "probe", scope: "builtin" }] }];
+  const probeSection = () => window.document.querySelector(".resource-section");
+  await showResources(probeSections);
+  // A rail is opened to be read; showing only section headings would waste the
+  // column the user just gave it.
+  if (probeSection()?.classList.contains("collapsed")) {
+    throw new Error("an untouched section must default to expanded in the wide rail");
+  }
+
+  resizeCallback?.([{ contentRect: { width: 1000 } }]);
   await flush(window);
   if (rootEl.classList.contains("layout-wide") || !sessionsEl.classList.contains("hidden")) {
-    throw new Error("1200px must restore narrow layout with the sessions page closed");
+    throw new Error("1000px must restore narrow layout with the sessions page closed");
   }
-  if (resourcesEl.classList.contains("hidden") === toggledWideResourcesShown) {
-    throw new Error("resource visibility must survive the wide-to-narrow switch");
+  if (resourcesEl.classList.contains("hidden") === narrowResourcesShown) {
+    throw new Error("the narrow panel must keep its own visibility, not the rail's");
   }
+  if (resourcesPanel()?.classList.contains("collapsed") !== narrowResourcesCollapsed) {
+    throw new Error("the narrow panel must keep its own expansion, not the rail's");
+  }
+  // Same probe on the other side: the narrow overlay sits on the transcript,
+  // so it opens one level at a time.
+  await showResources(probeSections);
+  if (!probeSection()?.classList.contains("collapsed")) {
+    throw new Error("an untouched section must default to collapsed in the narrow panel");
+  }
+  await showResources(RESOURCE_SECTIONS);
+  resizeCallback?.([{ contentRect: { width: 1600 } }]);
+  await flush(window);
+  // Restoring is not auto-opening: the rails the user opened above come back,
+  // because discarding a deliberate choice on every resize is its own bug.
+  if (resourcesEl.classList.contains("hidden") || sessionsEl.classList.contains("hidden")) {
+    throw new Error("the wide rails must come back as the user left them");
+  }
+  resizeCallback?.([{ contentRect: { width: 1000 } }]);
+  await flush(window);
 
   const actual = `${sections.join("\n\n")}\n\n===== posted to host =====\n${posted
     .map((message) => JSON.stringify(message))

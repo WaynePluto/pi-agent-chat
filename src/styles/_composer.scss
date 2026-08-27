@@ -1,7 +1,26 @@
-/* Drag zone on the composer's top edge to resize the input */
+.composer {
+  position: relative;
+  /* 压在 header 之上，它的弹层（补全、溢出菜单）才能盖住所有能触及的区域。 */
+  z-index: 4;
+  background: var(--surface-bg);
+}
+
+.composer-content {
+  position: relative;
+  padding: 0 var(--content-pad) var(--content-pad);
+  background: var(--surface-bg);
+  /* 输入区与消息列的几何是恒等式：两者都没被上限截断时，输入框比消息列每侧宽 10px
+     （composer 内缩 12 对 `.messages` 内缩 22）。若把 composer 的上限也定成
+     `--content-max-width`，上限生效时这个外伸会反转成每侧窄 12px（「输入框比正文窄」）。
+     取整条聊天列的宽度，任何宽度区间下相对关系都不变。 */
+  width: min(100%, var(--chat-column-width));
+  box-sizing: border-box;
+}
+
+/* composer 上沿的拖拽区，用于调整输入框高度 */
 .resize-handle {
   height: 8px;
-  margin: 0 -12px;
+  margin: 0 calc(-1 * var(--content-pad));
   cursor: ns-resize;
   touch-action: none;
 
@@ -11,7 +30,7 @@
   }
 }
 
-/* `/` command autocomplete, anchored above the input */
+/* `/` 命令补全，锚在输入框上方 */
 .autocomplete {
   position: absolute;
   left: 8px;
@@ -22,8 +41,7 @@
   z-index: 10;
   background: var(--vscode-editorSuggestWidget-background, var(--vscode-editor-background));
   border: 1px solid var(--vscode-editorSuggestWidget-border, var(--border));
-  border-radius: 3px;
-  box-shadow: 0 2px 8px var(--shadow);
+  border-radius: var(--r-sm);
 }
 
 .autocomplete-row {
@@ -40,46 +58,46 @@
 }
 
 .autocomplete-name {
-  font-family: var(--vscode-editor-font-family);
+  font-family: var(--mono);
   white-space: nowrap;
 }
 
 .autocomplete-kind {
   font-size: 0.75em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
   border: 1px solid currentColor;
   border-radius: 8px;
   padding: 0 5px;
   white-space: nowrap;
 
   &.sensitive {
-    color: var(--vscode-errorForeground);
+    color: var(--ember);
   }
 }
 
 .autocomplete-description {
   flex: 1 1 auto;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
   font-size: 0.9em;
 }
 
-/* Header row inside the @ file picker */
+/* @ 文件选择器里的表头行 */
 .autocomplete-hint {
   padding: 2px 6px;
   font-size: 0.8em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   background: inherit;
 }
 
-/* Selected @ file references, shown as chips above the input */
+/* 已选的 @ 文件引用，以 chip 形式显示在输入框顶部 */
 .file-refs {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  padding: 4px 0 2px;
+  padding: 6px 8px 0 10px;
 }
 
 .file-ref-chip {
@@ -91,7 +109,7 @@
   border: 1px solid var(--vscode-keybindingLabel-border, var(--border));
   border-radius: 9px;
   font-size: 0.85em;
-  font-family: var(--vscode-editor-font-family);
+  font-family: var(--mono);
   background: var(--vscode-keybindingLabel-background, var(--vscode-badge-background, transparent));
   color: var(--vscode-keybindingLabel-foreground, var(--vscode-badge-foreground, inherit));
 
@@ -101,11 +119,15 @@
   }
 
   &.sensitive {
-    border-color: var(--vscode-errorForeground);
+    border-color: var(--ember);
   }
 }
 
 .file-ref-remove {
+  /* 靠 flex 让 × 自己在按钮里居中，不用行高凑。 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   color: inherit;
@@ -114,28 +136,44 @@
   line-height: 1;
 
   &:hover {
-    color: var(--vscode-errorForeground);
+    color: var(--ember);
+  }
+}
+
+/* 整个 composer 所在的那个框。chips、文本与控件是同一件事，所以共用一个盒子，
+   里面的部件一律是裸的；焦点环画在盒子上（`:focus-within`），
+   聚焦文本时亮起来的才是用户心里的「输入框」。 */
+.composer-box {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--vscode-input-background);
+
+  &:focus-within {
+    border-color: var(--accent);
   }
 }
 
 textarea {
   width: 100%;
   box-sizing: border-box;
-  resize: none; /* resized by dragging .resize-handle instead */
-  /* Match the transcript bubbles, which render in the editor font. */
-  font-family: var(--vscode-editor-font-family);
+  resize: none; /* 改为拖拽 .resize-handle 调整高度 */
+  /* 与 transcript 气泡一致，用编辑器字体。 */
+  font-family: var(--mono);
   font-size: inherit;
   color: var(--vscode-input-foreground);
-  background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border, transparent);
-  border-radius: 3px;
-  padding: 8px 4px 8px 14px;
+  /* 裸的：框、底色与焦点环都归外面的 `.composer-box`，这里再画边就是框套框。 */
+  background: transparent;
+  border: none;
+  padding: 8px 4px 4px 10px;
   min-height: 48px;
   max-height: min(30vh, 320px);
   overflow-y: auto;
 
   &:focus {
-    outline: 1px solid var(--accent);
+    outline: none;
   }
 
   &::placeholder {
@@ -152,37 +190,33 @@ textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 8px;
-  /* One line always: when the buttons stop fitting, the overflow controller
-     moves them into the popup instead of letting the row wrap. */
+  padding: 2px 8px 8px 10px;
+  /* 永远一行：放不下时由溢出控制器把按钮移进弹层，而不是让这一行换行。 */
   flex-wrap: nowrap;
   position: relative;
 
-  /* Composer pops up: opens towards the transcript. */
+  /* composer 的弹层向 transcript 方向打开。 */
   .overflow-menu {
     bottom: calc(100% + 6px);
   }
 }
 
-/* Buttons keep their natural width so that measuring what the row needs is
-   meaningful; without this they would shrink to an unreadable sliver and the
-   row would always look like it fits. */
+/* 按钮保持自然宽度，「这一行需要多宽」的测量才有意义；否则它们会缩成一条，
+   于是这一行永远看起来放得下。 */
 .composer-actions > button,
 .header-actions > button {
   flex: 0 0 auto;
 }
 
-/* ---------------------------------------------------------------- */
-/* Toolbar overflow: "..." popup for a panel too narrow for the row  */
-/* ---------------------------------------------------------------- */
+/* -- 工具栏溢出：面板太窄时的 "..." 弹层 ---------------------------------- */
 
-/* Where a collapsed button returns to. Never rendered. */
+/* 被收起的按钮返回的占位，从不渲染。 */
 .overflow-slot {
   display: none;
 }
 
-/* Specific enough to beat `.header-actions button` (which sets its own
-   padding); with `box-sizing: border-box` that padding would eat the icon. */
+/* 特异性要压过 `.header-actions button`（它自带内边距），
+   在 `box-sizing: border-box` 下那份内边距会吃掉图标。 */
 .header-actions .overflow-toggle,
 .composer-actions .overflow-toggle {
   display: inline-flex;
@@ -192,13 +226,13 @@ textarea {
   height: 24px;
   padding: 0;
   border: none;
-  border-radius: 3px;
-  color: var(--vscode-foreground);
+  border-radius: var(--r-sm);
+  color: var(--text);
   background: transparent;
 }
 
 .overflow-toggle {
-  /* Beats the `display: inline-flex` above, which `.hidden` alone cannot. */
+  /* 压过上面的 `display: inline-flex`，单靠 `.hidden` 做不到。 */
   &.hidden {
     display: none;
   }
@@ -213,9 +247,8 @@ textarea {
   }
 }
 
-/* In the header the toggle sits among text buttons, so it needs their visual
-   weight; in the composer it sits among chips and the round send button, where
-   the base size already matches. */
+/* header 里它混在文字按钮中间，需要与它们同等视觉重量；
+   composer 里它混在 chip 与圆形发送按钮之间，基础尺寸已经匹配。 */
 .header-actions {
   .overflow-toggle {
     width: 28px;
@@ -227,7 +260,7 @@ textarea {
     }
   }
 
-  /* Header drops down: opens towards the transcript. */
+  /* header 的弹层向下打开，同样朝 transcript。 */
   .overflow-menu {
     top: calc(100% + 6px);
   }
@@ -244,29 +277,24 @@ textarea {
   min-width: 132px;
   padding: 4px;
   border: 1px solid var(--widget-border);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
-  box-shadow: 0 2px 8px var(--shadow);
 
-  /* Inside the popup every entry is a full-width menu row, whatever it looks
-     like in the toolbar (chip, secondary button, plain menu-bar text). */
+  /* 进了弹层，每个条目都是整行菜单项，无论它在工具栏里长什么样。 */
   > button {
     width: 100%;
     max-width: none;
     justify-content: flex-start;
     text-align: left;
-    border-radius: 3px;
+    border-radius: var(--r-sm);
   }
 }
 
-/* ---------------------------------------------------------------- */
-/* Composer quick menus: model and thinking level. Deliberately small   */
-/* and anchored to their chip, like the editor's own chat controls.     */
-/* ---------------------------------------------------------------- */
+/* -- composer 快捷菜单：模型与思考等级，小弹层，对齐各自的 chip ------------ */
 
 .picker {
   position: absolute;
-  /* `left` is set from the chip's position; the popup keeps its own width. */
+  /* `left` 由 chip 的位置写入；弹层自己保持宽度。 */
   left: 0;
   bottom: calc(100% + 6px);
   z-index: 21;
@@ -277,9 +305,8 @@ textarea {
   max-height: min(46vh, 320px);
   padding: 4px;
   border: 1px solid var(--widget-border);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
-  box-shadow: 0 2px 8px var(--shadow);
   overflow: hidden;
 
   &:focus-visible {
@@ -292,7 +319,7 @@ textarea {
   padding: 3px 8px 5px;
   font-size: 0.85em;
   font-weight: 600;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
 }
 
 .picker-list {
@@ -307,11 +334,11 @@ textarea {
   align-items: center;
   gap: 6px;
   padding: 3px 8px;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   cursor: pointer;
 
   &:hover {
-    background: var(--vscode-list-hoverBackground, var(--hover-bg));
+    background: var(--hover-bg);
   }
 
   &.selected {
@@ -320,13 +347,13 @@ textarea {
   }
 }
 
-/* Fixed gutter so every row's name starts at the same x, checked or not. */
+/* 固定宽度的勾选槽，选中与否每行的名称都从同一个 x 开始。 */
 .picker-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 14px;
+  width: var(--picker-gutter);
 }
 
 .picker-name {
@@ -337,44 +364,55 @@ textarea {
   white-space: nowrap;
 }
 
-/* Provider (model menu) or "default" marker (thinking menu). */
+/* 供应商（模型菜单）或「默认」标记（思考等级菜单）。 */
 .picker-note {
   flex: 0 0 auto;
   font-size: 0.85em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
   white-space: nowrap;
 }
 
-/* Hands over to the native picker: search, capabilities, star and pin. */
+/* 交给原生 QuickPick：搜索、能力详情、⭐常用、📌默认。 */
 .picker-more {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  /* 与 `.picker-row` 同一套内边距与间距，再补一个同宽的空槽，
+     标签就与上面各行的名称对齐——不用把 8+14+6 折算成一个 28px 的左内边距。 */
+  gap: 6px;
   margin-top: 4px;
-  padding: 4px 8px 4px 28px;
+  padding: 4px 8px;
   text-align: left;
-  color: var(--vscode-foreground);
+  color: var(--text);
   background: transparent;
   border-top: 1px solid var(--widget-border);
   border-radius: 0;
 
+  &::before {
+    content: "";
+    flex: 0 0 var(--picker-gutter);
+  }
+
   &:hover:not(:disabled) {
-    color: var(--vscode-foreground);
-    background: var(--vscode-list-hoverBackground, var(--hover-bg));
+    color: var(--text);
+    background: var(--hover-bg);
   }
 }
 
 .picker-empty {
   padding: 6px 8px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
   white-space: normal;
 }
 
-/* CLI-style status line under the composer */
+/* composer 下方的 CLI 风格状态行。它是屏幕上最安静的一行字：
+   那是一份需要时才去查的读数，不是工作时要读的东西。 */
 .statusline {
   margin-top: 8px;
-  font-family: var(--vscode-editor-font-family);
-  font-size: 0.82em;
-  color: var(--vscode-descriptionForeground);
-  line-height: 1.5;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+  line-height: 1.6;
 }
 
 .statusline-row {
@@ -383,12 +421,12 @@ textarea {
   gap: 8px;
 
   &.error {
-    color: var(--vscode-errorForeground);
+    color: var(--ember);
     white-space: normal;
   }
 
-  /* Entries from an extension's ctx.ui.setStatus(): free text rather than a
-     counter set, so they get their own row and are never dropped for width. */
+  /* 扩展 `ctx.ui.setStatus()` 的条目是自由文本而不是计数集，
+     单独占一行，且不会因为宽度不够被丢掉。 */
   &.extension-status {
     justify-content: flex-start;
     gap: 12px;
@@ -405,21 +443,25 @@ textarea {
   white-space: nowrap;
 }
 
-/* ---------------------------------------------------------------- */
-/* Extension widgets (ctx.ui.setWidget), above and below the composer */
-/* ---------------------------------------------------------------- */
+/* -- 扩展 widget（ctx.ui.setWidget），位于 composer 上下方 ----------------- */
+
+/* widget 条位于 transcript 与 composer 之间，要读成自己的一个对象，
+   而不是消息列表的最后一项。用「面」而不是线或投影来分界：边界成了这个块的属性，
+   空的时候天然没有边界，输入框上方不会留下一条无主的分隔线。 */
+.widget {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 5px 8px;
+}
 
 .widgets {
-  background: var(--section-bg);
-  font-family: var(--vscode-editor-font-family);
+  font-family: var(--mono);
   font-size: 0.86em;
 }
 
-/* Breathing room on both sides: inside composer-content, between the resize
-   handle and the textarea. No extra z-index or full-width padding needed since
-   it inherits the content-column constraint from its parent. */
 #widgets-above {
-  padding: 4px 0 2px;
+  padding: 4px 0 6px;
 }
 
 #widgets-below {
@@ -427,24 +469,23 @@ textarea {
 }
 
 .widget + .widget {
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
-/* Flat like the other collapsible headers: without an explicit background it
-   inherits the primary-button blue from the base `button` rule and paints a
-   solid blue band above the composer. */
+/* 与其他折叠标题一样扁平：不显式给背景就会继承基础 `button` 规则的主按钮蓝，
+   在 composer 上方画出一条实心蓝带。 */
 button.widget-header {
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
   padding: 2px 4px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
   background: transparent;
   text-align: left;
 
   &:hover:not(:disabled) {
-    background: var(--vscode-list-hoverBackground, var(--hover-bg));
+    background: var(--hover-bg);
   }
 }
 
@@ -459,13 +500,13 @@ button.widget-header {
   opacity: 0.8;
 }
 
-/* Content is the extension's own text: plain foreground, and bounded so a long
-   widget scrolls instead of pushing the transcript out of the panel. */
+/* 内容是扩展自己的文本：普通前景色，并限高，长 widget 自己滚动而不是把
+   transcript 挤出面板。 */
 .widget-body {
   max-height: 30vh;
   overflow-y: auto;
   padding: 1px 4px 3px 14px;
-  color: var(--vscode-foreground);
+  color: var(--text);
 }
 
 .widget-line {

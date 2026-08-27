@@ -73,6 +73,8 @@ let renderScheduled = false;
 /** Working indicator row shown at the end of the message list while streaming. */
 let workingEl: HTMLElement | undefined;
 let workingLabelEl: HTMLElement | undefined;
+/** Bubble of the agent turn currently receiving deltas, if any. */
+let liveBubbleEl: HTMLElement | undefined;
 /**
  * Everything about how a transcript is being looked at, kept per transcript.
  *
@@ -657,6 +659,9 @@ export function clearMessages(): void {
   // document), leaving a permanently frozen "working..." animation.
   workingEl = undefined;
   workingLabelEl = undefined;
+  // Pointed at an element that is no longer in the document; clearing the flag
+  // too keeps the next run from trying to touch a detached node.
+  liveBubbleEl = undefined;
   toolCards.clear();
   pendingUserBubbles.length = 0;
   assistantBubble = undefined;
@@ -719,7 +724,16 @@ function appendMarkdownBubble(role: string, text: string): MessageBubble {
  * distinct accent so they read differently from immediate prompts.
  */
 function appendUserBubble(text: string, mode?: "steer" | "followUp", skill?: string, prompt?: string, extension?: string): void {
+  // A new turn opens with extra space rather than a rule. Both mark the same
+  // boundary, but a full-width line is a piece of furniture the eye has to step
+  // over on every scroll, while the tinted right-aligned bubble already
+  // announces itself. `.turn-open` is what the spacing hangs off; queued and
+  // steering messages are excluded on purpose (they are floating at the bottom
+  // waiting to be consumed, so the run on screen is not theirs yet), and the
+  // first message in a transcript has nothing to be separated from.
+  const opensTurn = !mode && sink.childElementCount > 0;
   const wrapper = appendMarkdownBubble("user", text).root;
+  if (opensTurn) wrapper.classList.add("turn-open");
   wrapper.appendChild(entryActionBar());
   // A prompt template is expanded, and an extension command is consumed, before
   // the agent runs, so neither leaves a tool card behind. The host resolves
@@ -881,8 +895,26 @@ export function hasPendingBubbles(): boolean {
   return pendingUserBubbles.length > 0;
 }
 
+/**
+ * The caret belongs to one specific turn -- the bubble currently receiving
+ * deltas -- not to "the session is busy". Those are different facts: once the
+ * agent stops talking and starts calling tools, the run is still streaming but
+ * *this* message is finished, and a cursor left blinking on it would keep
+ * claiming the text is still growing.
+ */
+function clearStreamingCaret(): void {
+  liveBubbleEl?.classList.remove("streaming");
+  liveBubbleEl = undefined;
+}
+
 function createStreamingBubble(role: string): StreamingBubble {
-  return { bubble: appendMarkdownBubble(role, ""), raw: "" };
+  const bubble = appendMarkdownBubble(role, "");
+  if (role === "assistant") {
+    clearStreamingCaret();
+    liveBubbleEl = bubble.root;
+    liveBubbleEl.classList.add("streaming");
+  }
+  return { bubble, raw: "" };
 }
 
 /**
@@ -1001,6 +1033,9 @@ function appendCompactionBoundary(summary: string, tokensBefore: number, estimat
  */
 function ensureWorkBlock(): WorkBlock {
   if (activeWorkBlock) return activeWorkBlock;
+  // Tool activity means the agent has stopped talking, so whatever message was
+  // streaming is finished even though the run continues.
+  clearStreamingCaret();
 
   // Position is a stable identity here: the same event sequence always groups
   // into the same blocks, whether replayed at once or appended live.
@@ -1020,6 +1055,13 @@ function ensureWorkBlock(): WorkBlock {
     activeTools: new Map(),
   };
   updateWorkStatus(work);
+  // Two more header fields after the summary, in this order: the failure count,
+  // then what the block is doing right now. `.work-status` holds the counts and
+  // is never truncated; the action is last because it is the unbounded one
+  // (tool and skill names) and the one whose tail matters least. Putting the
+  // failure count at the tail instead would put the part that must survive
+  // exactly where the ellipsis eats.
+  work.collapsible.statusEl.after(el("span", "work-failures"), el("span", "work-action"));
   activeWorkBlock = work;
   workBlocks.set(index, work.collapsible);
   // No hidden-body text here: the work body is filled eagerly, only hidden.
@@ -1030,7 +1072,20 @@ function ensureWorkBlock(): WorkBlock {
 /** Update the compact execution summary shown while the work block is collapsed. */
 function updateWorkStatus(work: WorkBlock, action?: string): void {
   if (action !== undefined) work.action = action;
-  work.collapsible.statusEl.textContent = t.workInProgress(work.thinkingCount, work.toolCount, work.action);
+  work.collapsible.statusEl.textContent = t.workInProgress(work.thinkingCount, work.toolCount);
+  updateWorkFailures(work);
+  setWorkField(work, "work-action", work.action ?? "");
+}
+
+/** Write one of the header's trailing fields; empty text collapses the field. */
+function setWorkField(work: WorkBlock, cls: string, text: string): void {
+  const field = work.collapsible.root.querySelector<HTMLElement>(`.${cls}`);
+  if (field) field.textContent = text;
+}
+
+/** Keep the standalone failure field in sync; empty when nothing has failed. */
+function updateWorkFailures(work: WorkBlock): void {
+  setWorkField(work, "work-failures", work.failedToolCount ? t.workFailed(work.failedToolCount) : "");
 }
 
 /** Mark the current group complete; the next non-formal event creates a new one. */
@@ -1038,11 +1093,10 @@ function finishWorkBlock(): void {
   if (!activeWorkBlock) return;
   activeWorkBlock.collapsible.root.classList.remove("running");
   activeWorkBlock.collapsible.root.classList.add("finished");
-  activeWorkBlock.collapsible.statusEl.textContent = t.workDone(
-    activeWorkBlock.thinkingCount,
-    activeWorkBlock.toolCount,
-    activeWorkBlock.failedToolCount,
-  );
+  updateWorkFailures(activeWorkBlock);
+  // "What it is doing now" has no meaning once the block is done.
+  setWorkField(activeWorkBlock, "work-action", "");
+  activeWorkBlock.collapsible.statusEl.textContent = t.workDone(activeWorkBlock.thinkingCount, activeWorkBlock.toolCount);
   activeWorkBlock = undefined;
 }
 
@@ -1460,4 +1514,9 @@ export function updateWorkingIndicator(): void {
     workingEl = undefined;
     workingLabelEl = undefined;
   }
+  // The caret and the working row report different facts, so only the "not
+  // running any more" direction is shared: a settled run certainly has no
+  // streaming turn. Lighting it up is `createStreamingBubble`'s job, because
+  // only it knows *which* turn is growing.
+  if (!state.isStreaming) clearStreamingCaret();
 }

@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { existsSync } from "node:fs";
 import type { AgentSessionServices } from "@earendil-works/pi-coding-agent";
 import { ChatBridge } from "./agent/bridge.js";
 import { OriginalContentProvider } from "./agent/diff-view.js";
@@ -11,16 +12,49 @@ export const CHAT_PANEL_TYPE = "piAgentChat.editor";
 export const MAX_EDITOR_TAB_TITLE_CHARS = 32;
 
 const LEGACY_LAST_SESSION_KEY = "piAgentChat.lastSession";
-const LAST_SESSION_KEYS = {
-  sidebar: "piAgentChat.lastSession.sidebar",
-  editor: "piAgentChat.lastSession.editor",
-} as const;
+const SIDEBAR_LAST_SESSION_KEY = "piAgentChat.lastSession.sidebar";
 
-type SurfaceKind = keyof typeof LAST_SESSION_KEYS;
+/**
+ * Two surface kinds, three regions the user thinks in: the sidebar view, and
+ * editor panels — which VS Code lets sit either in this window's editor area or
+ * in a floating window. The API draws no line between the latter two: a
+ * `WebviewPanel` carries no window identity and `window.tabGroups` is read-only,
+ * so a panel's region is bookkeeping here (`PanelRegion`), never a question the
+ * API can answer.
+ */
+type SurfaceKind = "sidebar" | "editor";
 type ControllerSlot = SurfaceKind | "background";
+
+/** Where an editor panel currently sits. Corrected from `viewColumn`; see connectEditorPanel. */
+type PanelRegion = "editor" | "window";
+
+interface EditorPanelEntry {
+  panel: vscode.WebviewPanel;
+  surface: SurfaceConnection;
+  region: PanelRegion;
+}
+
 interface LastSession {
   cwd: string;
   file: string | null;
+}
+
+/**
+ * The session an editor tab was showing before a window reload.
+ *
+ * Editor tabs remember their own session in webview state (the second argument
+ * of `deserializeWebviewPanel`) rather than in one workspace-level key: VS Code
+ * restores every retained panel separately, so N tabs need N memories and a
+ * shared slot would just have them overwrite each other.
+ */
+export function restoredSessionFile(state: unknown, cwd: string): string | undefined {
+  if (state === null || typeof state !== "object") return undefined;
+  const session = (state as { session?: unknown }).session;
+  if (session === null || typeof session !== "object") return undefined;
+  const { cwd: storedCwd, file } = session as { cwd?: unknown; file?: unknown };
+  if (typeof file !== "string" || file.length === 0) return undefined;
+  if (typeof storedCwd === "string" && storedCwd !== cwd) return undefined;
+  return file;
 }
 
 /** Window-local ownership of persisted session files. */
@@ -93,10 +127,11 @@ export function isMovableSessionState(state: ChatState | undefined): boolean {
  */
 export class ChatSurfaceManager implements vscode.Disposable {
   private sidebar?: SurfaceConnection;
-  private panel?: vscode.WebviewPanel;
-  private editor?: SurfaceConnection;
   private sidebarController?: ChatController;
-  private editorController?: ChatController;
+  /** Every chat tab in this window, in either region. Keyed by its surface. */
+  private readonly panels = new Map<SurfaceConnection, EditorPanelEntry>();
+  /** The tab a title-bar command applies to; VS Code evaluates those menus for the active editor. */
+  private activePanel?: EditorPanelEntry;
   private readonly controllers = new Set<ChatController>();
   private readonly claims = new SessionClaimRegistry<ChatController>();
   private readonly sessionsChangedEmitter = new vscode.EventEmitter<void>();
@@ -105,7 +140,7 @@ export class ChatSurfaceManager implements vscode.Disposable {
   private creationQueue: Promise<void> = Promise.resolve();
   private disposed = false;
   /** Last context values pushed for the move-menu `when` clauses; see updateMoveMenuContext. */
-  private moveMenuContext?: { sidebarEmpty: boolean; editorEmpty: boolean };
+  private moveMenuContext?: { sidebarEmpty: boolean; tabEmpty: boolean; tabRegion: PanelRegion };
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -141,55 +176,86 @@ export class ChatSurfaceManager implements vscode.Disposable {
     }
   }
 
-  /** Move the sidebar's current controller into a singleton editor tab. */
+  /**
+   * Move the sidebar session into a new editor tab (region B).
+   *
+   * Always a new tab: "move this session to the editor area" must not silently
+   * displace whatever another tab is showing. The vacated sidebar immediately
+   * gets a fresh session.
+   */
   async openEditor(): Promise<void> {
-    if (this.panel) {
-      this.swapVisibleControllers();
-      this.panel.reveal(this.panel.viewColumn, true);
-      return;
-    }
-    if (this.editorController) {
-      this.bindEditorPanel(this.createEditorPanel(), this.editorController);
-      return;
-    }
-
     try {
+      const moved = this.sidebarController;
       const panel = this.createEditorPanel();
-      if (this.sidebarController) {
-        const moved = this.sidebarController;
-        this.editorController = moved;
+      if (moved) {
         moved.setSlot("editor");
         this.bindEditorPanel(panel, moved);
-
         const replacement = await this.createController("sidebar", { mode: "new" });
         this.sidebarController = replacement;
         if (this.sidebar) this.sidebar.bind(replacement);
       } else {
-        const controller = await this.createController("editor", this.startupSession("editor"));
-        this.editorController = controller;
+        const controller = await this.createController("editor", { mode: "new" });
         this.bindEditorPanel(panel, controller);
       }
+      panel.reveal(vscode.ViewColumn.One, true);
     } catch (error) {
-      this.reportError(this.editor ?? this.sidebar, error);
+      this.reportError(this.activeSurface(), error);
     }
   }
 
-  /** Move the editor chat to the sidebar, then close its original editor tab. */
+  /** Move the active chat tab's session to the sidebar, then close that tab. */
   async openInSidebar(): Promise<void> {
-    if (!this.sidebar) await vscode.commands.executeCommand(`${CHAT_VIEW_ID}.focus`);
-    const moved = this.swapVisibleControllers();
-    await vscode.commands.executeCommand(`${CHAT_VIEW_ID}.focus`);
-    if (moved) this.panel?.dispose();
+    try {
+      const entry = this.activeEntry();
+      const controller = entry?.surface.controller;
+      if (!entry || !controller) return;
+      if (!this.sidebar) await vscode.commands.executeCommand(`${CHAT_VIEW_ID}.focus`);
+      const sidebar = this.sidebar;
+      if (!sidebar) return;
+      const displaced = this.sidebarController;
+      if (displaced && displaced !== controller) {
+        displaced.setSlot("background");
+        displaced.disposeWhenSettled = displaced.busy;
+      }
+      this.sidebarController = controller;
+      controller.setSlot("sidebar");
+      sidebar.bind(controller);
+      // The session left this tab; an empty tab standing in its place would be a
+      // second thing to close for one "move".
+      entry.panel.dispose();
+      await vscode.commands.executeCommand(`${CHAT_VIEW_ID}.focus`);
+      if (displaced && displaced !== controller) {
+        if (displaced.busy) this.disposeIfSettledHeadless(displaced);
+        else this.releaseController(displaced);
+      }
+    } catch (error) {
+      this.reportError(this.sidebar, error);
+    }
+  }
+
+  /**
+   * Move the active chat tab from a floating window back into the editor area
+   * (region C → B).
+   *
+   * VS Code ships no `moveEditorToMainWindow` command and no tab-move API; what
+   * it does have is `WebviewPanel.reveal(ViewColumn.One)`, which resolves to the
+   * main window's first editor group and moves the panel there without
+   * recreating it (verified on 1.134).
+   */
+  async moveToEditorArea(): Promise<void> {
+    const entry = this.activeEntry();
+    if (!entry) return;
+    entry.panel.reveal(vscode.ViewColumn.One, false);
+    entry.region = "editor";
+    this.updateMoveMenuContext();
   }
 
   /** Move the source session into a floating window directly, without an intermediate editor tab. */
   async moveToNewWindow(source: SurfaceKind): Promise<void> {
     if (source === "editor") {
-      // The panel already is an editor tab; just detach it.
-      const panel = this.panel;
-      if (!panel) return;
-      panel.reveal(panel.viewColumn, false);
-      await vscode.commands.executeCommand("workbench.action.moveEditorToNewWindow");
+      const entry = this.activeEntry();
+      if (!entry) return;
+      await this.detachToNewWindow(entry.panel);
       return;
     }
     // Sidebar: VS Code moves only editor tabs between windows — never views —
@@ -198,25 +264,15 @@ export class ChatSurfaceManager implements vscode.Disposable {
     // detached within one breath, and anything slow (the replacement
     // controller for the vacated sidebar) happens only once it is gone.
     try {
-      if (this.panel) {
-        // An editor chat already exists: hand the sidebar's session to that
-        // panel (its own controller takes the vacated sidebar), then detach it.
-        this.swapVisibleControllers();
-        this.panel.reveal(this.panel.viewColumn, false);
-        await vscode.commands.executeCommand("workbench.action.moveEditorToNewWindow");
-        return;
-      }
-      const panel = this.createEditorPanel();
+      const panel = this.createEditorPanel(vscode.ViewColumn.Active);
       const moved = this.sidebarController;
       if (moved) {
-        this.editorController = moved;
         moved.setSlot("editor");
         this.bindEditorPanel(panel, moved);
       }
-      // Detach before any await: while a controller is being built the carrier
-      // tab must not sit in this window's editor area for seconds on end.
-      panel.reveal(panel.viewColumn, false);
-      await vscode.commands.executeCommand("workbench.action.moveEditorToNewWindow");
+      // Detach before building anything: while a controller is being built the
+      // carrier tab must not sit in this window's editor area for seconds on end.
+      await this.detachToNewWindow(panel);
       if (moved) {
         // The sidebar keeps the moved session's last frame until the fresh
         // controller takes over — the same stale window the previous ordering
@@ -225,79 +281,87 @@ export class ChatSurfaceManager implements vscode.Disposable {
         this.sidebarController = replacement;
         if (this.sidebar) this.sidebar.bind(replacement);
       } else {
-        const controller = await this.createController("editor", this.startupSession("editor"));
-        this.editorController = controller;
+        const controller = await this.createController("editor", { mode: "new" });
         this.bindEditorPanel(panel, controller);
       }
     } catch (error) {
-      this.reportError(this.editor ?? this.sidebar, error);
+      this.reportError(this.activeSurface(), error);
     }
   }
 
-  private swapVisibleControllers(): boolean {
-    const sidebar = this.sidebarController;
-    const editor = this.editorController;
-    if (!sidebar || !editor || !this.sidebar || !this.editor || sidebar === editor) return false;
-    this.sidebarController = editor;
-    this.editorController = sidebar;
-    editor.setSlot("sidebar");
-    sidebar.setSlot("editor");
-    this.sidebar.bind(editor);
-    this.editor.bind(sidebar);
-    this.updatePanelTitle(sidebar.state);
-    return true;
+  /**
+   * Send one panel to a floating window.
+   *
+   * `workbench.action.moveEditorToNewWindow` acts on the workbench's *active*
+   * editor and takes no argument, so the panel has to be active before the
+   * command is issued — otherwise it detaches whatever editor happens to be
+   * active instead, i.e. the user's current chat. Carriers are therefore
+   * created with `ViewColumn.Active`, so they land wherever the user already
+   * is (including a floating window) and are active there without any
+   * cross-window focus dance: focus cannot be taken reliably from another
+   * window, and the panel would silently stay put.
+   */
+  private async detachToNewWindow(panel: vscode.WebviewPanel): Promise<void> {
+    panel.reveal(panel.viewColumn, false);
+    if (!(await waitForPanelActive(panel))) {
+      // Refuse rather than detach someone else's editor. The session is live
+      // either way; it just stays a tab where it was created.
+      this.log("new window: the carrier panel never became active; leaving it in the editor area");
+      return;
+    }
+    await vscode.commands.executeCommand("workbench.action.moveEditorToNewWindow");
+    this.markRegion(panel, "window");
   }
 
   /** Rehydrate an editor panel retained by VS Code across a window reload. */
-  async restoreEditorPanel(panel: vscode.WebviewPanel): Promise<void> {
+  async restoreEditorPanel(panel: vscode.WebviewPanel, state: unknown): Promise<void> {
     // Serializer callbacks may spend seconds rebuilding the SDK runtime. Paint
     // the webview shell first so a detached window never sits on VS Code's
     // black, uninitialized panel; binding below reloads it once the controller
     // is ready and the normal `ready` handshake can run.
     const surface = this.connectEditorPanel(panel, true);
     try {
-      const controller = this.editorController ?? await this.createController("editor", this.startupSession("editor"));
-      this.editorController = controller;
+      const controller = await this.createController("editor", this.restoredStartup(state));
       surface.bind(controller);
-      this.updatePanelTitle(controller.state);
+      this.updatePanelTitle(surface);
     } catch (error) {
       this.reportError(surface, error);
     }
   }
 
+  /** A tab reopens its own session; a missing or already claimed file degrades to a new one. */
+  private restoredStartup(state: unknown): StartupSession {
+    const file = restoredSessionFile(state, this.cwd);
+    if (!file || this.claims.owner(file) || !existsSync(file)) return { mode: "new" };
+    this.log(`reopening editor tab session: ${file}`);
+    return { mode: "file", path: file };
+  }
+
   async newSidebarSession(): Promise<void> {
     try {
       if (!this.sidebarController || !this.sidebar) {
+        // The view resolves asynchronously with its own remembered session;
+        // asking for a new one in the same breath would race that.
         await vscode.commands.executeCommand(`${CHAT_VIEW_ID}.focus`);
         return;
       }
       if (this.sidebarController.busy) await this.replaceRunningController(this.sidebar, { mode: "new" });
       else await this.sidebarController.handleMessage({ type: "newSession" });
+      await vscode.commands.executeCommand(`${CHAT_VIEW_ID}.focus`);
     } catch (error) {
       this.reportError(this.sidebar, error);
     }
   }
 
-  /** Open a new session in the editor area (does not move the sidebar session). */
+  /** Open a new session in the editor area (a new tab; other tabs are untouched). */
   async newEditorSession(): Promise<void> {
     try {
-      const panel = this.panel ?? this.createEditorPanel();
-      if (this.editorController && !this.panel) {
-        // Headless controller: create a panel for it first, then start new.
-        this.bindEditorPanel(panel, this.editorController);
-      }
-      if (!this.panel) {
-        // First editor: create a fresh controller.
-        const controller = await this.createController("editor", { mode: "new" });
-        this.editorController = controller;
-        this.bindEditorPanel(panel, controller);
-      } else if (this.editorController) {
-        if (this.editorController.busy) await this.replaceRunningController(this.editor!, { mode: "new" });
-        else await this.editorController.handleMessage({ type: "newSession" });
-      }
-      panel.reveal(panel.viewColumn, true);
+      const controller = await this.createController("editor", { mode: "new" });
+      const panel = this.createEditorPanel();
+      this.bindEditorPanel(panel, controller);
+      panel.reveal(vscode.ViewColumn.One, true);
     } catch (error) {
-      this.reportError(this.editor ?? this.sidebar, error);
+      this.reportError(this.activeSurface(), error);
     }
   }
 
@@ -308,21 +372,68 @@ export class ChatSurfaceManager implements vscode.Disposable {
       // is created it must move within the same breath, not wait out the
       // seconds a controller takes as a tab in this window's editor area.
       const controller = await this.createController("editor", { mode: "new" });
-      this.editorController = controller;
-      const panel = this.createEditorPanel();
+      const panel = this.createEditorPanel(vscode.ViewColumn.Active);
       this.bindEditorPanel(panel, controller);
-      panel.reveal(panel.viewColumn, false);
-      await vscode.commands.executeCommand("workbench.action.moveEditorToNewWindow");
+      await this.detachToNewWindow(panel);
     } catch (error) {
-      this.reportError(this.editor ?? this.sidebar, error);
+      this.reportError(this.activeSurface(), error);
     }
   }
 
-  private createEditorPanel(): vscode.WebviewPanel {
-    return vscode.window.createWebviewPanel(
+  /** Open an existing session file in a new editor tab from the sessions list. */
+  async openSessionInEditor(file: string): Promise<void> {
+    try {
+      const panel = this.createEditorPanel();
+      await this.adoptSessionInPanel(panel, file);
+      panel.reveal(vscode.ViewColumn.One, true);
+    } catch (error) {
+      this.reportError(this.activeSurface(), error);
+    }
+  }
+
+  /** Open an existing session file in a new floating window. */
+  async openSessionInNewWindow(file: string): Promise<void> {
+    try {
+      const panel = this.createEditorPanel(vscode.ViewColumn.Active);
+      await this.adoptSessionInPanel(panel, file);
+      await this.detachToNewWindow(panel);
+    } catch (error) {
+      this.reportError(this.activeSurface(), error);
+    }
+  }
+
+  /**
+   * Fill a freshly created tab with `file`, moving its current owner in rather
+   * than constructing a second writer for the same JSONL. A visible source
+   * surface is left with a fresh session instead of a stale frame.
+   */
+  private async adoptSessionInPanel(panel: vscode.WebviewPanel, file: string): Promise<void> {
+    const target = this.connectEditorPanel(panel, false);
+    const owner = this.claims.owner(file);
+    if (owner && !owner.disposed) {
+      const source = owner.surface;
+      if (source && source !== target) {
+        const replacement = await this.createController(source.kind, { mode: "new" });
+        if (source.kind === "sidebar") this.sidebarController = replacement;
+        source.bind(replacement);
+      }
+      this.moveHeadlessController(owner, target);
+      return;
+    }
+    const controller = await this.createController("editor", { mode: "file", path: file });
+    target.bind(controller);
+    this.updatePanelTitle(target);
+  }
+
+  private createEditorPanel(column = vscode.ViewColumn.One): vscode.WebviewPanel {
+    const panel = vscode.window.createWebviewPanel(
       CHAT_PANEL_TYPE,
       "Pi Agent Chat",
-      vscode.ViewColumn.Active,
+      // Default `One`, never `Active`: with a floating window focused, `Active`
+      // opens the new chat inside it, which is the opposite of "open in the
+      // editor area". Carriers bound for a floating window pass `Active` on
+      // purpose — see detachToNewWindow.
+      column,
       {
         enableScripts: true,
         retainContextWhenHidden: true,
@@ -330,21 +441,46 @@ export class ChatSurfaceManager implements vscode.Disposable {
         enableFindWidget: false,
       },
     );
+    this.applyPanelIcon(panel);
+    return panel;
+  }
+
+  /**
+   * Tab icon. Without this the tab falls back to the generic editor glyph, so
+   * a chat moved into the editor area or a floating window is indistinguishable
+   * from a text file at a glance — which is the one place it competes with
+   * other tabs for recognition.
+   *
+   * Set on restored panels too: `deserializeWebviewPanel` hands back a panel
+   * that never went through `createEditorPanel`.
+   *
+   * Two files rather than the one the activity bar uses: a tab renders this as
+   * an `<img>`, so the SVG's own colours are what show up — `currentColor`
+   * there resolves against the image document and comes out black on every
+   * theme. The `{ light, dark }` form is the platform's answer to that.
+   */
+  private applyPanelIcon(panel: vscode.WebviewPanel): void {
+    panel.iconPath = {
+      light: vscode.Uri.joinPath(this.context.extensionUri, "media", "icon-light.svg"),
+      dark: vscode.Uri.joinPath(this.context.extensionUri, "media", "icon-dark.svg"),
+    };
   }
 
   private bindEditorPanel(panel: vscode.WebviewPanel, controller: ChatController): void {
     const surface = this.connectEditorPanel(panel, false);
     surface.bind(controller);
-    this.updatePanelTitle(controller.state);
+    this.updatePanelTitle(surface);
   }
 
   /** Establish the panel/webview lifecycle before a runtime is necessarily ready. */
   private connectEditorPanel(panel: vscode.WebviewPanel, renderImmediately: boolean): SurfaceConnection {
+    const existing = [...this.panels.values()].find((entry) => entry.panel === panel);
+    if (existing) return existing.surface;
+    this.applyPanelIcon(panel);
     panel.webview.options = {
       enableScripts: true,
       localResourceRoots: [this.context.extensionUri],
     };
-    this.panel = panel;
     let surface!: SurfaceConnection;
     surface = new SurfaceConnection(
       "editor",
@@ -354,10 +490,49 @@ export class ChatSurfaceManager implements vscode.Disposable {
       () => this.onEditorDisposed(surface),
       () => renderChatHtml(panel.webview, this.context.extensionUri, "editor"),
     );
-    this.editor = surface;
+    const entry: EditorPanelEntry = { panel, surface, region: "editor" };
+    this.panels.set(surface, entry);
+    if (panel.active) this.activePanel = entry;
     panel.onDidDispose(() => surface.dispose());
+    panel.onDidChangeViewState(() => {
+      // The first editor group of the main window is the one column a floating
+      // window can never own, so it is the one reliable correction to the
+      // region bookkeeping when the user drags tabs around by hand.
+      if (panel.viewColumn === vscode.ViewColumn.One) entry.region = "editor";
+      if (panel.active) this.activePanel = entry;
+      this.updateMoveMenuContext();
+    });
     if (renderImmediately) surface.render();
+    this.updateMoveMenuContext();
     return surface;
+  }
+
+  private markRegion(panel: vscode.WebviewPanel, region: PanelRegion): void {
+    const entry = [...this.panels.values()].find((candidate) => candidate.panel === panel);
+    if (!entry) return;
+    entry.region = region;
+    this.updateMoveMenuContext();
+  }
+
+  /**
+   * The tab a title-bar command applies to.
+   *
+   * `WebviewPanel.active` is true for at most one panel — the workbench's active
+   * editor — which is the same fact VS Code evaluates `activeWebviewPanelId`
+   * against, so reading it live keeps the command and the menu that offered it
+   * on the same tab. The tracked value only covers the gap where focus has
+   * moved off the editor area entirely (a menu click can do that).
+   */
+  private activeEntry(): EditorPanelEntry | undefined {
+    const entries = [...this.panels.values()];
+    const live = entries.find((entry) => entry.panel.active);
+    if (live) return live;
+    if (this.activePanel && this.panels.has(this.activePanel.surface)) return this.activePanel;
+    return entries.length === 1 ? entries[0] : undefined;
+  }
+
+  private activeSurface(): SurfaceConnection | undefined {
+    return this.activeEntry()?.surface ?? this.sidebar;
   }
 
   private async handleSurfaceMessage(surface: SurfaceConnection, message: WebviewMessage): Promise<void> {
@@ -384,7 +559,13 @@ export class ChatSurfaceManager implements vscode.Disposable {
         await this.replaceRunningController(surface, replacement);
         return;
       }
-      await controller?.handleMessage(effectiveMessage);
+      if (effectiveMessage.type === "openSessionInEditor") {
+        await this.openSessionInEditor(effectiveMessage.file);
+      } else if (effectiveMessage.type === "openSessionInNewWindow") {
+        await this.openSessionInNewWindow(effectiveMessage.file);
+      } else {
+        await controller?.handleMessage(effectiveMessage);
+      }
     } catch (error) {
       this.reportError(surface, error);
     }
@@ -403,9 +584,8 @@ export class ChatSurfaceManager implements vscode.Disposable {
     running.setSlot("background");
     running.disposeWhenSettled = true;
     if (surface.kind === "sidebar") this.sidebarController = replacement;
-    else this.editorController = replacement;
     surface.bind(replacement);
-    if (surface.kind === "editor") this.updatePanelTitle(replacement.state);
+    this.updatePanelTitle(surface);
     this.disposeIfSettledHeadless(running);
   }
 
@@ -416,17 +596,18 @@ export class ChatSurfaceManager implements vscode.Disposable {
   }
 
   private onEditorDisposed(surface: SurfaceConnection): void {
-    if (this.editor !== surface) return;
-    this.editor = undefined;
-    this.panel = undefined;
+    const entry = this.panels.get(surface);
+    if (!entry) return;
+    this.panels.delete(surface);
+    if (this.activePanel === entry) this.activePanel = undefined;
     const controller = surface.controller;
     controller?.detach(surface);
     if (controller) {
-      if (this.editorController === controller) this.editorController = undefined;
       controller.setSlot("background");
       controller.disposeWhenSettled = true;
     }
     this.disposeIfSettledHeadless(controller);
+    this.updateMoveMenuContext();
   }
 
   private createController(slot: SurfaceKind, requestedStartup: StartupSession): Promise<ChatController> {
@@ -461,9 +642,12 @@ export class ChatSurfaceManager implements vscode.Disposable {
   }
 
   private startupSession(slot: SurfaceKind): StartupSession {
-    const stored = this.context.workspaceState.get<LastSession>(LAST_SESSION_KEYS[slot])
-      ?? (slot === "sidebar" ? this.context.workspaceState.get<LastSession>(LEGACY_LAST_SESSION_KEY) : undefined);
-    if (!stored || stored.cwd !== this.cwd) return slot === "sidebar" ? { mode: "recent" } : { mode: "new" };
+    // Only the sidebar has a window-level memory slot: editor tabs each carry
+    // their own in webview state (see restoredSessionFile).
+    if (slot !== "sidebar") return { mode: "new" };
+    const stored = this.context.workspaceState.get<LastSession>(SIDEBAR_LAST_SESSION_KEY)
+      ?? this.context.workspaceState.get<LastSession>(LEGACY_LAST_SESSION_KEY);
+    if (!stored || stored.cwd !== this.cwd) return { mode: "recent" };
     if (typeof stored.file !== "string" || stored.file.length === 0) return { mode: "new" };
     if (this.claims.owner(stored.file)) return { mode: "new" };
     this.log(`reopening ${slot} session: ${stored.file}`);
@@ -473,9 +657,9 @@ export class ChatSurfaceManager implements vscode.Disposable {
   remember(controller: ChatController, file: string | undefined): void {
     controller.rememberedFile = file;
     this.updateControllerClaim(controller, file);
-    if (controller.slot === "background") return;
+    if (controller.slot !== "sidebar") return;
     const stored: LastSession = { cwd: this.cwd, file: file ?? null };
-    void Promise.resolve(this.context.workspaceState.update(LAST_SESSION_KEYS[controller.slot], stored)).then(
+    void Promise.resolve(this.context.workspaceState.update(SIDEBAR_LAST_SESSION_KEY, stored)).then(
       undefined,
       (error) => this.log(`failed to remember the ${controller.slot} session: ${describeWithStack(error).split("\n")[0]}`),
     );
@@ -496,7 +680,7 @@ export class ChatSurfaceManager implements vscode.Disposable {
 
   onControllerState(controller: ChatController, state: ChatState): void {
     this.updateControllerClaim(controller, state.sessionFile);
-    if (controller === this.editorController) this.updatePanelTitle(state);
+    if (controller.surface) this.updatePanelTitle(controller.surface);
     this.notifySessionsChanged();
     this.disposeIfSettledHeadless(controller);
   }
@@ -521,12 +705,17 @@ export class ChatSurfaceManager implements vscode.Disposable {
    */
   private updateMoveMenuContext(): void {
     const sidebarEmpty = !isMovableSessionState(this.sidebarController?.state);
-    const editorEmpty = !isMovableSessionState(this.editorController?.state);
+    const active = this.activeEntry();
+    const tabEmpty = !isMovableSessionState(active?.surface.controller?.state);
+    const tabRegion = active?.region ?? "editor";
     // This runs on every state post; only an actual flip should reach VS Code.
-    if (this.moveMenuContext?.sidebarEmpty === sidebarEmpty && this.moveMenuContext.editorEmpty === editorEmpty) return;
-    this.moveMenuContext = { sidebarEmpty, editorEmpty };
+    if (this.moveMenuContext?.sidebarEmpty === sidebarEmpty
+      && this.moveMenuContext.tabEmpty === tabEmpty
+      && this.moveMenuContext.tabRegion === tabRegion) return;
+    this.moveMenuContext = { sidebarEmpty, tabEmpty, tabRegion };
     void vscode.commands.executeCommand("setContext", "piAgentChat.sidebarSessionEmpty", sidebarEmpty);
-    void vscode.commands.executeCommand("setContext", "piAgentChat.editorSessionEmpty", editorEmpty);
+    void vscode.commands.executeCommand("setContext", "piAgentChat.chatTabSessionEmpty", tabEmpty);
+    void vscode.commands.executeCommand("setContext", "piAgentChat.chatTabRegion", tabRegion);
   }
 
   redirectClaimedSession(requester: ChatController, file: string): boolean {
@@ -555,9 +744,8 @@ export class ChatSurfaceManager implements vscode.Disposable {
     if (source && source !== target && sourceStartup) {
       const replacement = await this.createController(source.kind, sourceStartup);
       if (source.kind === "sidebar") this.sidebarController = replacement;
-      else this.editorController = replacement;
       source.bind(replacement);
-      if (source.kind === "editor") this.updatePanelTitle(replacement.state);
+      this.updatePanelTitle(source);
     }
     this.moveHeadlessController(owner, target);
     return true;
@@ -573,16 +761,14 @@ export class ChatSurfaceManager implements vscode.Disposable {
   private moveHeadlessController(controller: ChatController, target: SurfaceConnection): void {
     const displaced = target.controller;
     if (controller === this.sidebarController) this.sidebarController = undefined;
-    if (controller === this.editorController) this.editorController = undefined;
     if (displaced && displaced !== controller) {
       displaced.setSlot("background");
       displaced.disposeWhenSettled = displaced.busy;
     }
     if (target.kind === "sidebar") this.sidebarController = controller;
-    else this.editorController = controller;
     controller.setSlot(target.kind);
     target.bind(controller);
-    if (target.kind === "editor") this.updatePanelTitle(controller.state);
+    this.updatePanelTitle(target);
     if (displaced && displaced !== controller) {
       if (displaced.busy) this.disposeIfSettledHeadless(displaced);
       else this.releaseController(displaced);
@@ -606,7 +792,6 @@ export class ChatSurfaceManager implements vscode.Disposable {
         busy: controller.busy,
         retainedSidebar: controller === this.sidebarController,
       })) return;
-      if (controller === this.editorController) this.editorController = undefined;
       this.releaseController(controller);
     });
   }
@@ -619,9 +804,10 @@ export class ChatSurfaceManager implements vscode.Disposable {
   }
 
 
-  private updatePanelTitle(state: ChatState | undefined): void {
-    if (!this.panel) return;
-    this.panel.title = editorPanelTitle(state?.sessionName);
+  private updatePanelTitle(surface: SurfaceConnection | undefined): void {
+    const entry = surface ? this.panels.get(surface) : undefined;
+    if (!entry) return;
+    entry.panel.title = editorPanelTitle(surface?.controller?.state?.sessionName);
   }
 
   private reportError(surface: SurfaceConnection | undefined, error: unknown): void {
@@ -642,7 +828,7 @@ export class ChatSurfaceManager implements vscode.Disposable {
     if (this.disposed) return;
     this.disposed = true;
     this.sidebar?.dispose();
-    this.editor?.dispose();
+    for (const entry of [...this.panels.values()]) entry.surface.dispose();
     for (const controller of [...this.controllers]) this.releaseController(controller);
     this.sessionsChangedEmitter.dispose();
   }
@@ -794,8 +980,28 @@ class SurfaceConnection implements vscode.Disposable {
   }
 }
 
-/** Keep a lone editor tab compact too; VS Code only elides titles when tabs compete for space. */
-export function editorPanelTitle(sessionName: string | undefined): string {
+/**
+ * Resolve once a panel is the workbench's active editor; `false` on timeout.
+ *
+ * Bounded because activation can legitimately never arrive (another window
+ * holds focus), and callers must be able to tell that apart from success.
+ */
+function waitForPanelActive(panel: vscode.WebviewPanel, timeoutMs = 800): Promise<boolean> {
+  if (panel.active) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const finish = (active: boolean): void => {
+      clearTimeout(timer);
+      subscription.dispose();
+      resolve(active);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    const subscription = panel.onDidChangeViewState(() => {
+      if (panel.active) finish(true);
+    });
+  });
+}
+
+/** Keep a lone editor tab compact too; VS Code only elides titles when tabs compete for space. */export function editorPanelTitle(sessionName: string | undefined): string {
   const title = sessionName ? `${sessionName} — Pi` : "Pi Agent Chat";
   const characters = [...title];
   if (characters.length <= MAX_EDITOR_TAB_TITLE_CHARS) return title;

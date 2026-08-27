@@ -24,9 +24,10 @@ import {
 } from "./vscode-terminal.js";
 import { ProjectFileIndex } from "./project-files.js";
 import { isResumable, resumeAfterError, supportsResume } from "./resume.js";
-import { readContentMaxWidth, readFoldLines } from "./config.js";
+import { readContentMaxWidth, readFoldLines, readWideThreshold } from "./config.js";
 import type { ChatState, HostMessage } from "../shared/protocol.js";
-import { claimedSessionSourceStartup, editorPanelTitle, isMovableSessionState, MAX_EDITOR_TAB_TITLE_CHARS, replacementStartupForRunningController, SessionClaimRegistry, shouldDisposeHeadlessRuntime } from "../chat-surfaces.js";
+import { CONTENT_WIDTH_MIN, WIDE_THRESHOLD_MIN } from "../shared/protocol.js";
+import { claimedSessionSourceStartup, editorPanelTitle, isMovableSessionState, MAX_EDITOR_TAB_TITLE_CHARS, replacementStartupForRunningController, restoredSessionFile, SessionClaimRegistry, shouldDisposeHeadlessRuntime } from "../chat-surfaces.js";
 
 /** Injected by esbuild (see esbuild.mjs). */
 declare const __PI_UNDICI_VERSION__: string;
@@ -105,18 +106,27 @@ export function runSurfaceCoordinationTest(): DiagnosticResult[] {
   const emptySessionNotMovable = !isMovableSessionState(undefined)
     && !isMovableSessionState({ ready: true, isStreaming: false, isCompacting: false, messageCount: 0 });
   const transcriptSessionMovable = isMovableSessionState({ ready: true, isStreaming: false, isCompacting: false, messageCount: 2 });
+  // Per-tab session memory: each chat tab restores its own session from its own
+  // webview state (a shared workspace slot would have N tabs overwrite it).
+  const cwd = tmpdir();
+  const tabRemembersOwnSession = restoredSessionFile({ session: { cwd, file: "a.jsonl" } }, cwd) === "a.jsonl";
+  const foreignCwdIgnored = restoredSessionFile({ session: { cwd: join(cwd, "other"), file: "a.jsonl" } }, cwd) === undefined;
+  const emptyStateIgnored = restoredSessionFile(undefined, cwd) === undefined
+    && restoredSessionFile({ contentMaxWidth: 950 }, cwd) === undefined
+    && restoredSessionFile({ session: { cwd, file: "" } }, cwd) === undefined;
   const ok = firstClaim && collisionRejected && wrongOwnerDidNotRelease && released
     && runningHeadlessRetained && settledHeadlessDisposed && visibleRetained && sidebarRetained
     && replacementNew && selectedSessionBecomesLive && ownSessionDoesNotDuplicate && idleSessionUsesExistingController
     && editorTabTitleIsCapped && shortTabTitleIsUntouched
     && visibleMoveLeavesFreshSource && backgroundMoveHasNoSource
-    && emptySessionNotMovable && transcriptSessionMovable;
+    && emptySessionNotMovable && transcriptSessionMovable
+    && tabRemembersOwnSession && foreignCwdIgnored && emptyStateIgnored;
   return [{
     name: "chat surface coordination",
     ok,
     detail: ok
-      ? "claims are exclusive; claimed sessions move to the requesting surface with a fresh visible source; background runs survive until settle"
-      : "claim ownership, claimed-session transfer, tab-title cap or headless runtime lifecycle invariant failed",
+      ? "claims are exclusive; claimed sessions move to the requesting surface with a fresh visible source; background runs survive until settle; each tab restores its own session"
+      : "claim ownership, claimed-session transfer, tab-title cap, per-tab session memory or headless runtime lifecycle invariant failed",
   }];
 }
 
@@ -428,8 +438,11 @@ export async function runReplayedRetryOfferTest(cwd: string): Promise<Diagnostic
  * succeeded, while the later timeout gets a separate offer. Retrying that new
  * failure without any successful response must resolve only the new offer as
  * failed. The states must also survive a transcript replay instead of living
- * only in the clicked button. Requests are stubbed; a real one is the live
- * test's job.
+ * only in the clicked button. Finally, a live `message_end(error)` must itself
+ * carry enough typed evidence to produce an offer at settlement even if the
+ * SessionManager tail still exposes the preceding successful response; this
+ * pins the reported live "Request timed out." card with no button. Requests
+ * are stubbed; a real one is the live test's job.
  */
 export async function runRetryOfferLifecycleTest(cwd: string): Promise<DiagnosticResult[]> {
   type StoredMessage = Parameters<SessionManager["appendMessage"]>[0];
@@ -474,7 +487,7 @@ export async function runRetryOfferLifecycleTest(cwd: string): Promise<Diagnosti
     const receive = (event: unknown) => {
       (bridge as unknown as EventReceiver).onSessionEvent(runtime!.session, event);
     };
-    const response = (stopReason: "toolUse" | "error", text: string): StoredMessage => ({
+    const response = (stopReason: "stop" | "toolUse" | "error", text: string): StoredMessage => ({
       role: "assistant",
       content: text ? [{ type: "text", text }] : [],
       api: "anthropic-messages",
@@ -540,16 +553,34 @@ export async function runRetryOfferLifecycleTest(cwd: string): Promise<Diagnosti
     posted.length = 0;
     await bridge.handleMessage({ type: "retry" });
     const afterFailedRetry = latestRetryStates(posted);
+
+    // The displayed live error is already a typed fact at message_end. Keep a
+    // deliberately stale durable tail (successful response) until after
+    // agent_settled: the offer must follow the live error rather than vanish
+    // because `buildSessionContext()` has not exposed the new tail yet.
+    append({
+      role: "user",
+      content: [{ type: "text", text: "next" }],
+      timestamp: Date.now(),
+    } as StoredMessage);
+    append(response("stop", "ok"));
+    const racingFailure = response("error", "");
+    runtime.session.agent.state.messages.push(racingFailure);
+    posted.length = 0;
+    receive({ type: "message_end", message: racingFailure });
+    const durableBeforeLiveSettle = isResumable(runtime.session);
+    receive({ type: "agent_settled" });
+    const liveRaceOffered = retryStates(posted).at(-1) === "offered";
     bridge.dispose();
 
     const expectedFirst = afterPartialSuccess.join(",") === "succeeded,offered";
     const expectedReplay = afterReplay.join(",") === "succeeded,offered";
     const expectedSecond = afterFailedRetry.join(",") === "succeeded,failed,offered";
-    const ok = duringRun && expectedFirst && expectedReplay && expectedSecond;
+    const ok = duringRun && expectedFirst && expectedReplay && expectedSecond && !durableBeforeLiveSettle && liveRaceOffered;
     return [{
       name,
       ok,
-      detail: `while running=${duringRun ? "running" : "NOT MARKED"}; after tool success + later timeout=${afterPartialSuccess.join(",") || "nothing"}; after replay=${afterReplay.join(",") || "nothing"}; after retry without success=${afterFailedRetry.join(",") || "nothing"}`,
+      detail: `while running=${duringRun ? "running" : "NOT MARKED"}; after tool success + later timeout=${afterPartialSuccess.join(",") || "nothing"}; after replay=${afterReplay.join(",") || "nothing"}; after retry without success=${afterFailedRetry.join(",") || "nothing"}; live timeout with stale durable tail=${durableBeforeLiveSettle ? "WRONGLY DURABLE" : liveRaceOffered ? "offered from event" : "OFFER LOST"}`,
     }];
   } catch (error) {
     return [{ name, ok: false, detail: describe(error) }];
@@ -1612,13 +1643,39 @@ export async function runViewStateTest(cwd: string): Promise<DiagnosticResult[]>
       foldThreshold !== undefined && foldThreshold.type === "foldThreshold" && foldThreshold.maxLines === readFoldLines(),
     );
     // Same ownership rule as the fold threshold: the webview cannot read VS
-    // Code settings, so `ready` must also deliver the chat column width before
-    // the first layout decisions matter.
+    // Code settings, so `ready` must also deliver the layout geometry before
+    // the first wide/narrow classification matters. Both values travel
+    // together because both are needed for that one decision.
     const contentWidth = [...posted].reverse().find((message) => message?.type === "contentWidth");
     expect(
       "ready: content width delivered",
       contentWidth !== undefined && contentWidth.type === "contentWidth" && contentWidth.maxWidth === readContentMaxWidth(),
     );
+    expect(
+      "ready: wide threshold delivered",
+      contentWidth !== undefined && contentWidth.type === "contentWidth" && contentWidth.wideMinWidth === readWideThreshold(),
+    );
+    // The threshold is clamped, not trusted: below this the three columns
+    // cannot all meet their minimums, and the layout would switch into a shape
+    // it cannot satisfy.
+    expect("ready: wide threshold clamped to a satisfiable width", readWideThreshold() >= WIDE_THRESHOLD_MIN);
+    // The manifest's `minimum` is a second copy of a derived number, and the
+    // settings UI is the only thing that reads it -- so it can drift out of
+    // sync with the geometry constants without anything failing at runtime.
+    // A user would just be allowed to pick a threshold the layout cannot meet.
+    {
+      const manifest = require("../../package.json") as {
+        contributes: { configuration: { properties: Record<string, { minimum?: number }> } };
+      };
+      const declared = manifest.contributes.configuration.properties["piAgentChat.layout.wideModeMinWidth"]?.minimum;
+      expect(
+        `manifest wide-threshold floor matches the geometry (${declared} === ${WIDE_THRESHOLD_MIN})`,
+        declared === WIDE_THRESHOLD_MIN,
+      );
+    }
+    // The column width lost its ceiling when the threshold became its own
+    // setting: it now means only "how wide may the message area grow".
+    expect("content width has no ceiling", readContentMaxWidth() >= CONTENT_WIDTH_MIN);
     expect("ready: replay populates input history", lastHistoryFlag() === true);
 
     // Live: the parent is writable and is not "inside" anything.

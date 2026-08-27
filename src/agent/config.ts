@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { CONTENT_WIDTH_MAX, CONTENT_WIDTH_MIN, DEFAULT_CONTENT_MAX_WIDTH, DEFAULT_FOLD_LINES } from "../shared/protocol.js";
+import { CONTENT_WIDTH_MIN, DEFAULT_CONTENT_MAX_WIDTH, DEFAULT_FOLD_LINES, DEFAULT_WIDE_THRESHOLD, WIDE_THRESHOLD_MIN } from "../shared/protocol.js";
 
 /**
  * The plugin's own VS Code settings.
@@ -139,27 +139,46 @@ export function affectsTerminalConfig(event: vscode.ConfigurationChangeEvent, cw
   return event.affectsConfiguration(TERMINAL_SECTION, vscode.Uri.file(cwd));
 }
 
-/* -- Chat column width --------------------------------------------------- */
+/* -- Wide layout --------------------------------------------------------- */
 
 const LAYOUT_SECTION = "piAgentChat.layout";
 
 /**
- * Max width in pixels of the centered chat column (transcript and composer).
+ * Max width in pixels of the centered message area (transcript and composer).
  *
- * The manifest's `minimum`/`maximum` only constrain the settings UI, so the
- * clamp is repeated here for hand-edited `settings.json` values. The floor is
- * deliberately low: the composer's overflow controller degrades gracefully,
- * so the clamp only guards against degenerate values, not uncomfortable ones.
+ * The manifest's `minimum` only constrains the settings UI, so the clamp is
+ * repeated here for hand-edited `settings.json` values. There is no ceiling:
+ * the setting means only what its name says, and a very wide display is not a
+ * mistake to be corrected. When wide mode begins is a separate setting
+ * ({@link readWideThreshold}) precisely so that widening the transcript does
+ * not also push the rails further away.
  */
 export function readContentMaxWidth(): number {
   const raw = vscode.workspace.getConfiguration(LAYOUT_SECTION).get<number>("contentMaxWidth");
   if (raw === undefined || !Number.isFinite(raw)) return DEFAULT_CONTENT_MAX_WIDTH;
-  return Math.min(CONTENT_WIDTH_MAX, Math.max(CONTENT_WIDTH_MIN, Math.round(raw)));
+  return Math.max(CONTENT_WIDTH_MIN, Math.round(raw));
 }
 
-/** Whether a settings change event touches the chat column width. */
+/**
+ * Webview width at which the three-column layout becomes available.
+ *
+ * Clamped to {@link WIDE_THRESHOLD_MIN} rather than trusted: below that the
+ * three columns cannot all satisfy their minimums, so a hand-edited value would
+ * switch the layout into a shape it cannot honour. Crossing the threshold does
+ * not open a rail by itself, so lowering it is cheap.
+ */
+export function readWideThreshold(): number {
+  const raw = vscode.workspace.getConfiguration(LAYOUT_SECTION).get<number>("wideModeMinWidth");
+  if (raw === undefined || !Number.isFinite(raw)) return Math.max(WIDE_THRESHOLD_MIN, DEFAULT_WIDE_THRESHOLD);
+  return Math.max(WIDE_THRESHOLD_MIN, Math.round(raw));
+}
+
+/** Whether a settings change event touches either wide-layout geometry value. */
 export function affectsLayoutConfig(event: vscode.ConfigurationChangeEvent): boolean {
-  return event.affectsConfiguration(`${LAYOUT_SECTION}.contentMaxWidth`);
+  return (
+    event.affectsConfiguration(`${LAYOUT_SECTION}.contentMaxWidth`) ||
+    event.affectsConfiguration(`${LAYOUT_SECTION}.wideModeMinWidth`)
+  );
 }
 
 /* -- Message folding ----------------------------------------------------- */

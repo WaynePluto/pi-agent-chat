@@ -1,31 +1,114 @@
-/* Colors come from VS Code theme variables only (see vscode-pi-design.md §5). */
-
-/* Semantic aliases for the recurring theme-variable + fallback pairs.
-   Adjust look & feel here instead of touching every rule. */
+/* 颜色分层：右边是 `var(--vscode-*, 回退)`，左边是「这个颜色表示什么意思」。
+   其余规则只允许使用左边这一列；出现字面颜色或第三层别名，样式表就不再跟随用户主题。 */
 :root {
+  /* --- 字体 ------------------------------------------------------------- */
+  /* 等宽体表示「机器自己的声音」（工具名、路径、计数），与正文散文区分开。 */
+  --mono: var(--vscode-editor-font-family, ui-monospace, Consolas, monospace);
+
+  /* --- 圆角 ------------------------------------------------------------- */
+  /* 只有三档：控件、面板、大块表面。多一档就是一个没人能统一执行的决定。 */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 10px;
+
+  /* --- 表面 ------------------------------------------------------------- */
+  /* 聊天区在三种宿主 surface 下都保持侧边栏色调，不随 tab 移动变成编辑器画布。 */
+  --surface-bg: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  --section-bg: var(--vscode-sideBarSectionHeader-background, rgba(128, 128, 128, 0.08));
+  /* 抬起的面（宽屏两条 rail、窄屏资源浮层）。平台没有「比你当前所在的面高一档」
+     的变量，所以由 `--surface-bg` 向 `--text` 混出：暗色主题变亮、亮色主题变暗。
+     第一条是无 `color-mix()` 时的回退。 */
+  --bg-raised: rgba(128, 128, 128, 0.07);
+  --bg-raised: color-mix(in srgb, var(--surface-bg) 93%, var(--text) 7%);
+  /* 真正嵌入的面（工具输出、代码块）。用不透明的 editor 底色而不是半透明的
+     `textCodeBlock-background`，后者会随背后内容漂移，嵌套块的色调对不齐。 */
+  --bg-sunken: var(--vscode-editor-background, var(--surface-bg));
+  /* 浮在内容之上的面（搜索栏、「跳到最新」圆钮）。**必须不透明**：
+     `--section-bg` 在不少主题（含 Dark+）里是全透明的，浮层拿它当底色，
+     下面的 transcript 文字会直接透上来。取 `editorWidget-background`：
+     平台给悬浮控件（查找框、悬停提示）保留的就是它。 */
+  --bg-float: var(--vscode-editorWidget-background, var(--surface-bg));
+  --code-bg: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.15));
+
+  /* --- 线条 ------------------------------------------------------------- */
   --border: var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
   --widget-border: var(--vscode-widget-border, var(--border));
-  --hover-bg: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.12));
-  --hover-bg-strong: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
-  --section-bg: var(--vscode-sideBarSectionHeader-background, rgba(128, 128, 128, 0.08));
-  /* Chat keeps the quieter panel tone in every host surface instead of turning
-     into the editor canvas when its tab is moved. */
-  --surface-bg: var(--vscode-sideBar-background, var(--vscode-editor-background));
-  --shadow: var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75));
-  /* Space reserved left of a user bubble for its hover action bar:
-     3 buttons + gaps + the bar's own margin, plus a little slack. */
-  --bubble-gutter: 98px;
+  /* 已有边框的容器「内部」的分隔线；用 `--border` 会与容器自己的边缘打架。 */
+  --line-soft: var(--vscode-menu-separatorBackground, rgba(128, 128, 128, 0.25));
+
+  /* --- 文本 ------------------------------------------------------------- */
+  /* 三档。第三档不可省：资源面板要把「已配置但未生效」说得与「次要信息」不同。 */
+  --text: var(--vscode-foreground);
+  --text-dim: var(--vscode-descriptionForeground);
+  --text-faint: var(--vscode-disabledForeground, var(--text-dim));
+
+  /* --- 语义色：只有四个 -------------------------------------------------- */
+  /* 交互与用户自己的声音。取 `textLink-foreground`：它在各主题下都比 focusBorder 亮，
+     而这个颜色会用在 10.5px 的小字上。 */
+  --signal: var(--vscode-textLink-foreground, var(--vscode-focusBorder));
+  /* 焦点环留在平台为它保留的变量上，与工作台其余部分一致。 */
   --accent: var(--vscode-focusBorder);
-  --pulse-color: var(--vscode-progressBar-background, var(--accent));
-  --code-bg: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.15));
-  /* Any VS Code surface can become arbitrarily wide (including a dragged-out
-     auxiliary sidebar). Keep readable controls and text in one centered column
-     while section backgrounds continue across the full webview.
-     The value here is the documented default of `piAgentChat.layout.
-     contentMaxWidth`; the host pushes the configured value into this property
-     (see the `contentWidth` message), and every column — transcript, composer,
-     wide grid — sizes from it. */
+  /* 运行中。用 `charts-blue` 而不是 `progressBar`/`button` 背景色（那些是为压在文字
+     下面设计的，Dark+ 下对比度只有 2.6~3.3）；也不用暖色——UI 词汇里暖色是「警告」。 */
+  --pulse: var(--vscode-charts-blue, var(--accent));
+  /* 生效过 / 成功。 */
+  --verdant: var(--vscode-charts-green, #89d185);
+  /* 失败。用 `charts-red` 而不是 `errorForeground`（Dark+ 下是偏橙的三文鱼色，
+     读起来像警告）；三个状态色同出 charts.* 才互相可区分。 */
+  --ember: var(--vscode-charts-red, #f14c4c);
+
+  /* 淡底只有这两个，不为对称补齐 `--pulse-soft` / `--verdant-soft`：
+     填充是很重的表达，「运行中」和「生效过」都用边框或文字颜色就够了。
+     每个都声明两遍，前一条是无 `color-mix()` 时的回退。 */
+  --signal-soft: rgba(55, 148, 255, 0.14);
+  --signal-soft: color-mix(in srgb, var(--signal) 16%, transparent);
+  --ember-soft: rgba(241, 76, 76, 0.13);
+  --ember-soft: color-mix(in srgb, var(--ember) 14%, transparent);
+
+  /* --- 状态 ------------------------------------------------------------- */
+  /* hover 反馈一律用灰；蓝色只给静止时就该是蓝的东西（主按钮、链接、选中态）。 */
+  --hover-bg: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.12));
+  --hover-bg-strong: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+
+  /* --- 层次 ------------------------------------------------------------- */
+  --shadow: var(--vscode-widget-shadow, rgba(0, 0, 0, 0.75));
+  --shadow-pop: 0 6px 22px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
+
+  /* --- 几何 ------------------------------------------------------------- */
+  /* 滚动条宽度。同时是 `::-webkit-scrollbar` 的尺寸与下面几处内边距的计算因子，
+     改这一个值即可，不需要再回头对齐像素。 */
+  --scrollbar-size: 12px;
+  /* 聊天列的基础内边距。`.messages` / `.sessions` 的左内边距 = 它 + 滚动条宽度。 */
+  --content-pad: 12px;
+  /* 用户气泡左侧为 hover 动作条预留的空白：3 个按钮 + 间隙 + 动作条自身外边距。 */
+  --bubble-gutter: 98px;
+  /* 会话行右侧动作条的几何。按钮尺寸、间隙与行右缘内缩都从这里读，
+     标题的淡出遮罩也由它们算出——增删按钮或改按钮大小只改这几个值，
+     不需要再回头手算遮罩的停止位置。 */
+  --row-action-size: 24px;
+  --row-action-gap: 2px;
+  --row-action-count: 4;
+  --row-actions-inset: 6px;
+  /* 动作条实际占据的横向空间（含它到行右缘的内缩）。 */
+  --row-actions-space: calc(
+    var(--row-action-count) * var(--row-action-size) + (var(--row-action-count) - 1) * var(--row-action-gap) +
+      var(--row-actions-inset)
+  );
+  /* 标题淡尽所用的距离。它必须落在动作条**开始之前**，
+     否则最左边几个按钮会压在完全不透明的文字上（就是这条一度写反了）。 */
+  --row-actions-fade: 24px;
+  /* 可读正文列的宽度上限。这里写的是 `piAgentChat.layout.contentMaxWidth` 的默认值，
+     宿主会经 `contentWidth` 消息把用户配置写进来（见 main.ts）。 */
   --content-max-width: 950px;
+  /* `.messages` 的水平开销：左右内边距 + 两侧各一个稳定滚动条槽宽（= 44px）。
+     可读列住在它们「里面」，所以任何包裹 transcript 的容器都要比正文列宽这么多。
+     与 `shared/protocol.ts` 的 `CHAT_COLUMN_GUTTER_WIDTH` 互为镜像。 */
+  --content-gutter: calc(var(--content-pad) * 2 + var(--scrollbar-size) * 2);
+  /* 整条聊天列（transcript 外框 + composer）的宽度。窄屏天然到达这个值；
+     宽屏栅格必须给 chat 轨道同样的值，否则进入宽屏会悄悄把正文压窄一个 gutter。 */
+  --chat-column-width: calc(var(--content-max-width) + var(--content-gutter));
+  /* 快捷菜单行左侧的勾选槽宽度，`.picker-mark` 与 `.picker-more` 共用。 */
+  --picker-gutter: 14px;
 }
 
 html,
@@ -41,9 +124,8 @@ body {
   font-family: var(--vscode-font-family);
   font-size: var(--vscode-font-size);
   color: var(--vscode-foreground);
-  /* A webview keeps its own colour system when moved between the editor, a
-     floating window and the auxiliary sidebar. Host-container colours must not
-     make the exact same DOM look like three different pages. */
+  /* webview 在编辑区、浮动窗口和辅助侧边栏之间移动时保持同一套配色，
+     不能让同一份 DOM 看起来像三个不同的页面。 */
   background: var(--surface-bg);
 }
 
@@ -80,14 +162,41 @@ body {
   box-sizing: border-box;
 }
 
-/* Webview defaults ignore the theme here, so both are mapped explicitly. */
+/* webview 默认忽略主题的选区色，显式映射回去。 */
 ::selection {
   background: var(--vscode-editor-selectionBackground);
 }
 
+/* 滚动条：静止时什么都不画，滚动时出现细条，两种情况下都没有步进箭头。
+   两个宿主事实决定了下面这段的形状，改动前务必在 `scratch/repro.html` 里验证
+   （它镜像了 webview 宿主注入每个 webview 的那段声明）：
+
+     @layer vscode-default { html { scrollbar-color: <slider> <editor-bg>; } }
+
+   1. Chromium 按元素选渲染路径：只有该元素的 `scrollbar-color` 与 `scrollbar-width`
+      计算值都为 `auto` 时，`::-webkit-scrollbar-*` 才生效。宿主那条会继承到每个元素，
+      于是默认状态下所有 webkit 规则都是死代码——能解析、能看见、什么都不做。
+   2. 标准路径在本平台即使 `scrollbar-width: thin` 也照画步进箭头，且标准属性里
+      没有关掉它的开关。
+
+   所以先用未分层的 `*` 规则把控制权夺回来（未分层规则胜过 cascade layer 里的规则，
+   不需要 `!important`；`scrollbar-color` 继承而 `scrollbar-width` 不继承，重置必须
+   落到 `*`），再用伪元素表达全部外观。
+   伪元素规则一律不加选择器限定，天然覆盖后创建的滚动容器（代码块、弹层）；
+   不要再维护一份滚动容器选择器清单。 */
+* {
+  scrollbar-color: auto;
+  scrollbar-width: auto;
+}
+
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+/* 步进箭头的开关就是这一条。 */
+::-webkit-scrollbar-button {
+  display: none;
 }
 
 ::-webkit-scrollbar-track,
@@ -95,30 +204,35 @@ body {
   background: transparent;
 }
 
-/* The slider colours are intentionally translucent in VS Code themes. */
+/* 静止时不可见：条还占着槽（见下面的 scrollbar-gutter），只是不涂色。 */
 ::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 5px;
+  /* 让可见的条比命中区窄，好抓又安静。 */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* `.pi-scrolling` 由 `scrollbars.ts` 在内容真正滚动时挂上：
+   滚动条回答「我在这东西的哪里」，只有内容在动时这才是个问题。 */
+.pi-scrolling::-webkit-scrollbar-thumb {
   background: var(--vscode-scrollbarSlider-background);
+  background-clip: padding-box;
 }
 
-::-webkit-scrollbar-thumb:hover {
+.pi-scrolling::-webkit-scrollbar-thumb:hover {
   background: var(--vscode-scrollbarSlider-hoverBackground);
+  background-clip: padding-box;
 }
 
-::-webkit-scrollbar-thumb:active {
+.pi-scrolling::-webkit-scrollbar-thumb:active {
   background: var(--vscode-scrollbarSlider-activeBackground);
+  background-clip: padding-box;
 }
 
-/* Classic (space-taking) scrollbars: the moment one appears the content box
-   loses its width and the whole container reflows -- reads as a squeeze/jitter
-   in the transcript. Every scroll container that is read *while* its content
-   grows therefore reserves the gutter permanently.
-   The paddings below deliberately keep their original right value and add the
-   10px gutter to the *left* instead: content clears the slider by the same
-   distance it had before, and the total inset is equal on both sides.
-   Keep that relation when touching them: `padding-left == padding-right + 10px
-   (the scrollbar width above)`.
-   Transient popups (.autocomplete, .picker-list) are deliberately exempt:
-   they are sized when opened, not while being read. */
+/* 占位式滚动条一出现就会挤掉内容宽度并触发整体重排，在 transcript 里读作抖动。
+   凡是「内容还在增长时就被阅读」的滚动容器都永久预留这条槽。
+   瞬时弹层（.autocomplete、.picker-list）故意不在其列：它们打开时就定好了尺寸。 */
 .messages,
 .sessions-list,
 .work-body,

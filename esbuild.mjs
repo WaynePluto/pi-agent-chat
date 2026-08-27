@@ -221,9 +221,23 @@ async function compileSass() {
     sourceMap: !production,
   });
   await mkdir(resolve(root, "dist"), { recursive: true });
-  await writeFile(resolve(root, "dist/main.css"), result.css);
+  const withMapLink =
+    result.sourceMap && !production
+      ? `${result.css}\n/*# sourceMappingURL=main.css.map */\n`
+      : result.css;
+  await writeFile(resolve(root, "dist/main.css"), withMapLink);
   if (result.sourceMap && !production) {
-    await writeFile(resolve(root, "dist/main.css.map"), JSON.stringify(result.sourceMap));
+    // Sources are absolute file:// URLs from sass; rewrite to paths relative to
+    // dist/ so DevTools resolves them in the webview (and in scratch/repro.html).
+    const map = {
+      ...result.sourceMap,
+      sources: result.sourceMap.sources.map((s) =>
+        s.startsWith("file://")
+          ? relative(resolve(root, "dist"), fileURLToPath(s)).split(sep).join("/")
+          : s,
+      ),
+    };
+    await writeFile(resolve(root, "dist/main.css.map"), JSON.stringify(map));
   }
 }
 

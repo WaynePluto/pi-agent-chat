@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#424242" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Tab icon, light themes. Same artwork as icon.svg, but with a literal
+       stroke: an editor tab renders `iconPath` as an <img>, where `currentColor`
+       resolves against the SVG document itself (i.e. black) rather than against
+       the tab label's foreground. The colour matches VS Code's own convention
+       for light themes. Activity-bar icons keep using icon.svg, which the
+       workbench masks and tints itself. -->
+  <path d="M3 5.5A2.5 2.5 0 0 1 5.5 3h13A2.5 2.5 0 0 1 21 5.5v9a2.5 2.5 0 0 1-2.5 2.5H7.5L3 21.5z" />
+  <path d="M8 8.4h8" />
+  <path d="M10.3 8.4v5.2" />
+  <path d="M14.1 8.4v3.2a1.8 1.8 0 0 0 1.8 1.8" />
+</svg>
