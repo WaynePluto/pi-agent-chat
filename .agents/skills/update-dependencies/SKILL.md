@@ -56,12 +56,35 @@ pnpm outdated
   （`<VS Code 安装目录>/resources/app/extensions/node_modules/typescript/package.json`）。
 
 注意：`pnpm outdated` 只列“已安装版本落后于 latest”的包，**看不到版本声明写法的问题**
-（例：`^30.0.1` 当前恰好解析到 latest 时不会出现在输出里），因此不能只盯这张表，还要跑第 4 步的
+（例：`^30.0.1` 当前恰好解析到 latest 时不会出现在输出里），因此不能只盯这张表，还要跑第 5 步的
 固定版本号体检。
 
 更新后再次 `pnpm install`。
 
-### 4. 验证（必做）
+### 4. 同步文案中的版本号（必做）
+
+依赖升了，声称「当前内置版本」的文案不会自己跟着变，必须逐一同步。升级前先记下旧版本号，
+升级后用它全文搜索：
+
+```powershell
+rg -n "<旧版本号>" README.md readme.zh-CN.md package.nls.json package.nls.zh-cn.json THIRD-PARTY-NOTICES.txt
+```
+
+已知承载版本号的位置：
+
+- `README.md` / `readme.zh-CN.md`：正文「官方 SDK（v0.84.x）」。
+- `package.nls.json` / `package.nls.zh-cn.json`：`extension.description`（Marketplace 简介由
+  VS Code 渲染，拿不到 `t()`，只能走清单本地化，两份都要改）。
+- `THIRD-PARTY-NOTICES.txt`：逐行列出的被打包运行时依赖及其版本。Pi 四个包之外，第 3 步
+  升过的其他被打包依赖（如 `marked`）也要同步，逐一核对，不要只改第一处。
+
+判定口径：**只更新描述「当前版本」的文案**。版本相对行为的注释与历史记录
+（如 `src/**` 里「自 X 版本起」「X 之前」的说明、`docs/changelog/` 历史文件中的旧版本号）
+保持原样——那是事实陈述，不是过期信息。
+
+本次发布若包含依赖升级，`docs/changelog/<新版本>*.md` 的「升级」小节要列旧 → 新版本号。
+
+### 5. 验证（必做）
 
 先通过项目脚本体检不变式；不要在技能中另写一份判定逻辑，以免规则漂移：
 
@@ -88,7 +111,7 @@ pnpm verify        # 构建产物校验 + 无头冒烟测试（含 SDK 加载、
 可选：`pnpm package:vsix` 后在 Extension Development Host（F5）里手动过一轮
 prompt + 工具调用 + session 切换。
 
-### 5. 整理 Pi SDK 新功能吸收建议
+### 6. 整理 Pi SDK 新功能吸收建议
 
 比较新旧版本，寻找插件可吸收的新能力：
 
@@ -108,7 +131,7 @@ git diff --no-index <旧版本 index.d.ts> node_modules/@earendil-works/pi-codin
 将发现整理为推荐列表报告给用户（功能名、SDK 提供的能力、插件侧需要的改动量），
 **由用户决定**是否实现，不要擅自加功能。
 
-### 6. 比对已镜像的 SDK 内部实现
+### 7. 比对已镜像的 SDK 内部实现
 
 插件作为应用入口复刻了少量 SDK 未导出的逻辑，这些地方不受类型检查保护，升级后必须人工比对。
 它们统一用 `SDK-MIRROR:` 标记（专用 tag，避免与满屏“mirrors the CLI”的 UI 对齐注释混淆）：
@@ -122,5 +145,5 @@ rg -n "SDK-MIRROR" src
 
 ## 完成后
 
-向用户汇报：更新了哪些包（旧 → 新版本）、固定版本号体检结果、验证结果、镜像实现比对结果、
-SDK 新功能推荐列表。
+向用户汇报：更新了哪些包（旧 → 新版本）、固定版本号体检结果、文案同步结果（改了哪些文件）、
+验证结果、镜像实现比对结果、SDK 新功能推荐列表。
