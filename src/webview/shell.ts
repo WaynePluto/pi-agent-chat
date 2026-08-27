@@ -28,7 +28,9 @@ rootEl.innerHTML = `
   </header>
   <div id="surface-body" class="surface-body">
     <div id="sessions" class="sessions hidden"></div>
+    <div id="split-sessions" class="splitter split-sessions hidden" role="separator" aria-orientation="vertical" tabindex="0" title="${t.splitterTitle}"></div>
     <div id="resources" class="resources hidden"></div>
+    <div id="split-resources" class="splitter split-resources hidden" role="separator" aria-orientation="vertical" tabindex="0" title="${t.splitterTitle}"></div>
     <div id="chat-column" class="chat-column">
   <div id="auth" class="auth-page hidden">
     <div class="auth-title">${t.authTitle}</div>
@@ -62,11 +64,16 @@ rootEl.innerHTML = `
   <footer id="composer" class="composer">
     <div class="composer-content content-column">
       <div id="autocomplete" class="autocomplete hidden"></div>
-      <div id="file-refs" class="file-refs hidden"></div>
       <div id="resize-handle" class="resize-handle"></div>
       <div id="widgets-above" class="widgets hidden"></div>
-      <textarea id="input" rows="3" placeholder="${t.inputPlaceholder}"></textarea>
-      <div id="composer-actions" class="composer-actions">
+      <!-- One bordered surface for the whole input: chips, text and controls
+           belong to the same act of composing a message, and three separately
+           framed strips read as three unrelated widgets stacked up. The frame
+           and the focus ring live on this box; the textarea inside is bare. -->
+      <div id="composer-box" class="composer-box">
+        <div id="file-refs" class="file-refs hidden"></div>
+        <textarea id="input" rows="3" placeholder="${t.inputPlaceholder}"></textarea>
+        <div id="composer-actions" class="composer-actions">
         <button id="btn-model" class="chip" title="${t.modelTitle}">-</button>
         <button id="btn-thinking" class="chip" title="${t.thinkingTitle}">-</button>
         <span class="spacer"></span>
@@ -77,6 +84,7 @@ rootEl.innerHTML = `
         <button id="btn-send" class="icon-button" title="${t.sendIconTitle}">${SEND_ICON}</button>
         <div id="composer-menu" class="overflow-menu hidden"></div>
         <div id="picker" class="picker hidden" role="dialog" tabindex="-1"></div>
+        </div>
       </div>
       <div id="widgets-below" class="widgets hidden"></div>
       <div id="statusline" class="statusline"></div>
@@ -116,6 +124,9 @@ export const statusLineEl = byId("statusline");
 export const widgetsAboveEl = byId("widgets-above");
 export const widgetsBelowEl = byId("widgets-below");
 export const resourcesEl = byId("resources");
+export const surfaceBodyEl = byId("surface-body");
+export const sessionsSplitterEl = byId("split-sessions");
+export const resourcesSplitterEl = byId("split-resources");
 export const authEl = byId("auth");
 export const delegationBarEl = byId("delegation-bar");
 export const delegationLabelEl = byId("delegation-label");

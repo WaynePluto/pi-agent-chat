@@ -1,6 +1,13 @@
+/* 盲文旋转帧来自主题给该字块回退到的字体，其 ascent 通常比旁边的拉丁文字高。
+   放任不管会撑大所有包含它的行盒（会话行里的「运行中」药丸就是这样变成顶对齐的）。
+   固定成一个居中的定尺单元格，它就不再拖着基线走。 */
 .working-spinner {
-  display: inline-block;
-  color: var(--pulse-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  line-height: 1;
+  color: var(--pulse);
   font-weight: 600;
 }
 
@@ -8,13 +15,15 @@
   flex: 1 1 auto;
 }
 
-/* Full-page sessions view on narrow surfaces; left rail in wide mode. The
-   title/search controls stay fixed because only `.sessions-list` scrolls. */
+/* 窄屏下替换聊天的整页会话视图，宽屏下是左侧停靠栏。
+   标题与搜索框固定，只有 `.sessions-list` 滚动。 */
 .sessions {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
-  padding: 12px 12px 12px 22px;
+  /* 左内边距同 `.messages`：基础内边距 + 一个滚动条槽宽。 */
+  padding: var(--content-pad) var(--content-pad) var(--content-pad)
+    calc(var(--content-pad) + var(--scrollbar-size));
 }
 
 .sessions-content {
@@ -37,14 +46,14 @@
   flex: 0 0 auto;
   margin-bottom: 6px;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--vscode-input-border, transparent);
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
   outline: none;
 
   &:focus {
-    border-color: var(--vscode-focusBorder);
+    border-color: var(--accent);
   }
 
   &::placeholder {
@@ -62,40 +71,64 @@
 }
 
 .sessions-empty {
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
   padding: 8px 2px;
 }
 
 .session-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   padding: 2px 4px;
 
+  /* 这条 2px 只表示一件事：这个会话正在运行。「当前」与「运行中」是两件正交的事，
+     共用同一形状同一颜色就是歧义；「当前」已由下面的选中底色说完。
+     委派行也算运行中：有东西正在往它上面追加。 */
+  &::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    border-radius: 1px;
+    background: transparent;
+  }
+
+  &:where(.running, .delegation-child, .delegation-parent)::before {
+    background: var(--pulse);
+  }
+
   &:hover {
-    background: var(--vscode-list-hoverBackground, var(--hover-bg));
+    background: var(--hover-bg);
 
-    .session-delete,
-    .session-rename {
-      opacity: 0.85;
+    .session-actions {
+      opacity: 1;
+      pointer-events: auto;
     }
 
-    .session-delete:disabled {
-      opacity: 0.4;
+    /* 让标题在按钮下方淡出而不是缩短：动作条是绝对定位的，不这么做标题会直接钻到
+       它下面。用 mask 则 hover 与否布局完全一致，鼠标经过时不会有任何跳动。
+       淡出必须在动作条**开始之前**结束，按钮才不会压在完全不透明的文字上；
+       两个停止点都由 `--row-actions-*` 算出，不手写像素。 */
+    .session-main {
+      mask-image: linear-gradient(
+        to right,
+        currentColor calc(100% - var(--row-actions-space) - var(--row-actions-fade)),
+        transparent calc(100% - var(--row-actions-space))
+      );
+      -webkit-mask-image: linear-gradient(
+        to right,
+        currentColor calc(100% - var(--row-actions-space) - var(--row-actions-fade)),
+        transparent calc(100% - var(--row-actions-space))
+      );
     }
   }
 
-  /* Claimed rows remain navigation: the controller moves to the surface where
-     the row was clicked, while a visible source receives a fresh empty session. */
   &.current {
-    background: var(--vscode-list-inactiveSelectionBackground, rgba(128, 128, 128, 0.12));
-    border-left: 2px solid var(--accent);
-  }
-
-  &.delegation-child,
-  &.delegation-parent {
-    border-left: 2px solid var(--accent);
+    background: var(--signal-soft);
   }
 }
 
@@ -104,11 +137,11 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: 3px;
   text-align: left;
-  color: var(--vscode-foreground);
+  color: var(--text);
   background: transparent;
-  padding: 6px 6px;
+  padding: 6px;
   min-width: 0;
 
   &:hover {
@@ -132,52 +165,93 @@
 }
 
 .session-meta {
-  font-size: 0.82em;
-  color: var(--vscode-descriptionForeground);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 7px;
+  font-family: var(--mono);
+  font-size: 0.78em;
+  color: var(--text-faint);
 }
 
+/* 药丸徽章。只有真正「运行中」的状态取活动色；「已在另一处打开」是本窗口 claim 的
+   信息而不是会话的状态，保持中性灰。徽章放在元信息行行首而不是标题前，
+   否则只有部分会话在跑时整列标题的左缘会参差。 */
 .session-badge {
   flex: 0 0 auto;
-  font-size: 0.78em;
-  border: 1px solid var(--accent);
-  color: var(--accent);
+  /* 自成一个 flex 盒：旋转帧与文字互相居中，而不是共享字体度量不一致的基线。 */
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--vscode-font-family);
+  font-size: 0.95em;
+  line-height: 1.5;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
   border-radius: 10px;
-  padding: 1px 8px;
+  padding: 0 7px;
   white-space: nowrap;
 
+  &:where(.running, .subagent) {
+    border-color: var(--pulse);
+    color: var(--pulse);
+  }
+
   .working-spinner {
-    color: var(--pulse-color);
+    color: inherit;
   }
 }
 
-.session-delete {
+/* 时间戳是数据，用等宽体；旁边的徽章是标签，在上面自己退了出去。 */
+.session-time {
   flex: 0 0 auto;
-  color: var(--vscode-errorForeground);
-  background: transparent;
-  border: 1px solid transparent;
-  font-size: 0.85em;
-  padding: 3px 8px;
-  opacity: 0;
 }
 
-.session-rename {
-  flex: 0 0 auto;
-  color: var(--vscode-foreground);
-  background: transparent;
-  border: 1px solid transparent;
-  font-size: 0.85em;
-  padding: 3px 8px;
+/* 绝对定位，显示时不会重排整行（标题靠上面的 mask 淡出）；
+   纵向居中交给 flex，不用 `top: 50%` + `translateY(-50%)` 这类换算。 */
+.session-actions {
+  position: absolute;
+  right: var(--row-actions-inset);
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--row-action-gap);
   opacity: 0;
+  pointer-events: none;
+  transition: opacity 80ms ease-in;
+}
 
-  &:hover {
-    opacity: 1 !important;
+.session-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--row-action-size);
+  height: var(--row-action-size);
+  padding: 0;
+  /* 圆形无框，同 transcript 里的行内动作：它们坐在列表行上，
+     静止的方块会给每一行 hover 都加一个盒子。 */
+  border-radius: 50%;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--hover-bg-strong);
+    color: var(--text);
   }
-}
 
-button.session-delete:hover:not(:disabled) {
-  background: var(--vscode-list-hoverBackground, var(--hover-bg));
-  border-color: var(--vscode-errorForeground);
-  opacity: 1 !important;
+  /* 不可用的动作置灰而不是抽走：按钮集合逐会话变形的行更难瞄准。 */
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  &.session-delete:hover:not(:disabled) {
+    color: var(--ember);
+  }
 }
 
 .hidden {

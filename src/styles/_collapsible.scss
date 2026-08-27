@@ -1,7 +1,4 @@
-/* ---------------------------------------------------------------- */
-/* Collapsible primitives shared by work blocks, thinking/tool cards */
-/* and the resources panel: chevron, pulse dot, hidden body.         */
-/* ---------------------------------------------------------------- */
+/* 折叠原语：work block、思考/工具卡片、资源面板共用的箭头、脉冲点与隐藏体。 */
 
 .work-chevron,
 .card-chevron,
@@ -14,7 +11,9 @@
   transition: transform 0.15s ease;
 }
 
-.work-chevron,
+/* `.card-chevron` 需要一个自动外边距吸收剩余空间；`.work-chevron` 故意不给：
+   排在它前面的 `.work-pulse` 已经是 work header 里唯一的空间吸收者，
+   两个 auto 会把空隙对半分，脉冲点就被搁浅在标题栏中间。 */
 .card-chevron {
   margin-left: auto;
 }
@@ -29,15 +28,13 @@
   opacity: 0.6;
 }
 
-.work-block {
-  &.collapsed {
-    .work-chevron {
-      transform: rotate(-90deg);
-    }
+.work-block.collapsed {
+  .work-chevron {
+    transform: rotate(-90deg);
+  }
 
-    .work-body {
-      display: none;
-    }
+  .work-body {
+    display: none;
   }
 }
 
@@ -51,46 +48,40 @@
   }
 }
 
-.resources-panel {
-  &.collapsed {
-    .resources-chevron {
-      transform: rotate(0deg);
-    }
+.resources-panel.collapsed {
+  .resources-chevron {
+    transform: rotate(0deg);
+  }
 
-    .resources-body {
-      display: none;
-    }
+  .resources-body {
+    display: none;
   }
 }
 
-.resource-section {
-  &.collapsed {
-    .resource-chevron {
-      transform: rotate(0deg);
-    }
+.resource-section.collapsed {
+  .resource-chevron {
+    transform: rotate(0deg);
+  }
 
-    .resource-details {
-      display: none;
-    }
+  .resource-details {
+    display: none;
   }
 }
 
-.widget {
-  &.collapsed {
-    .widget-chevron {
-      transform: rotate(0deg);
-    }
+.widget.collapsed {
+  .widget-chevron {
+    transform: rotate(0deg);
+  }
 
-    .widget-body {
-      display: none;
-    }
+  .widget-body {
+    display: none;
   }
 }
 
 .work-pulse,
 .card-pulse {
   border-radius: 50%;
-  background: var(--pulse-color);
+  background: var(--pulse);
 }
 
 @keyframes pulse {

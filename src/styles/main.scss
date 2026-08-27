@@ -1,9 +1,6 @@
-// Main stylesheet entry point.
-// Partials are loaded in the exact order they appeared in the original
-// `media/main.css` to preserve cascade semantics. Do not reorder.
-//
-// Colors use only --vscode-* CSS custom properties. SCSS variables must NOT
-// define color values (they would break theme following).
+// 样式入口。
+// 各 partial 的加载顺序沿用原 `media/main.css` 的书写顺序以保持层叠语义，不要重排。
+// 颜色只允许来自 `--vscode-*` 变量：SCSS 变量不得承载颜色值，否则将无法跟随主题。
 
 @use "tokens";
 @use "base";

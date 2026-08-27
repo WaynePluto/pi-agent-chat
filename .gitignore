@@ -14,6 +14,10 @@ npm-shrinkwrap.json
 .pi-plan.md
 todo.md
 
+# Throwaway workspace: screenshots, one-off probe extensions and their
+# user-data dirs. Nothing here is an input to the build or the docs.
+scratch/
+
 # Per-workspace runtime state written by pi extensions (the services registry
 # and the process logs it tails). Machine-local, never shared.
 .pi/

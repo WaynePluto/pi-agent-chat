@@ -1,28 +1,30 @@
+/* transcript 是一次 agent 运行的日志，不是对称聊天。两个声音靠「锚在哪一侧 +
+   哪条边是彩色的」区分：agent 左对齐 + `--verdant` 左边，用户右对齐 + `--signal`
+   右边，其余三边都是同一条 `--border` 细线。两侧都不上淡底。 */
 .bubble {
   white-space: pre-wrap;
   word-break: break-word;
-  padding: 8px 10px;
-  border-radius: 4px;
   line-height: 1.5;
 
   &.user {
-    /* Same raised surface as the work block. */
-    background: var(--vscode-editorWidget-background);
-    /* Formal transcript text follows the user's editor font. */
-    font-family: var(--vscode-editor-font-family);
+    align-self: flex-end;
+    /* 正常为 82%，但绝不宽到让左侧留白里的动作条溢出 transcript：
+       窄面板下由气泡让出宽度。 */
+    max-width: min(82%, calc(100% - var(--bubble-gutter)));
+    padding: 8px 10px;
+    border-radius: var(--r-md);
+    /* 底色不是淡底而是 `--bg-raised`：hover footer 靠 `background: inherit`
+       浮在右下角，需要一块不透明的面才不会压住正文。 */
+    background: var(--bg-raised);
+    /* 正式的 transcript 文本跟随用户的编辑器字体。 */
+    font-family: var(--mono);
     font-weight: var(--vscode-editor-font-weight, normal);
     border: 1px solid var(--border);
-    border-right: 2px solid var(--accent);
-    align-self: flex-end;
-    /* Normally 82% like the assistant side, but never so wide that the action
-       bar in the left gutter would overflow the transcript: on a narrow panel
-       the bubble gives up width instead. */
-    max-width: min(82%, calc(100% - var(--bubble-gutter)));
-    /* Anchor for the hover action bar. */
+    border-right: 2px solid var(--signal);
+    /* hover 动作条的定位锚点。 */
     position: relative;
 
-    /* The gutter itself is not part of the bubble, so hovering it would not reveal
-       anything. This invisible extension makes the whole row a hover target. */
+    /* 左侧留白不属于气泡，hover 它不会触发任何东西；这块隐形延伸让整行都是热区。 */
     &[data-entry-id]::before {
       content: "";
       position: absolute;
@@ -32,10 +34,10 @@
       width: var(--bubble-gutter);
     }
 
-    /* Queued (follow-up) messages: dashed border + muted accent while waiting. */
+    /* 三种例外消息保留各自的颜色，但表现为徽章而不是边：正常态的强调边取消后，
+       彩色边重新可以表示「不正常」。 */
     &.queued {
       border-style: dashed;
-      border-right: 2px dashed var(--vscode-charts-yellow, var(--accent));
 
       .bubble-badge {
         color: var(--vscode-editor-background, #000);
@@ -43,52 +45,38 @@
       }
     }
 
-    /* Steering messages: orange accent, they interrupt the current run. */
-    &.steered {
-      border-right: 2px solid var(--vscode-charts-orange, var(--vscode-editorWarning-foreground, orange));
-
-      .bubble-badge {
-        color: var(--vscode-editor-background, #000);
-        background: var(--vscode-charts-orange, #ce9178);
-      }
+    /* 打断当前运行的引导消息。 */
+    &.steered .bubble-badge {
+      color: var(--vscode-editor-background, #000);
+      background: var(--vscode-charts-orange, #ce9178);
     }
 
-    /* Explicitly invoked skills (`/skill:<name>`). The SDK inlines SKILL.md into
-       the message before the agent ever sees it, so there is no `read` tool call to
-       attribute: this badge is the only signal that the skill really was loaded. */
-    &.skill {
-      border-right: 2px solid var(--vscode-charts-purple, var(--accent));
-
-      .bubble-badge.skill-invocation {
-        color: var(--vscode-editor-background, #000);
-        background: var(--vscode-charts-purple, #c586c0);
-      }
+    /* 显式调用的技能（`/skill:<name>`）。SDK 在 agent 看到消息前就把 SKILL.md
+       内联进去了，没有 `read` 调用可归因，这枚徽章是技能确实被加载的唯一信号。 */
+    &.skill .bubble-badge.skill-invocation {
+      color: var(--vscode-editor-background, #000);
+      background: var(--vscode-charts-purple, #c586c0);
     }
 
-    /* Keep message content and its right-side badge column on the first row without
-       using float. Later Markdown blocks wrap onto full-width rows below them. */
+    /* 让正文与右侧徽章列共处第一行（不用 float），后续 Markdown 块整行换行到下方。 */
     &.queued,
     &.steered,
     &.skill {
       display: flex;
       flex-wrap: wrap;
       align-items: flex-start;
-      /* Put status badges nearer the top edge without offsetting them with a
-         negative margin. The first content block restores the normal text inset. */
+      /* 徽章更贴近上沿，同时避免用负外边距；第一个内容块自己补回正常内缩。 */
       padding-top: 4px;
 
-      /* Later Markdown blocks take a full row below the leading text and badges. */
       > :not(:where(.bubble-badges, .bubble-actions)) {
         order: 3;
         flex: 0 0 100%;
         min-width: 0;
       }
 
-      /* The first Markdown block shares the first row with the badge column. */
       > .bubble-badges + :not(.bubble-badges) {
         order: 1;
-        /* A zero basis reserves room for the badges before wrapping; with `auto`, a
-           long first paragraph claims the whole row and pushes them below it. */
+        /* 零基准为徽章预留位置；用 `auto` 会让长首段独占整行把徽章挤到下面。 */
         flex: 1 1 0;
         min-width: 0;
         margin-top: 4px;
@@ -97,51 +85,103 @@
   }
 
   &.assistant {
-    background: var(--vscode-editorWidget-background);
-    font-family: var(--vscode-editor-font-family);
-    font-weight: var(--vscode-editor-font-weight, normal);
+    /* 拉伸 + 右侧留白用外边距而不是宽度上限：拉伸的 flex item 的交叉轴尺寸由行决定，
+       实测 `max-width` 打不过 stretch；而边框止于「最长那行碰巧多长」会让右缘逐条抖动。 */
+    align-self: stretch;
+    margin-right: 36px;
+    max-width: 100%;
+    padding: 8px 12px;
+    /* 不填底色，表面仍是 transcript 自己的，新增的只有这圈框。 */
+    background: none;
     border: 1px solid var(--border);
-    border-left: 2px solid var(--vscode-charts-green, var(--accent));
-    align-self: flex-start;
-    max-width: 82%;
+    border-left: 2px solid var(--verdant);
+    border-radius: var(--r-md);
+    /* 这是真正被逐字阅读的段落：比例字体 + 更松的行距。 */
+    line-height: 1.68;
   }
 
   &.status {
-    color: var(--vscode-descriptionForeground);
+    color: var(--text-dim);
     font-size: 0.9em;
+    padding: 8px 10px;
   }
 
   &.error {
-    color: var(--vscode-errorForeground);
-    border-left: 2px solid var(--vscode-errorForeground);
+    padding: 8px 10px;
+    border-radius: var(--r-sm);
+    color: var(--ember);
+    border-left: 2px solid var(--ember);
+    background: var(--ember-soft);
   }
 }
 
-/* Per-message session-tree actions (rewind / fork / label).
-   Parked in the empty gutter left of the bubble, so showing them neither
-   reflows the transcript nor covers any message text. */
+/* 新一轮以留白开场，而不是一条横线：满列宽的线是每次滚动都要跨过的家具，
+   而用户气泡已经用底色和右对齐把边界说完了。这里取 flex gap（12px）的两倍，
+   再大就会在列里留下空洞。轮次边界也不带时间戳——见 AGENTS.md 的相关红线。 */
+.bubble.user.turn-open {
+  margin-top: 14px;
+}
+
+/* 流式光标：画成最后一个块级子元素的 `::after` 而不是插入节点——增量到达时整段
+   Markdown 每帧重渲染，真节点会被每秒销毁重建约 20 次；伪元素还能在 class 摘掉
+   的瞬间自己消失。用小负值 `vertical-align` 而不是 `text-bottom`，后者把光标钉在
+   降部线上，会明显低于它尾随的小写字母。 */
+.bubble.streaming > .bubble-content > :last-child::after,
+.bubble.streaming > .bubble-content:empty::after {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 1.05em;
+  border-radius: 1px;
+  background: var(--pulse);
+  vertical-align: -0.14em;
+  animation: caretBlink 1.1s steps(1, end) infinite;
+}
+
+.bubble.streaming > .bubble-content > :last-child::after {
+  margin-left: 2px;
+}
+
+@keyframes caretBlink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble.streaming > .bubble-content > :last-child::after,
+  .bubble.streaming > .bubble-content:empty::after {
+    animation: none;
+  }
+}
+
+/* 每条消息的会话树动作（回溯 / 分叉 / 标记）。停在气泡左侧的空白里，
+   显示时既不会重排 transcript，也不会盖住消息文字。 */
 .bubble-actions {
   position: absolute;
   right: 100%;
   top: 2px;
   margin-right: 6px;
   display: flex;
-  gap: 1px;
+  gap: 2px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 80ms ease-in;
 }
 
-/* Revealed on hover, only for bubbles bound to a session entry, and only while
-   acting on the transcript is allowed (not streaming/preview/subagent). */
-.messages:not(.actions-locked) {
-  .bubble.user[data-entry-id] {
-    &:hover,
-    &:focus-within {
-      .bubble-actions {
-        opacity: 1;
-        pointer-events: auto;
-      }
+/* 只对绑定了会话条目的气泡、且当前允许操作 transcript 时（非流式/预览/子代理）显示。 */
+.messages:not(.actions-locked) .bubble.user[data-entry-id] {
+  &:hover,
+  &:focus-within {
+    .bubble-actions {
+      opacity: 1;
+      pointer-events: auto;
     }
   }
 }
@@ -150,23 +190,24 @@ button.bubble-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: none;
-  border-radius: 3px;
+  /* 圆形、静止时无框：它们坐在空白画布上，静止的方块会读成又一个小盒子。 */
+  border-radius: 50%;
   background: transparent;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-faint);
   cursor: pointer;
 
   &:hover:not(:disabled) {
     background: var(--hover-bg-strong);
-    color: var(--vscode-foreground);
+    color: var(--text);
   }
 
-  /* The frequent one (rewind + refill the composer) reads as the primary. */
+  /* 最常用的那个（回溯并回填输入框）读作主动作。 */
   &.switch:hover:not(:disabled) {
-    color: var(--accent);
+    color: var(--signal);
   }
 
   svg {
@@ -202,26 +243,26 @@ button.bubble-action {
   background: var(--vscode-badge-background, rgba(128, 128, 128, 0.3));
   opacity: 0.9;
 
-  /* User-set bookmark, kept visible (unlike the hover-only actions). */
+  /* 用户自己放置的书签，常驻显示（不同于只在 hover 出现的动作），故取 `--signal`。 */
   &.label-badge {
     color: var(--vscode-editor-background, #000);
-    background: var(--accent);
+    background: var(--signal);
   }
 }
 
-/* Collapsed status/error notices (retry, compaction, command feedback) */
+/* 可折叠的状态/错误提示（重试、压缩、命令反馈） */
 .notice-card {
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   overflow: hidden;
   font-size: 0.9em;
 
   .card-label {
     font-weight: 400;
-    color: var(--vscode-descriptionForeground);
+    color: var(--text-dim);
   }
 
-  /* Short notices with no hidden content: plain row, no expand chevron. */
+  /* 没有隐藏内容的短提示：一行到底，不给展开箭头。 */
   &.flat {
     padding: 6px 10px;
 
@@ -230,7 +271,7 @@ button.bubble-action {
       word-break: break-word;
     }
 
-    /* A notice that carries an action puts it on the same row as the text. */
+    /* 带动作的提示把按钮放在同一行。 */
     &.actionable {
       display: flex;
       align-items: center;
@@ -243,10 +284,12 @@ button.bubble-action {
   }
 
   &.error {
-    border-color: var(--vscode-errorForeground);
+    border-color: transparent;
+    border-left: 2px solid var(--ember);
+    background: var(--ember-soft);
 
     .card-label {
-      color: var(--vscode-errorForeground);
+      color: var(--ember);
     }
   }
 }
@@ -257,8 +300,6 @@ button.bubble-action {
   padding: 0 10px 8px;
 }
 
-/* Flat, quiet by default: hover feedback is grey, like every other small
-   button in a card (see the `:where()` note on `button:hover`). */
 button.notice-action {
   display: inline-flex;
   align-items: center;
@@ -266,9 +307,9 @@ button.notice-action {
   flex: 0 0 auto;
   padding: 2px 8px;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   background: none;
-  color: var(--vscode-foreground);
+  color: var(--text);
   font-size: 0.95em;
   cursor: pointer;
 
@@ -285,14 +326,14 @@ button.notice-action {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: var(--vscode-editor-font-family);
+  font-family: var(--mono);
 }
 
-/* `⠋ Working...` row at the bottom of the message list */
+/* 消息列表底部的 `⠋ Working...` 行 */
 .working-row {
   display: flex;
   align-items: center;
   gap: 2px;
   padding: 2px 4px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-dim);
 }

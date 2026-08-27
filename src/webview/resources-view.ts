@@ -10,9 +10,15 @@ import { resourcesEl } from "./shell.js";
  * panel above the transcript in narrow mode, and a persistent right rail in
  * wide mode.
  *
- * Initial narrow mode starts hidden/collapsed and initial wide mode starts
- * shown/expanded. After that first choice, visibility and top-level expansion
- * are shared across mode switches; each section also keeps its own state.
+ * Narrow mode starts hidden/collapsed and wide mode starts shown/expanded,
+ * and the two keep **separate** visibility and top-level expansion: switching
+ * modes restores that mode's own state instead of carrying the other one's
+ * over. They are different surfaces (a panel that covers the transcript vs. a
+ * rail that sits beside it), so "I don't want this over my messages" and "I
+ * want this rail while I work" are different wishes, and inheriting either one
+ * silently overrides the other. A section the user opened or closed *is*
+ * shared, because that decision is about the content rather than the layout;
+ * only the default for sections the user never touched follows the mode.
  *
  * Two highlights answer "what actually happened in this session?": resources
  * that took effect here are coloured, while rows that are configured but not in
@@ -44,12 +50,35 @@ const EXTENSIONS_SECTION = "Extensions";
  */
 const SCOPE_ORDER: readonly ResourceScope[] = ["builtin", "global", "project", "package", "other"];
 
-/** Visibility and top-level expansion are shared across narrow/wide modes. */
-let panelShown = false;
-let resourcesExpanded = false;
-let layoutDefaultsInitialized = false;
-/** Section expansion survives full re-renders triggered by the highlights. */
-const expandedSections = new Set<string>();
+/**
+ * Panel visibility and top-level expansion, kept per layout mode.
+ *
+ * **Neither mode starts shown.** Reaching the wide threshold used to open this
+ * rail on its own, which made a window resize rearrange the surface behind the
+ * user's back; the threshold now only makes a rail *possible*. Whether the user
+ * had one open is remembered by the shell (`webview/main.ts` persists it), not
+ * defaulted to here.
+ *
+ * Expansion defaults still differ, at both levels and for the same reason: a
+ * rail the user deliberately opened has nothing to show while collapsed, so it
+ * comes up expanded all the way down — the point of giving it a column is
+ * seeing the rows. The narrow overlay sits on top of the transcript, so it
+ * starts as a single summary line and opens one level at a time.
+ */
+const panelState = {
+  narrow: { shown: false, expanded: false, sectionsExpanded: false },
+  wide: { shown: false, expanded: true, sectionsExpanded: true },
+};
+let panelMode: keyof typeof panelState = "narrow";
+const panel$ = () => panelState[panelMode];
+/**
+ * Sections the user has explicitly opened or closed. Absent means "never
+ * touched", which falls back to the current mode's default; recording the
+ * decision rather than the state is what lets the two modes differ in their
+ * defaults without discarding a choice. Survives the full re-renders triggered
+ * by the highlights.
+ */
+const sectionExpansion = new Map<string, boolean>();
 let lastSections: ResourceSection[] = [];
 /** Skills loaded / tools called in the displayed transcript; reset on swap. */
 const usedSkills = new Set<string>();
@@ -69,10 +98,10 @@ export function renderResources(sections: ResourceSection[]): void {
     rootClass: "resources-panel",
     label: t.resourcesLoaded,
     status: sections.map((section) => `${section.name} ${section.items.length}`).join(" · "),
-    expanded: resourcesExpanded,
+    expanded: panel$().expanded,
     parent: resourcesEl,
     onToggle: (expanded) => {
-      resourcesExpanded = expanded;
+      panel$().expanded = expanded;
     },
   });
 
@@ -82,11 +111,10 @@ export function renderResources(sections: ResourceSection[]): void {
       rootClass: "resource-section",
       label: `[${section.name}]`,
       status: section.items.map((item) => item.label).join(", "),
-      expanded: expandedSections.has(section.name),
+      expanded: sectionExpansion.get(section.name) ?? panel$().sectionsExpanded,
       parent: panel.body,
       onToggle: (expanded) => {
-        if (expanded) expandedSections.add(section.name);
-        else expandedSections.delete(section.name);
+        sectionExpansion.set(section.name, expanded);
       },
     });
     // What was used is coloured and what is switched off is dimmed, rather than
@@ -115,25 +143,30 @@ function summaryNodes(section: ResourceSection): Node[] {
 }
 
 /**
- * Choose defaults once from the initial viewport; later mode switches inherit
- * the same visibility and expansion state instead of resetting either one.
+ * Switch to the layout mode's own panel state. Called on every wide/narrow
+ * flip, not once at startup: each mode owns its visibility and its expansion
+ * defaults, so the panel has to be rebuilt with the incoming mode's state.
  */
-export function initializeResourcesState(wide: boolean): void {
-  if (layoutDefaultsInitialized) return;
-  layoutDefaultsInitialized = true;
-  panelShown = wide;
-  resourcesExpanded = wide;
+export function setResourcesLayout(wide: boolean): void {
+  const mode = wide ? "wide" : "narrow";
+  if (mode === panelMode) return;
+  panelMode = mode;
   if (lastSections.length > 0) renderResources(lastSections);
 }
 
-/** Header toggle: flip the whole panel in or out of the layout. */
+/** Restore a remembered rail state without going through a user toggle. */
+export function setResourcesShown(shown: boolean): void {
+  panel$().shown = shown;
+}
+
+/** Header toggle: flip the whole panel in or out of the current layout. */
 export function toggleResources(): void {
-  panelShown = !panelShown;
+  panel$().shown = !panel$().shown;
 }
 
 /** Whether the user asked for the panel; visibility also needs `hasResources()`. */
 export function isResourcesShown(): boolean {
-  return panelShown;
+  return panel$().shown;
 }
 
 /** Record that a skill was loaded in the current transcript. */

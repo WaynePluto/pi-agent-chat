@@ -2,7 +2,7 @@
   "name": "pi-code-agent-chat",
   "displayName": "Pi Agent Chat",
   "description": "%extension.description%",
-  "version": "0.0.18",
+  "version": "0.0.15",
   "publisher": "waynepluto",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -78,9 +78,15 @@
           "type": "number",
           "default": 950,
           "minimum": 500,
-          "maximum": 1400,
           "scope": "window",
           "markdownDescription": "%configuration.layout.contentMaxWidth%"
+        },
+        "piAgentChat.layout.wideModeMinWidth": {
+          "type": "number",
+          "default": 1200,
+          "minimum": 932,
+          "scope": "window",
+          "markdownDescription": "%configuration.layout.wideModeMinWidth%"
         },
         "piAgentChat.transcript.foldLines": {
           "type": "number",
@@ -150,6 +156,10 @@
         "title": "%command.newWindowSession.title%"
       },
       {
+        "command": "piAgentChat.moveSessionToEditorArea",
+        "title": "%command.moveSessionToEditorArea.title%"
+      },
+      {
         "command": "piAgentChat.runSpikeDiagnostics",
         "title": "Pi Agent Chat: Run Spike Diagnostics"
       },
@@ -180,22 +190,42 @@
       "editor/title": [
         {
           "command": "piAgentChat.moveSessionToSidebar",
-          "when": "activeWebviewPanelId == piAgentChat.editor && !piAgentChat.editorSessionEmpty",
+          "when": "activeWebviewPanelId == piAgentChat.editor && piAgentChat.chatTabRegion == 'editor' && !piAgentChat.chatTabSessionEmpty",
           "group": "9_piAgentChat@1"
         },
         {
           "command": "piAgentChat.moveSessionFromEditorToWindow",
-          "when": "activeWebviewPanelId == piAgentChat.editor && !piAgentChat.editorSessionEmpty",
+          "when": "activeWebviewPanelId == piAgentChat.editor && piAgentChat.chatTabRegion == 'editor' && !piAgentChat.chatTabSessionEmpty",
           "group": "9_piAgentChat@2"
         },
         {
           "command": "piAgentChat.newEditorSession",
-          "when": "activeWebviewPanelId == piAgentChat.editor",
+          "when": "activeWebviewPanelId == piAgentChat.editor && piAgentChat.chatTabRegion == 'editor'",
           "group": "9_piAgentChat@3"
         },
         {
           "command": "piAgentChat.newWindowSession",
-          "when": "activeWebviewPanelId == piAgentChat.editor",
+          "when": "activeWebviewPanelId == piAgentChat.editor && piAgentChat.chatTabRegion == 'editor'",
+          "group": "9_piAgentChat@4"
+        },
+        {
+          "command": "piAgentChat.moveSessionToSidebar",
+          "when": "activeWebviewPanelId == piAgentChat.editor && piAgentChat.chatTabRegion == 'window' && !piAgentChat.chatTabSessionEmpty",
+          "group": "9_piAgentChat@1"
+        },
+        {
+          "command": "piAgentChat.moveSessionToEditorArea",
+          "when": "activeWebviewPanelId == piAgentChat.editor && piAgentChat.chatTabRegion == 'window' && !piAgentChat.chatTabSessionEmpty",
+          "group": "9_piAgentChat@2"
+        },
+        {
+          "command": "piAgentChat.newEditorSession",
+          "when": "activeWebviewPanelId == piAgentChat.editor && piAgentChat.chatTabRegion == 'window'",
+          "group": "9_piAgentChat@3"
+        },
+        {
+          "command": "piAgentChat.newWindowSession",
+          "when": "activeWebviewPanelId == piAgentChat.editor && piAgentChat.chatTabRegion == 'window'",
           "group": "9_piAgentChat@4"
         }
       ],
@@ -222,6 +252,10 @@
       "commandPalette": [
         {
           "command": "piAgentChat.moveSessionToEditor",
+          "when": "false"
+        },
+        {
+          "command": "piAgentChat.moveSessionToEditorArea",
           "when": "false"
         },
         {

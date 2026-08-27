@@ -118,10 +118,13 @@ const en = {
   thinkingHeader: "thinking...",
   thinkingDone: "thinking finished",
   workHeader: "Work",
-  workInProgress: (thinking: number, tools: number, action?: string) =>
-    `thinking ${thinking} · tools ${tools}${action ? ` · ${action}` : ""}`,
-  workDone: (thinking: number, tools: number, failed: number) =>
-    `done · thinking ${thinking} · tools ${tools}${failed ? ` · failed ${failed}` : ""}`,
+  /* Counts only. What the block is doing right now is its own header field
+     after the failure count, so the tail is what truncates. */
+  workInProgress: (thinking: number, tools: number) => `thinking ${thinking} · tools ${tools}`,
+  workDone: (thinking: number, tools: number) => `done · thinking ${thinking} · tools ${tools}`,
+  /* Failures are a separate header field, not part of the summary above: that
+     one is ellipsis-truncated, and this is the part that must survive. */
+  workFailed: (failed: number) => `${failed} failed`,
   compactionBoundary: "Context compacted",
   compactionTokens: (before: string, after: string) => `${before} → ~${after} tokens`,
   compactionTokensBefore: (before: string) => `${before} tokens before compaction`,
@@ -202,6 +205,8 @@ const en = {
   sessionRename: "Rename",
   sessionRenameTitle: "Set a display name for this session",
   sessionRenameRunningTitle: "A subagent is writing to this session; rename it after the run finishes",
+  sessionOpenInEditorTitle: "Open this session in the editor area",
+  sessionOpenInNewWindowTitle: "Open this session in a new window",
   sessionResumeTitle: "Resume this session",
   sessionPreviewing: "viewing",
   scrollDownTitle: "Jump to the latest message",
@@ -225,6 +230,8 @@ const en = {
   searchPrevTitle: "Previous match (Shift+Enter)",
   searchNextTitle: "Next match (Enter)",
   searchCloseTitle: "Close search (Esc)",
+  /** Wide-layout column divider; dragging it past the rail's minimum closes the rail. */
+  splitterTitle: "Drag to resize · drag past the minimum to close the rail · ← / → to adjust",
 };
 
 type Dict = typeof en;
@@ -325,10 +332,9 @@ const zh: Dict = {
   thinkingHeader: "思考中...",
   thinkingDone: "思考完成",
   workHeader: "执行过程",
-  workInProgress: (thinking: number, tools: number, action?: string) =>
-    `思考 ${thinking} 段 · 工具 ${tools} 次${action ? ` · ${action}` : ""}`,
-  workDone: (thinking: number, tools: number, failed: number) =>
-    `完成 · 思考 ${thinking} 段 · 工具 ${tools} 次${failed ? ` · 失败 ${failed}` : ""}`,
+  workInProgress: (thinking: number, tools: number) => `思考 ${thinking} 段 · 工具 ${tools} 次`,
+  workDone: (thinking: number, tools: number) => `完成 · 思考 ${thinking} 段 · 工具 ${tools} 次`,
+  workFailed: (failed: number) => `失败 ${failed}`,
   compactionBoundary: "上下文压缩边界",
   compactionTokens: (before: string, after: string) => `${before} → 约 ${after} tokens`,
   compactionTokensBefore: (before: string) => `压缩前 ${before} tokens`,
@@ -402,6 +408,8 @@ const zh: Dict = {
   sessionRename: "重命名",
   sessionRenameTitle: "设置这个会话的显示名称",
   sessionRenameRunningTitle: "子代理正在写入该会话，运行结束后再重命名",
+  sessionOpenInEditorTitle: "在编辑器区域打开此会话",
+  sessionOpenInNewWindowTitle: "在新窗口中打开此会话",
   sessionResumeTitle: "恢复这个会话",
   sessionPreviewing: "查看中",
   scrollDownTitle: "跳到最新消息",
@@ -424,6 +432,7 @@ const zh: Dict = {
   searchPrevTitle: "上一个匹配（Shift+Enter）",
   searchNextTitle: "下一个匹配（Enter）",
   searchCloseTitle: "关闭搜索（Esc）",
+  splitterTitle: "拖动调整宽度 · 拖过最小宽度即关闭该栏 · ← / → 微调",
 };
 
 /** Resolve the dictionary from the document language set by the extension. */
