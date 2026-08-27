@@ -1194,6 +1194,69 @@ const SCRIPT = [
       if (bubbles[1].classList.contains("folded")) throw new Error("the newest answer must stay open");
     },
   },
+  // Last, because it flips the module-level showThinking flag and restores it
+  // only inside this step: with the setting on, a live thinking card opens
+  // expanded, folds itself when its own stream ends, and the work block folds
+  // when the block ends. Replay and tool cards are untouched by the setting,
+  // which is why the fixture here is live `event` messages on an empty replay.
+  {
+    label: "showThinking on: thinking streams expanded, folds at stream and block end",
+    messages: [
+      { type: "history", transcriptId: "show-thinking", events: [] },
+      { type: "showThinking", enabled: true },
+      { type: "state", state: { ...baseState, isStreaming: true } },
+      { type: "event", event: { kind: "agent_start" } },
+      { type: "event", event: { kind: "thinking_delta", delta: "Weighing the options" } },
+    ],
+    beforeSnapshot: (window) => {
+      const document = window.document;
+      const work = document.querySelector(".work-block");
+      const card = document.querySelector(".thinking-card");
+      if (!work || !card) throw new Error("expected a live work block with a thinking card");
+      if (work.classList.contains("collapsed")) throw new Error("work block should stay expanded while streaming");
+      if (card.classList.contains("collapsed")) throw new Error("thinking card should stay expanded while its stream runs");
+      // The user touches the card (close, then open again): from that moment
+      // it is the user's, so the stream ending must not fold it — while the
+      // work block still auto-folds at block end.
+      const header = card.querySelector(".card-header");
+      header.click();
+      if (!card.classList.contains("collapsed")) throw new Error("user click should collapse the card");
+      if (work.classList.contains("collapsed")) throw new Error("the block must not end from a card click");
+      header.click();
+      if (card.classList.contains("collapsed")) throw new Error("user click should re-open the card");
+      // Formal text starts: the stream ends (card folds only if untouched) and
+      // the block ends (it folds because it opened by setting).
+      window.dispatchEvent(
+        new window.MessageEvent("message", { data: { type: "event", event: { kind: "text_delta", delta: "Done." } } }),
+      );
+      if (!work.classList.contains("collapsed")) throw new Error("work block should collapse at block end");
+      if (card.classList.contains("collapsed")) throw new Error("a card the user opened must not auto-collapse");
+      // Restore everything this step touched, so the wide-layout snapshot the
+      // script takes right after matches the pre-setting baseline byte for
+      // byte: flag off, streaming off, and the transcript the "back at the
+      // bottom" step left behind.
+      window.dispatchEvent(new window.MessageEvent("message", { data: { type: "showThinking", enabled: false } }));
+      window.dispatchEvent(new window.MessageEvent("message", { data: { type: "state", state: baseState } }));
+      window.dispatchEvent(
+        new window.MessageEvent("message", {
+          data: {
+            type: "history",
+            transcriptId: "deferred-fold",
+            events: [
+              { kind: "user_message", text: "walk me through it" },
+              { kind: "assistant_message", text: LONG_ANSWER },
+            ],
+          },
+        }),
+      );
+      window.dispatchEvent(
+        new window.MessageEvent("message", {
+          data: { type: "event", event: { kind: "assistant_message", text: LONG_PROMPT } },
+        }),
+      );
+      window.document.getElementById("scroll-down").click();
+    },
+  },
 ];
 
 /* ------------------------------------------------------------------ */

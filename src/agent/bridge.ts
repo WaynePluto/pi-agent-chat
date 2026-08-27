@@ -10,7 +10,7 @@ import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, 
 import { formatLocalTimestamp } from "../shared/time.js";
 import { loginFlow, logoutFlow } from "./auth.js";
 import { ActivityTracker, type ResourceActivity } from "./activity.js";
-import { affectsFoldConfig, affectsLayoutConfig, affectsSubagentConfig, affectsTerminalConfig, readContentMaxWidth, readFoldLines, readSubagentConfig, readTerminalConfig } from "./config.js";
+import { affectsFoldConfig, affectsLayoutConfig, affectsShowThinkingConfig, affectsSubagentConfig, affectsTerminalConfig, readContentMaxWidth, readFoldLines, readShowThinking, readSubagentConfig, readTerminalConfig } from "./config.js";
 import { collectSlashCommands, formatHelp, runBuiltinCommand } from "./commands.js";
 import { describe } from "./errors.js";
 import { t, tf } from "./i18n.js";
@@ -195,8 +195,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private terminalConfigTimer?: ReturnType<typeof setTimeout>;
   /** Pending debounced reaction to a fold-threshold settings change. */
   private foldConfigTimer?: ReturnType<typeof setTimeout>;
+  private showThinkingConfigTimer?: ReturnType<typeof setTimeout>;
   /** Fold threshold last pushed to the webview; absent until the first push. */
   private foldLines?: number;
+  private showThinking?: boolean;
   /** Last reported models.json problem, so the same one is not repeated on every attach. */
   private modelsConfigError?: string;
 
@@ -284,6 +286,13 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         this.foldConfigTimer = setTimeout(() => {
           this.foldConfigTimer = undefined;
           this.applyFoldConfigChange();
+        }, SETTINGS_DEBOUNCE_MS);
+      }
+      if (affectsShowThinkingConfig(event)) {
+        if (this.showThinkingConfigTimer) clearTimeout(this.showThinkingConfigTimer);
+        this.showThinkingConfigTimer = setTimeout(() => {
+          this.showThinkingConfigTimer = undefined;
+          this.applyShowThinkingChange();
         }, SETTINGS_DEBOUNCE_MS);
       }
       // The column width is applied by writing one CSS custom property, so it
@@ -384,6 +393,18 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   }
 
   /**
+   * Push the showThinking setting to the webview (same ownership rule as the
+   * fold threshold: the webview cannot read VS Code settings). Like the fold
+   * threshold it must arrive before any history does: a thinking card decides
+   * whether it opens expanded while it is being built.
+   */
+  private postShowThinking(): void {
+    const enabled = readShowThinking();
+    this.showThinking = enabled;
+    this.host.post({ type: "showThinking", enabled });
+  }
+
+  /**
    * Push the configured chat column width to the webview (same ownership rule
    * as the fold threshold: the webview cannot read VS Code settings). Always
    * sent on `ready`: a webview reload — a controller swap reassigns
@@ -410,6 +431,23 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     // Re-saving the same value must not replay the transcript.
     if (lines === this.foldLines) return;
     this.postFoldThreshold();
+    this.postHistory();
+  }
+
+  /**
+   * A changed showThinking reaches existing cards through the same full
+   * replay as the fold threshold: the expand/fold decision is baked in when
+   * a card is built. Boolean or not, the replay path is identical — the
+   * "no session rebuild" reasoning of {@link applyFoldConfigChange} applies
+   * unchanged, and this deliberately does not touch any empty-session
+   * rebuild machinery.
+   */
+  private applyShowThinkingChange(): void {
+    if (this.disposed) return;
+    const enabled = readShowThinking();
+    // Re-saving the same value must not replay the transcript.
+    if (enabled === this.showThinking) return;
+    this.postShowThinking();
     this.postHistory();
   }
 
@@ -1458,6 +1496,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         // webview may also have been (re)loaded with an empty input history —
         // its own per-transcript memory decides whether this re-populates.
         this.postFoldThreshold();
+        this.postShowThinking();
         this.postContentWidth();
         this.postHistory(true);
         this.postCommands();
@@ -2201,6 +2240,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     if (this.foldConfigTimer) {
       clearTimeout(this.foldConfigTimer);
       this.foldConfigTimer = undefined;
+    }
+    if (this.showThinkingConfigTimer) {
+      clearTimeout(this.showThinkingConfigTimer);
+      this.showThinkingConfigTimer = undefined;
     }
     this.availabilityProbe?.abort();
     this.availabilityProbe = undefined;

@@ -1,5 +1,9 @@
 # Changelog
 
+## Fork-local additions
+
+- `piAgentChat.transcript.showThinking` (boolean, off by default): while streaming, the work block and thinking cards stay expanded; a thinking card folds itself when its own stream ends and the work block folds when the block ends. Content the user opens or closes by hand is never folded automatically. See 动态需求表.md.
+
 Detailed release notes are kept in one file per version:
 
 - [0.0.14](https://github.com/WaynePluto/pi-agent-chat/blob/v0.0.14/docs/changelog/0.0.14.md) / [简体中文](https://github.com/WaynePluto/pi-agent-chat/blob/v0.0.14/docs/changelog/0.0.14.zh-CN.md)

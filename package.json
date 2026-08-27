@@ -88,6 +88,12 @@
           "minimum": 0,
           "scope": "window",
           "markdownDescription": "%configuration.transcript.foldLines%"
+        },
+        "piAgentChat.transcript.showThinking": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "markdownDescription": "%configuration.transcript.showThinking%"
         }
       }
     },

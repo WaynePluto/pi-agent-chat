@@ -184,3 +184,19 @@ export function affectsFoldConfig(event: vscode.ConfigurationChangeEvent): boole
   return event.affectsConfiguration(`${TRANSCRIPT_SECTION}.foldLines`);
 }
 
+/**
+ * Whether thinking stays expanded while it streams and folds when it ends.
+ * A pure presentation preference of this host (the same reason the fold
+ * threshold lives here), so it is window-scoped rather than per-workspace.
+ * Anything not exactly `true` reads as off: the default-off behaviour must
+ * survive a hand-edited `settings.json` holding a wrong type.
+ */
+export function readShowThinking(): boolean {
+  return vscode.workspace.getConfiguration(TRANSCRIPT_SECTION).get<boolean>("showThinking") === true;
+}
+
+/** Whether a settings change event touches the showThinking setting. */
+export function affectsShowThinkingConfig(event: vscode.ConfigurationChangeEvent): boolean {
+  return event.affectsConfiguration(`${TRANSCRIPT_SECTION}.showThinking`);
+}
+
