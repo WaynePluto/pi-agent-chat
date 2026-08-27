@@ -1028,6 +1028,28 @@ function appendCompactionBoundary(summary: string, tokensBefore: number, estimat
 /* ---------------------------------------------------------------- */
 
 /**
+ * Whether thinking streams stay expanded while running (host setting
+ * `piAgentChat.transcript.showThinking`, pushed on `ready` and on change).
+ * Off by default, and every behaviour below is gated on it: with the flag
+ * off, work blocks and thinking cards open collapsed, exactly as before.
+ */
+let showThinking = false;
+
+/** Set by the host (`showThinking` message); see above. */
+export function setShowThinking(enabled: boolean): void {
+  showThinking = enabled;
+}
+
+/**
+ * Thinking cards that must fold themselves once their own stream ends.
+ * A card gets in here only when it was opened automatically by the
+ * showThinking setting; the moment the user touches it (in either
+ * direction) it leaves the set and its state is theirs from then on —
+ * `onToggle` fires only on user clicks, programmatic `setExpanded` does not.
+ */
+const autoFoldable = new WeakSet<ThinkingCard>();
+
+/**
  * Create or reuse the current group of non-formal output. The group is kept
  * at the top level of the transcript while its cards live in `body`.
  */
@@ -1046,7 +1068,10 @@ function ensureWorkBlock(): WorkBlock {
       rootClass: "work-block running",
       tag: "section",
       label: t.workHeader,
-      expanded: currentView.work.get(index)?.expanded ?? false,
+      // View memory wins; without it a block only opens expanded while being
+      // built live with showThinking on. Replay stays collapsed either way —
+      // the replayed final state must match what a live run ended up as.
+      expanded: currentView.work.get(index)?.expanded ?? (!replaying && showThinking),
       parent: sink,
     }),
     thinkingCount: 0,
@@ -1097,6 +1122,14 @@ function finishWorkBlock(): void {
   // "What it is doing now" has no meaning once the block is done.
   setWorkField(activeWorkBlock, "work-action", "");
   activeWorkBlock.collapsible.statusEl.textContent = t.workDone(activeWorkBlock.thinkingCount, activeWorkBlock.toolCount);
+  // A block that opened expanded because of showThinking closes again once its
+  // process ends. No child-card pin check: the user's intent to keep the block
+  // open is already carried by the view-state memory (`captureViewState`
+  // records the actual expanded state, and a switch away and back restores
+  // it), so the forced close loses nothing that could not come back.
+  if (showThinking && !activeWorkBlock.collapsible.root.classList.contains("collapsed")) {
+    activeWorkBlock.collapsible.setExpanded(false);
+  }
   activeWorkBlock = undefined;
 }
 
@@ -1104,14 +1137,27 @@ function createThinkingCard(streaming: boolean): ThinkingCard {
   const work = ensureWorkBlock();
   work.thinkingCount += 1;
   updateWorkStatus(work, t.workThinking);
-  const entry = createCollapsible({
+  // Declared before the call: with the card created expanded, `render()` runs
+  // synchronously inside `createCollapsible`, one step before `entry` is
+  // assigned — at that moment `entry` is simply `undefined`.
+  let entry: ThinkingCard;
+  entry = createCollapsible({
     classes: CARD_CLASSES,
     rootClass: "thinking-card",
     label: streaming ? t.thinkingHeader : t.thinkingDone,
+    // Open while the stream runs, when showThinking is on and this card is
+    // being built live; `finishCard()` closes it again when the stream ends.
+    expanded: !replaying && showThinking,
+    onToggle: () => {
+      // Any manual touch (either direction) makes the card the user's: it
+      // leaves `autoFoldable` and no later stream- or block-end may fold it.
+      autoFoldable.delete(entry);
+    },
     parent: work.collapsible.body,
-    render: (body) => body.replaceChildren(renderMarkdown(entry.raw)),
+    render: (body) => body.replaceChildren(renderMarkdown(entry?.raw ?? "")),
   }) as ThinkingCard;
   entry.raw = "";
+  if (!replaying && showThinking) autoFoldable.add(entry);
   registerHiddenBody(entry, () => entry.raw);
   if (streaming) entry.root.classList.add("streaming");
   return entry;
@@ -1129,6 +1175,13 @@ function finishCard(card: ThinkingCard): void {
   card.labelEl.textContent = t.thinkingDone;
   card.invalidate();
   card.refresh();
+  // A card that was opened by the setting — and never touched by the user —
+  // closes itself the moment its own stream ends; it does not wait for the
+  // block's end.
+  if (showThinking && autoFoldable.has(card)) {
+    autoFoldable.delete(card);
+    card.setExpanded(false);
+  }
 }
 
 function startToolCard(id: string, name: string, args: unknown, skill?: SkillRef): void {

@@ -106,6 +106,25 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
   };
 
   /**
+   * Streaming-only text sanitizer: close inline markers left dangling because
+   * the stream has not delivered the closing delimiter yet. Without this the
+   * unstable tail re-parses differently on every frame — literal `*`s snap
+   * into bold spans, stray backticks flip between text and code, and every
+   * such flip shifts the whole layout below (the "streaming jitter" seen with
+   * lists and other blank-line-free constructs, whose tail is rebuilt every
+   * frame by design). Only paired markers are patched; fenced tails are left
+   * untouched since marker semantics inside a fence differ. Applied to a copy
+   * at render time only: neither `text` nor the final full render changes.
+   */
+  const closeDanglingInline = (src: string): string => {
+    if (src.includes("```")) return src;
+    if ((src.split("`").length - 1) % 2 === 1) src += "`";
+    if ((src.length - src.replace(/\*\*/g, "").length) / 2 % 2 === 1) src += "**";
+    if ((src.split("~~").length - 1) % 2 === 1) src += "~~";
+    return src;
+  };
+
+  /**
    * Incremental streaming: split at the last double-newline that ends a
    * complete Markdown block (paragraph/fence/list). The stable prefix is
    * rendered once; only the unstable tail is re-parsed on each frame.
@@ -143,7 +162,7 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
 
     // Render the unstable tail (cheap: usually just one paragraph).
     if (tail) {
-      content.appendChild(renderMarkdownNoHighlight(tail));
+      content.appendChild(renderMarkdownNoHighlight(closeDanglingInline(tail)));
     }
 
     foldable = isLongMessage(next);
@@ -213,7 +232,14 @@ function findStableBoundary(text: string, minOffset: number): number {
     }
     i++;
   }
-  return boundary;
+  // No candidate beyond the committed prefix means "nothing new became
+  // stable this frame" — the caller must keep its existing prefix and treat
+  // everything after it as tail. Returning 0 here (the pre-fix fallback) made
+  // `prefix` empty and `tail` the ENTIRE message, so every blank-line-free
+  // frame re-appended a full copy of the already-rendered text below it:
+  // violent duplicated-text flicker while streaming lists/tables/short lines,
+  // converging to a single copy only when a later boundary finally committed.
+  return Math.max(boundary, minOffset);
 }
 
 /**

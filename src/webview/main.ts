@@ -53,7 +53,7 @@ import {
 } from "./shell.js";
 import { renderExtensionStatus, renderStatusLine, updateStatusLineFit } from "./statusline.js";
 import { currentLane, isDelegating, isInLane, setState, state } from "./store.js";
-import { applyEvent, applyHistory, assignEntryIds, clearMessages, hasPendingBubbles, removePendingBubbles, setEntryActionsLocked, showNewSession, updateWorkingIndicator } from "./transcript.js";
+import { applyEvent, applyHistory, assignEntryIds, clearMessages, hasPendingBubbles, removePendingBubbles, setEntryActionsLocked, setShowThinking, showNewSession, updateWorkingIndicator } from "./transcript.js";
 
 /**
  * Application shell: wires the view modules together, owns page layout
@@ -586,6 +586,10 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   // No re-render of our own: the host always follows a threshold change with
   // a history replay, which is how bubbles that already exist re-decide.
   else if (message.type === "foldThreshold") setFoldMaxLines(message.maxLines);
+  // No re-render of our own: the host always follows the setting change with a
+  // history replay, which is how existing cards re-decide whether they open
+  // expanded. Same rule as the fold threshold one line above.
+  else if (message.type === "showThinking") setShowThinking(message.enabled);
   // Pure CSS-geometry config; applied where it lands, nothing to re-render.
   else if (message.type === "contentWidth") applyLayoutGeometry(message.maxWidth, message.wideMinWidth);
   else if (message.type === "event") {

@@ -525,6 +525,15 @@ export type HostMessage =
    */
   | { type: "foldThreshold"; maxLines: number }
   /**
+   * Whether thinking stays expanded while streaming
+   * (`piAgentChat.transcript.showThinking`), pushed on `ready` and whenever
+   * the setting changes, always followed by a history replay: like the fold
+   * threshold, a card decides whether it opens expanded while it is being
+   * built. Display config rather than runtime state, so it travels outside
+   * `ChatState` and only when it changes.
+   */
+  | { type: "showThinking"; enabled: boolean }
+  /**
    * Max width of the centered chat column (`piAgentChat.layout.contentMaxWidth`),
    * pushed on `ready` and whenever the setting changes. The webview writes it
    * into the `--content-max-width` custom property (transcript, composer and

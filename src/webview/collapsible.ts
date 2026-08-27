@@ -89,7 +89,9 @@ export interface Collapsible {
 
 export function createCollapsible(options: CollapsibleOptions): Collapsible {
   const { classes } = options;
-  const root = el(options.tag ?? "div", options.rootClass);
+  // 共享基类：折叠态的几何规则靠它拿到稳定的高优先级，压过各上下文对 body
+  // 的尺寸覆写（如 compaction-boundary 的 max-height），不用 !important。
+  const root = el(options.tag ?? "div", `collapsible ${options.rootClass}`);
   const labelEl = el("span", classes.label, options.label);
   const statusEl = el("span", classes.status, options.status ?? "");
   const chevron = icon(CHEVRON_ICON, classes.chevron);

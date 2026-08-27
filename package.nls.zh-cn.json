@@ -10,6 +10,7 @@
   "configuration.layout.contentMaxWidth": "消息区（对话与输入区）的最大宽度，单位像素，适用于任何展示位置。窗口更宽时多出来的空间会变成两侧对称留白，而不是把文字拉长——行太长会让视线回到行首时找错行。这只是一个上限：宽屏布局未启用时，该列有多少宽度就用多少。",
   "configuration.layout.wideModeMinWidth": "宽屏三栏布局（会话列表 / 消息区 / 资源栏）开始可用的 webview 宽度，单位像素。达到该宽度本身不会自动打开任何侧栏——侧栏仍然只在你主动打开时出现，之后即可拖动栏与栏之间的分隔线调整比例。小于 1032 的值会被抬到 1032，因为再窄三栏无法同时满足各自的最小宽度。",
   "configuration.transcript.foldLines": "消息超过该行数后，一旦出现同角色的更新消息，就会折叠为预览，避免较早的长消息占据滚动空间。不含换行的文本按约每 50 字符折算成一行，计入同一预算，因此超长段落同样会折叠。设为 `0` 则永不折叠消息正文。手动展开过的消息始终保持展开。",
+  "configuration.transcript.showThinking": "开启后，模型思考在流式期间保持展开，结束后自动折叠；手动点开过的内容不会被自动折叠。默认关闭。",
   "command.newSession.title": "Pi Agent Chat：新建会话",
   "command.focus.title": "Pi Agent Chat：聚焦聊天窗口",
   "menu.moveSession.label": "移动本会话",
