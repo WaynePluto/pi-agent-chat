@@ -4,7 +4,7 @@
 
 [Pi Coding Agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) 原生运行在你的 VS Code 侧边栏或编辑区标签页中 —— **无需安装 Pi CLI**。
 
-本插件通过内置的**官方** `@earendil-works/pi-coding-agent` SDK（**v0.84.2**）实现，而非 RPC 方式；agent 循环、工具与 LLM 调用都在扩展进程内完成，无需单独安装 Pi CLI，并直接读写你现有的 Pi 配置与会话。兼容边界划在**数据面**而不是能力面：两个宿主共用同一份文件，但依赖终端 Pi 进程的 CLI 扩展在这里跑不了（见[宿主边界](#宿主边界)）。
+本插件通过内置的**官方** `@earendil-works/pi-coding-agent` SDK（**v0.84.3**）实现，而非 RPC 方式；agent 循环、工具与 LLM 调用都在扩展进程内完成，无需单独安装 Pi CLI，并直接读写你现有的 Pi 配置与会话。兼容边界划在**数据面**而不是能力面：两个宿主共用同一份文件，但依赖终端 Pi 进程的 CLI 扩展在这里跑不了（见[宿主边界](#宿主边界)）。
 
 - 复用 `~/.pi/agent/` 的全部配置（auth、models、settings、extensions、skills、prompts、AGENTS.md）与默认 sessions 目录，可与终端 Pi 互相列出/恢复会话。
 - **自动走代理，且不会与 CLI 冲突。** 插件以与 Pi CLI 完全相同的方式安装全局 dispatcher，优先级为：环境变量 `http_proxy` / `https_proxy`（含大写与 `no_proxy` 变体）→ `~/.pi/agent/settings.json` 的 `httpProxy` → VS Code 的 `http.proxy`。前两级**就是** CLI 自己的顺序，VS Code 这一级只填补 CLI 本会直连的空位——所以不必为 pi 单独配置 `HTTP_PROXY` / `HTTPS_PROXY`，也不会改变 CLI 的联网方式。`http.proxyStrictSSL: false` 同样会放宽这些请求的证书校验。

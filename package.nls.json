@@ -1,6 +1,6 @@
 {
   "//": "Manifest strings shown by VS Code itself (Marketplace entry, Settings editor, command palette). The UI inside the sidebar is localized separately in src/shared/messages.ts and src/webview/i18n.ts. Add a package.nls.<locale>.json next to this file for each additional language.",
-  "extension.description": "VS Code sidebar and editor-tab chat for the Pi Coding Agent, powered by the official SDK (0.84.2) bundled inside the extension — no Pi CLI required. Unofficial community project.",
+  "extension.description": "VS Code sidebar and editor-tab chat for the Pi Coding Agent, powered by the official SDK (0.84.3) bundled inside the extension — no Pi CLI required. Unofficial community project.",
   "configuration.title": "Pi Agent Chat",
   "configuration.subagent.enabled": "Offer the `subagent` tool, which lets the agent delegate several tasks at once to child sessions that **write to your working tree directly**. Each task must declare the paths it may write to; writes outside that range are refused. Failed tasks are reported, not rolled back — use a git repository so partial work can be inspected and discarded. Off by default.",
   "configuration.subagent.maxSubagents": "Largest number of subagents one `subagent` call may start. This value is published to the model as the schema limit, so it also caps what the model can ask for. Higher values cost proportionally more and get harder to follow.",
