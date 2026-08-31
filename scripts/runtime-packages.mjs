@@ -41,16 +41,92 @@ export const runtimePackages = [
   "jiti",
   "@silvia-odwyer/photon-node",
   "@mariozechner/clipboard",
+  // Provider SDKs: pi-ai wraps each of them in a `lazyApi(() => import(...))`
+  // facade, so they are NOT loaded by the entry-point probe below — but they
+  // ARE reached the moment anyone calls the api through this on-disk copy
+  // (e.g. an extension streaming a completion), and each module then imports
+  // its SDK at the top level. `openai` also backs azure-openai-responses,
+  // openai-responses, openrouter-images and every Mistral-compatible api.
+  "openai",
+  "@anthropic-ai/sdk",
+  "@google/genai",
+  // The hoisted closure of @google/genai (auth + websocket + protobuf).
+  "google-auth-library",
+  "base64-js",
+  "buffer-equal-constant-time",
+  "ecdsa-sig-formatter",
+  "gaxios",
+  "gcp-metadata",
+  "google-logging-utils",
+  "extend",
+  "jws",
+  "jwa",
+  "safe-buffer",
+  "node-fetch",
+  "json-bigint",
+  "bignumber.js",
+  "p-retry",
+  "protobufjs",
+  "@protobufjs/aspromise",
+  "@protobufjs/base64",
+  "@protobufjs/codegen",
+  "@protobufjs/eventemitter",
+  "@protobufjs/fetch",
+  "@protobufjs/float",
+  "@protobufjs/path",
+  "@protobufjs/pool",
+  "@protobufjs/utf8",
+  "long",
+  "ws",
+  "@aws-sdk/client-bedrock-runtime",
+  // Imported at the top level of bedrock-converse-stream.js.
+  "@smithy/node-http-handler",
+  "http-proxy-agent",
+  "https-proxy-agent",
+  "debug",
+  "ms",
+  "agent-base",
+  // The hoisted closure of @aws-sdk/client-bedrock-runtime (loaded as soon
+  // as its module is imported). Completeness is enforced by the provider-module
+  // probe in scripts/check_extension_runtime.mjs — a version bump that adds a
+  // package fails `pnpm verify` with "add it to runtimePackages".
+  "@aws-sdk/core",
+  "@aws-sdk/credential-provider-env",
+  "@aws-sdk/credential-provider-http",
+  "@aws-sdk/credential-provider-ini",
+  "@aws-sdk/credential-provider-login",
+  "@aws-sdk/credential-provider-node",
+  "@aws-sdk/credential-provider-process",
+  "@aws-sdk/credential-provider-sso",
+  "@aws-sdk/credential-provider-web-identity",
+  "@aws-sdk/eventstream-handler-node",
+  "@aws-sdk/middleware-eventstream",
+  "@aws-sdk/middleware-websocket",
+  "@aws-sdk/nested-clients",
+  "@aws-sdk/signature-v4-multi-region",
+  "@aws-sdk/token-providers",
+  "@aws-sdk/types",
+  "@aws-sdk/util-locate-window",
+  "@aws-sdk/xml-builder",
+  "@aws-crypto/sha256-browser",
+  "@aws-crypto/sha256-js",
+  "@aws-crypto/supports-web-crypto",
+  "@aws-crypto/util",
+  "@aws/lambda-invoke-store",
+  "@smithy/core",
+  "@smithy/credential-provider-imds",
+  "@smithy/fetch-http-handler",
+  "@smithy/is-array-buffer",
+  "@smithy/signature-v4",
+  "@smithy/types",
+  "@smithy/util-buffer-from",
+  "@smithy/util-utf8",
+  "tslib",
   // Transitive dependencies of the SDK packages above. Bundling does not cover
   // them: an extension's `import "@earendil-works/pi-ai"` goes through jiti to
   // the *on-disk* copy, whose own `import "partial-json"` then resolves
   // against `dist/node_modules` with nothing to fall back on. Without these,
   // any extension touching the SDK dies with "Cannot find module".
-  //
-  // This is the closure of the static load path, not the full dependency tree:
-  // the provider SDKs (@anthropic-ai/sdk, openai, @google/genai,
-  // @mistralai/mistralai, @aws-sdk/client-bedrock-runtime, ~35 MB) are
-  // imported lazily by pi-ai and are never reached at import time.
   "@earendil-works/pi-telemetry",
   "balanced-match",
   "brace-expansion",
@@ -129,7 +205,7 @@ export async function copyRuntimePackages(target, { log = () => {} } = {}) {
         // Type declarations and maps are dead weight at runtime.
         filter: (path) => {
           const rel = path.slice(source.length);
-          if (/[\\/]node_modules[\\/]|\.map$|\.d\.ts$|\.d\.mts$|\.d\.cts$/.test(rel)) return false;
+          if (/[\\/]node_modules[\\/]|\.map$|\.d\.ts$|\.d\.mts$|\.d\.cts$|\.md$/.test(rel)) return false;
           // The clipboard npm wrapper ships Rust sources and build files that
           // are never needed at runtime; keep only the JS loader and manifest.
           if (source === resolve(repoRoot, "node_modules", "@mariozechner", "clipboard")) {
@@ -152,3 +228,4 @@ export async function copyRuntimePackages(target, { log = () => {} } = {}) {
   }
   return { skipped };
 }
+

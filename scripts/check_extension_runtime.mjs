@@ -18,10 +18,20 @@
  * points an extension is allowed to import. It deliberately does not read
  * `dist/node_modules`: that directory is only populated by production builds,
  * and a stale copy would make this pass for the wrong reason.
+ *
+ * Entry-point imports alone are not enough: pi-ai hides every provider SDK
+ * behind a `lazyApi(() => import("./<api>.js"))` facade, so `openai` & co. are
+ * never resolved while loading the entries — only when something calls the
+ * api through the on-disk copy, at which point the module's top-level
+ * `import OpenAI from "openai"` fails with exactly the error users see in a
+ * packaged VSIX ("Cannot find package 'openai' imported from
+ * .../pi-ai/dist/api/openai-completions.js"). The probe therefore also imports
+ * every provider module in `pi-ai/dist/api/`, executing those top-level
+ * imports against the sandboxed layout.
  */
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
@@ -47,9 +57,15 @@ try {
   // A child process keeps Node from caching failed specifier resolutions, and
   // keeps a broken SDK from taking this script down with it.
   const probe = join(sandbox, "probe.mjs");
+  const providerModules = readdirSync(join(target, "@earendil-works", "pi-ai", "dist", "api"))
+    .filter((name) => name.endsWith(".js"))
+    .map((name) => pathToFileURL(join(target, "@earendil-works", "pi-ai", "dist", "api", name)).href);
   await writeFile(
     probe,
-    extensionVisibleEntries.map((entry) => `await import(${JSON.stringify(pathToFileURL(join(target, entry)).href)});`).join("\n"),
+    [
+      ...extensionVisibleEntries.map((entry) => `await import(${JSON.stringify(pathToFileURL(join(target, entry)).href)});`),
+      ...providerModules.map((href) => `await import(${JSON.stringify(href)});`),
+    ].join("\n"),
     "utf8",
   );
 
@@ -67,7 +83,10 @@ try {
     fail(`loading the on-disk SDK failed:\n${output.split("\n").slice(0, 8).join("\n")}`);
   }
 
-  console.log(`[ok]   ${runtimePackages.length} unbundled packages self-sufficient (${extensionVisibleEntries.length} SDK entries load)`);
+  console.log(
+    `[ok]   ${runtimePackages.length} unbundled packages self-sufficient ` +
+      `(${extensionVisibleEntries.length} SDK entries + ${providerModules.length} provider modules load)`,
+  );
 } finally {
   await rm(sandbox, { recursive: true, force: true }).catch(() => {});
 }

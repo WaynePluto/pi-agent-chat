@@ -13,6 +13,8 @@ package-lock.json
 .npmrc
 .gitignore
 .pi-plan.md
+# 本地调研工作区（gitignored，但 vsce 打包看磁盘不看 git）
+scratch/**
 vscode-pi-design.md
 AGENTS.md
 todo.md
