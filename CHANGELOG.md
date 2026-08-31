@@ -2,6 +2,7 @@
 
 Detailed release notes are kept in one file per version:
 
+- [0.0.16](https://github.com/WaynePluto/pi-agent-chat/blob/v0.0.16/docs/changelog/0.0.16.md) / [简体中文](https://github.com/WaynePluto/pi-agent-chat/blob/v0.0.16/docs/changelog/0.0.16.zh-CN.md)
 - [0.0.15](https://github.com/WaynePluto/pi-agent-chat/blob/v0.0.15/docs/changelog/0.0.15.md) / [简体中文](https://github.com/WaynePluto/pi-agent-chat/blob/v0.0.15/docs/changelog/0.0.15.zh-CN.md)
 - [0.0.14](https://github.com/WaynePluto/pi-agent-chat/blob/v0.0.14/docs/changelog/0.0.14.md) / [简体中文](https://github.com/WaynePluto/pi-agent-chat/blob/v0.0.14/docs/changelog/0.0.14.zh-CN.md)
 - [0.0.13](https://github.com/WaynePluto/pi-agent-chat/blob/v0.0.13/docs/changelog/0.0.13.md) / [简体中文](https://github.com/WaynePluto/pi-agent-chat/blob/v0.0.13/docs/changelog/0.0.13.zh-CN.md)
