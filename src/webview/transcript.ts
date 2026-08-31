@@ -1,4 +1,4 @@
-import type { ChatEvent, JsonValue, RetryOfferState, SkillRef, SubagentSetup, ToolSetup } from "../shared/protocol.js";
+import type { ChatEvent, JsonValue, RetryOfferState, SkillRef, SubagentSetup, ToolSetup, TranscriptImage } from "../shared/protocol.js";
 import { SUBAGENT_TOOL } from "../shared/protocol.js";
 import { createMessageBubble, type MessageBubble } from "./bubble.js";
 import { CARD_CLASSES, WORK_CLASSES, createCollapsible, type Collapsible } from "./collapsible.js";
@@ -467,7 +467,7 @@ export function applyEvent(event: ChatEvent): void {
         finishThinkingCard();
         finishWorkBlock();
       }
-      appendUserBubble(event.text, event.mode, event.skill, event.prompt, event.extension);
+      appendUserBubble(event.text, event.mode, event.skill, event.prompt, event.extension, event.images);
       break;
     case "assistant_start":
       assistantBubble = undefined;
@@ -690,12 +690,13 @@ function appendBubble(role: string, text: string): HTMLElement {
   return wrapper;
 }
 
-function appendMarkdownBubble(role: string, text: string): MessageBubble {
+function appendMarkdownBubble(role: string, text: string, extra?: HTMLElement): MessageBubble {
   const index = ++bubbleIndex;
   const remembered = currentView.bubbles.get(index);
   const bubble = createMessageBubble({
     role,
     text,
+    extra,
     folded: remembered,
     onToggle: (folded) => currentView.bubbles.set(index, folded),
   });
@@ -709,6 +710,9 @@ function appendMarkdownBubble(role: string, text: string): MessageBubble {
     else deferredFolds.add(previous);
   }
   latestBubbles.set(role, bubble);
+  // Both roles are addressable in the session tree, so both carry the action
+  // bar; it stays invisible until the host binds an entry id to the bubble.
+  if (role === "user" || role === "assistant") bubble.root.appendChild(entryActionBar(role));
   // A folded bubble clips its content away, so search must be able to open it.
   // Not pinned: only the user's own toggle outranks the fold rules.
   revealActions.set(bubble.root, () => {
@@ -720,10 +724,38 @@ function appendMarkdownBubble(role: string, text: string): MessageBubble {
 }
 
 /**
+ * Attachments of a user message, shown as thumbnails under the text.
+ *
+ * The bytes arrive already processed by the host (converted / downscaled), so
+ * this is exactly what the model received. `data:` URLs are allowed by the
+ * webview CSP; nothing here needs a host round trip.
+ */
+function imageStrip(images: TranscriptImage[]): HTMLElement {
+  const strip = el("div", "bubble-images");
+  for (const image of images) {
+    const figure = el("span", "bubble-image");
+    const img = document.createElement("img");
+    img.src = `data:${image.mimeType};base64,${image.data}`;
+    img.alt = image.name ?? "";
+    if (image.name) img.title = image.name;
+    figure.appendChild(img);
+    strip.appendChild(figure);
+  }
+  return strip;
+}
+
+/**
  * User message; queued (follow-up) and steering messages get a badge and a
  * distinct accent so they read differently from immediate prompts.
  */
-function appendUserBubble(text: string, mode?: "steer" | "followUp", skill?: string, prompt?: string, extension?: string): void {
+function appendUserBubble(
+  text: string,
+  mode?: "steer" | "followUp",
+  skill?: string,
+  prompt?: string,
+  extension?: string,
+  images?: TranscriptImage[],
+): void {
   // A new turn opens with extra space rather than a rule. Both mark the same
   // boundary, but a full-width line is a piece of furniture the eye has to step
   // over on every scroll, while the tinted right-aligned bubble already
@@ -732,9 +764,8 @@ function appendUserBubble(text: string, mode?: "steer" | "followUp", skill?: str
   // waiting to be consumed, so the run on screen is not theirs yet), and the
   // first message in a transcript has nothing to be separated from.
   const opensTurn = !mode && sink.childElementCount > 0;
-  const wrapper = appendMarkdownBubble("user", text).root;
+  const wrapper = appendMarkdownBubble("user", text, images?.length ? imageStrip(images) : undefined).root;
   if (opensTurn) wrapper.classList.add("turn-open");
-  wrapper.appendChild(entryActionBar());
   // A prompt template is expanded, and an extension command is consumed, before
   // the agent runs, so neither leaves a tool card behind. The host resolves
   // them from the submitted text; light up their resource rows here, the way a
@@ -743,7 +774,7 @@ function appendUserBubble(text: string, mode?: "steer" | "followUp", skill?: str
   if (extension) {
     markExtensionUsed(extension);
     // Extension commands never reach the session file, so the host's
-    // `userEntryIds` has no entry for this bubble. Mark it so `assignEntryIds`
+    // `bubbleEntryIds` has no entry for this bubble. Mark it so `assignEntryIds`
     // skips it when mapping ids by position — otherwise every later bubble
     // shifts by one and the latest user message loses its action buttons.
     wrapper.dataset.noEntry = "";
@@ -775,18 +806,22 @@ function bubbleBadgeColumn(bubble: HTMLElement): HTMLElement {
 
 /**
  * Per-message session-tree actions, shown beside the bubble on hover once the
- * host has told us which entry it maps to (see `assignEntryIds`).
+ * host has told us which entry it maps to (see `assignEntryIds`). User bubbles
+ * carry them in the gutter on their left, assistant bubbles in the one on
+ * their right, so the bar never covers the message text.
  *
- * "Rewind" is the frequent one: it moves the session back to this message and
- * returns its text to the composer, which is how a failed run gets retried
- * (optionally with another model). The session file is append-only, so the
- * abandoned branch survives and stays reachable from the tree navigator.
+ * "Rewind" is the frequent one: on a user message it moves the session back to
+ * it and returns its text to the composer, which is how a failed run gets
+ * retried (optionally with another model); on a reply it moves the session back
+ * to that answer. The session file is append-only, so the abandoned branch
+ * survives and stays reachable from the tree navigator.
  */
-function entryActionBar(): HTMLElement {
+function entryActionBar(role: "user" | "assistant"): HTMLElement {
   const bar = el("div", "bubble-actions");
+  const reply = role === "assistant";
   bar.append(
-    entryActionButton("switch", REWIND_ICON, t.entrySwitch, t.entrySwitchTitle),
-    entryActionButton("fork", BRANCH_ICON, t.entryFork, t.entryForkTitle),
+    entryActionButton("switch", REWIND_ICON, t.entrySwitch, reply ? t.entrySwitchReplyTitle : t.entrySwitchTitle),
+    entryActionButton("fork", BRANCH_ICON, t.entryFork, reply ? t.entryForkReplyTitle : t.entryForkTitle),
     entryActionButton("label", TAG_ICON, t.entryLabel, t.entryLabelTitle),
   );
   return bar;
@@ -799,7 +834,7 @@ function entryActionButton(
   title: string,
 ): HTMLButtonElement {
   const element = button(`bubble-action ${action}`, undefined, (event) => {
-    const entryId = (event.currentTarget as HTMLElement).closest<HTMLElement>(".bubble.user")?.dataset.entryId;
+    const entryId = (event.currentTarget as HTMLElement).closest<HTMLElement>(".bubble")?.dataset.entryId;
     if (entryId) post({ type: "entryAction", action, entryId });
   });
   element.appendChild(icon(svg));
@@ -810,16 +845,27 @@ function entryActionButton(
 }
 
 /**
- * Bind the user bubbles on screen to their session entries, in order.
+ * Bind the message bubbles on screen to their session entries, in order.
  *
- * The host sends one id per user bubble it can act on; bubbles beyond that
- * (a message still queued, or any bubble in a read-only transcript) stay
- * unbound and therefore show no actions. Extension-command bubbles are
- * skipped (`data-no-entry`): they have no session entry, so counting them
- * would shift every later bubble's index and hide its actions.
+ * The host sends one id per bubble it can act on, per role; bubbles beyond that
+ * (a message still queued, a reply still streaming, or any bubble in a
+ * read-only transcript) stay unbound and therefore show no actions.
+ * Extension-command bubbles are skipped (`data-no-entry`): they have no session
+ * entry, so counting them would shift every later bubble's index and hide its
+ * actions.
  */
-export function assignEntryIds(ids: string[], labels: (string | undefined)[]): void {
-  const bubbles = [...messagesEl.querySelectorAll<HTMLElement>(".bubble.user")].filter(
+export function assignEntryIds(
+  ids: string[],
+  labels: (string | undefined)[],
+  assistantIds: string[],
+  assistantLabels: (string | undefined)[],
+): void {
+  bindEntryIds(".bubble.user", ids, labels);
+  bindEntryIds(".bubble.assistant", assistantIds, assistantLabels);
+}
+
+function bindEntryIds(selector: string, ids: string[], labels: (string | undefined)[]): void {
+  const bubbles = [...messagesEl.querySelectorAll<HTMLElement>(selector)].filter(
     (bubble) => bubble.dataset.noEntry === undefined,
   );
   bubbles.forEach((bubble, index) => {

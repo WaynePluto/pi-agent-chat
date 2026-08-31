@@ -175,6 +175,8 @@ function onRowClick(item: SessionListItem): void {
   if (item.claimedElsewhere) {
     // A session belongs to its controller, not to either GUI. Move that exact
     // controller here; the host replaces a visible source with an empty session.
+    // A lane row addresses the controller that runs it, and the host lands on
+    // that lane once it has moved.
     post({ type: "revealSession", file: item.file });
     hooks.close();
     return;
@@ -210,15 +212,18 @@ function statusBadge(item: SessionListItem): HTMLElement | undefined {
     // Neutral on purpose: this describes *this window's* claim, not a state of
     // the session, so it must not read as "running" (see `_sessions.scss`).
     badge.textContent = t.sessionOpenElsewhere;
-  } else if (item.claimedElsewhere === "background") {
-    badge.classList.add("running");
-    badge.append(spinner(), document.createTextNode(t.sessionRunningInBackground));
   } else if (item.delegationRole === "child") {
+    // Ahead of "running in the background": both are true of a task line whose
+    // parent has moved off-screen, and this one says what it is doing. The
+    // click still routes by the claim, so nothing is lost by naming the role.
     badge.classList.add("subagent");
     badge.append(spinner(), document.createTextNode(t.sessionSubagentRunning));
   } else if (item.delegationRole === "parent") {
     badge.classList.add("subagent");
     badge.textContent = t.sessionParentWaiting;
+  } else if (item.claimedElsewhere === "background") {
+    badge.classList.add("running");
+    badge.append(spinner(), document.createTextNode(t.sessionRunningInBackground));
   } else if (item.running) {
     badge.classList.add("running");
     // Same braille spinner as the bottom "Working..." indicator. No separating

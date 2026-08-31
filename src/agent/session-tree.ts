@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import type { SessionManager, SessionTreeNode } from "@earendil-works/pi-coding-agent";
 import { t, tf } from "./i18n.js";
 import type { PiRuntime } from "./runtime.js";
-import { collapseSkillInvocation } from "./skills.js";
+import { contentText, userDisplayFromText, userDisplayText } from "./session-title.js";
 
 /**
  * Session tree operations (`/tree`, `/fork`, `/clone`).
@@ -77,7 +77,7 @@ export async function switchToEntry(runtime: PiRuntime, entryId: string, ui: Ses
     ui.status(t("treeNavigationCancelled"));
     return;
   }
-  if (result.editorText) ui.setInput(collapseSkillInvocation(result.editorText));
+  if (result.editorText) ui.setInput(userDisplayFromText(result.editorText));
   ui.status(t("treeSwitched"));
 }
 
@@ -123,16 +123,23 @@ export async function cloneSession(runtime: PiRuntime, ui: SessionTreeUi): Promi
 }
 
 /**
- * Fork before an entry: the new session keeps everything up to it, and the
- * message itself comes back as editor text so it can be edited and re-sent.
+ * Fork from an entry into a new session.
+ *
+ * Forking *before* an entry only means something on a user message: the SDK
+ * hands that message back as editor text so it can be edited and re-sent, and
+ * it rejects the position outright for anything else. An assistant reply forks
+ * *at* itself instead — the new session keeps the conversation through that
+ * reply, which is the only reading that has a meaning there.
  */
 export async function forkFromEntry(runtime: PiRuntime, entryId: string, ui: SessionTreeUi): Promise<void> {
-  const result = await runtime.fork(entryId);
+  const entry = runtime.session.sessionManager.getEntry(entryId);
+  const position = entry && isUserMessage(entry) ? "before" : "at";
+  const result = await runtime.fork(entryId, { position });
   if (result.cancelled) {
     ui.status(t("forkCancelled"));
     return;
   }
-  if (result.selectedText) ui.setInput(collapseSkillInvocation(result.selectedText));
+  if (result.selectedText) ui.setInput(userDisplayFromText(result.selectedText));
   ui.status(tf("forkedInto", runtime.session.sessionFile ?? t("inMemorySession")));
 }
 
@@ -200,7 +207,10 @@ function describeEntry(entry: { type: string; message?: unknown; summary?: strin
   if (!message?.role) return undefined;
   if (message.role === "toolResult") return undefined;
 
-  const text = message.role === "user" ? collapseSkillInvocation(messageText(message.content)) : messageText(message.content);
+  // Labels are whitespace-normalized below, so the shared projection's line
+  // breaks do not matter; what does matter is that a user entry reads here
+  // exactly as it reads in the transcript and the sessions list.
+  const text = message.role === "user" ? userDisplayText(message.content) : contentText(message.content);
   const normalized = text.replace(/\s+/g, " ").trim();
   if (!normalized) return undefined;
   const prefix = message.role === "user" ? "> " : "· ";
@@ -217,13 +227,4 @@ function truncateTitle(text: string, max: number): string {
 function treeIndent(depth: number): string {
   const visibleDepth = Math.min(depth, MAX_TREE_INDENT_DEPTH);
   return `${"  ".repeat(visibleDepth)}${depth > MAX_TREE_INDENT_DEPTH ? "… " : ""}`;
-}
-
-function messageText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .filter((part) => (part as { type?: string })?.type === "text")
-    .map((part) => (part as { text?: string }).text ?? "")
-    .join(" ");
 }

@@ -20,6 +20,7 @@ import * as vscode from "vscode";
 import { applyEdits, findNodeAtLocation, modify, parse, parseTree, type ParseError } from "jsonc-parser";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { modelsConfigProviderEntry, modelsConfigTemplate, isChinese } from "../shared/messages.js";
+import { writeJsoncValue } from "./jsonc-file.js";
 import { t } from "./i18n.js";
 
 /** `~/.pi/agent/models.json`, the same path `ModelRuntime` loads. */
@@ -200,13 +201,5 @@ export async function configuredProviderIds(): Promise<Set<string>> {
  * `ChatBridge`'s save watcher reloads the configuration.
  */
 export async function deleteConfiguredProvider(providerId: string): Promise<boolean> {
-  const uri = vscode.Uri.file(modelsConfigPath());
-  const document = await vscode.workspace.openTextDocument(uri);
-  const text = document.getText();
-  const edits = modify(text, ["providers", providerId], undefined, { formattingOptions: FORMATTING });
-  if (edits.length === 0) return false;
-  const edit = new vscode.WorkspaceEdit();
-  edit.replace(uri, new vscode.Range(document.positionAt(0), document.positionAt(text.length)), applyEdits(text, edits));
-  if (!(await vscode.workspace.applyEdit(edit))) return false;
-  return await document.save();
+  return (await writeJsoncValue(modelsConfigPath(), ["providers", providerId], undefined)) === "written";
 }

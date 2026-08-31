@@ -104,6 +104,28 @@
   }
 }
 
+/* 附件缩略图。它在 `.bubble-content` 外面，因此不参与折叠裁剪：
+   折起来的是正文，而附件本来就不是正文的一部分。 */
+.bubble-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.bubble-image > img {
+  display: block;
+  /* 上限而不是固定尺寸：截图往往是宽的，小图标不该被拉大。
+     `border-box` 是必需的：默认下 `max-height` 只管内容盒，那条边框会把
+     实际占位顶出 2px，上限就不再是它声称的那个数。 */
+  box-sizing: border-box;
+  max-width: min(100%, 320px);
+  max-height: 220px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  object-fit: contain;
+}
+
 /* 每条消息的 footer：「显示完整消息」与「复制」。浮在气泡右下角，
    靠 `background: inherit` 拿到不透明底色才不会压住正文；两侧内边距保证它不压最后一行。
    hover 时显示，折叠状态下常驻——折叠必须能在不找 hover 目标的情况下撤销。 */

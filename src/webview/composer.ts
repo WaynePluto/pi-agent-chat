@@ -1,4 +1,4 @@
-import { MAX_FILE_REFERENCES, type ChatEvent, type ProjectFileItem, type SlashCommand } from "../shared/protocol.js";
+import { MAX_FILE_REFERENCES, MAX_IMAGE_ATTACHMENTS, type ChatEvent, type ProjectFileItem, type SlashCommand, type TranscriptImage } from "../shared/protocol.js";
 import { button, el } from "./dom.js";
 import { MAX_COMMAND_MATCHES } from "./format.js";
 import { post } from "./host.js";
@@ -38,6 +38,23 @@ let fileQueryTimer: number | undefined;
 /** Selected references shown as removable chips above the input. */
 const fileRefs: ProjectFileItem[] = [];
 
+/**
+ * Images pasted or dropped into the composer, in the order they will be sent.
+ *
+ * Only ids and thumbnails live here: the host holds the actual attachment and
+ * hands back the processed image, so the composer never has to know how a
+ * screenshot becomes something a model can read.
+ */
+interface ImageAttachment {
+  id: string;
+  image: TranscriptImage;
+  note?: string;
+}
+const imageAttachments: ImageAttachment[] = [];
+/** Placeholder chips for attachments still being processed by the host. */
+let pendingAttachments = 0;
+let attachmentRequestId = 0;
+
 interface ComposerHooks {
   /** Called just before a prompt is posted (used to leave the sessions page). */
   beforeSend(): void;
@@ -51,6 +68,7 @@ export function initComposer(composerHooks: ComposerHooks): void {
   inputEl.addEventListener("keydown", onKeyDown);
   inputEl.addEventListener("input", () => updateAutocomplete());
   inputEl.addEventListener("blur", () => window.setTimeout(closeAutocomplete, AUTOCOMPLETE_BLUR_DELAY_MS));
+  inputEl.addEventListener("paste", onPaste);
 
   /* Composer resize: drag the top edge up/down instead of a corner grip. */
   resizeHandleEl.addEventListener("pointerdown", (event) => {
@@ -82,16 +100,92 @@ export function send(streamingBehavior?: "steer" | "followUp"): void {
   if (state.inputDisabled) return;
   const text = inputEl.value.trim();
   const references = fileRefs.map((item) => item.path);
-  if (!text && references.length === 0) return;
+  const imageIds = imageAttachments.map((item) => item.id);
+  if (!text && references.length === 0 && imageIds.length === 0) return;
+  // Images are deliberately left out of the ↑/↓ ring: an entry recalls what to
+  // say again, while an attachment is consumed by the message it went with.
   pushInputHistory({ text, references: fileRefs.map((item) => ({ ...item })) });
   inputEl.value = "";
   fileRefs.length = 0;
+  imageAttachments.length = 0;
   renderFileRefs();
   closeAutocomplete();
   hooks.beforeSend();
   followLatest();
-  post({ type: "prompt", text, references: references.length ? references : undefined, streamingBehavior });
+  post({
+    type: "prompt",
+    text,
+    references: references.length ? references : undefined,
+    imageIds: imageIds.length ? imageIds : undefined,
+    streamingBehavior,
+  });
 }
+
+/* ---------------------------------------------------------------- */
+/* Image attachments                                                 */
+/* ---------------------------------------------------------------- */
+
+/**
+ * Paste handler — the only way images get in.
+ *
+ * Drag & drop is not offered, and cannot be: VS Code's workbench sets
+ * `pointer-events: none` on every webview iframe as soon as a drag starts in
+ * the window (`_startBlockingIframeDragEvents`, reached both from its own
+ * `dragstart` listener and from the webview host page's file-drag detection),
+ * so a webview never receives `dragover` or `drop` at all. Screenshots and
+ * files copied in the OS file manager both arrive through the clipboard, which
+ * does work.
+ *
+ * Only takes over when the clipboard actually carries an image; normal text
+ * pastes must keep their default behaviour.
+ */
+function onPaste(event: ClipboardEvent): void {
+  if (state.inputDisabled) return;
+  const files = imageFilesOf(event.clipboardData);
+  if (files.length === 0) return;
+  event.preventDefault();
+  for (const file of files) void attachFile(file);
+}
+
+function imageFilesOf(data: DataTransfer | null): File[] {
+  if (!data) return [];
+  return Array.from(data.files ?? []).filter((file) => file.type.startsWith("image/"));
+}
+
+async function attachFile(file: File): Promise<void> {
+  const buffer = await file.arrayBuffer();
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  // btoa() takes a binary string; chunked so a large screenshot cannot blow the
+  // argument limit of String.fromCharCode.
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  requestAttachment({ name: file.name, mimeType: file.type, data: btoa(binary) });
+}
+
+function requestAttachment(request: { name?: string; mimeType?: string; data?: string }): void {
+  if (imageAttachments.length + pendingAttachments >= MAX_IMAGE_ATTACHMENTS) return;
+  pendingAttachments += 1;
+  renderFileRefs();
+  post({ type: "attachImage", requestId: ++attachmentRequestId, ...request });
+}
+
+/** Host answer to one `attachImage`: a processed image, or a refusal. */
+export function onAttachment(id: string | undefined, image?: TranscriptImage, note?: string, error?: string): void {
+  pendingAttachments = Math.max(0, pendingAttachments - 1);
+  if (error !== undefined || !id || !image) {
+    attachmentError = error;
+    renderFileRefs();
+    return;
+  }
+  attachmentError = undefined;
+  imageAttachments.push({ id, image, note });
+  renderFileRefs();
+}
+
+/** Last refusal, shown until the next attachment attempt succeeds. */
+let attachmentError: string | undefined;
 
 /** Replace the composer content, e.g. after forking away from a user message. */
 export function setInput(text: string): void {
@@ -145,6 +239,8 @@ export function populateInputHistoryFromEvents(transcriptId: string | undefined,
 
 export function clearFileRefs(): void {
   fileRefs.length = 0;
+  imageAttachments.length = 0;
+  attachmentError = undefined;
   renderFileRefs();
 }
 
@@ -508,7 +604,8 @@ function acceptFileCompletion(): void {
 
 function renderFileRefs(): void {
   fileRefsEl.replaceChildren();
-  fileRefsEl.classList.toggle("hidden", fileRefs.length === 0);
+  const empty = fileRefs.length === 0 && imageAttachments.length === 0 && pendingAttachments === 0 && !attachmentError;
+  fileRefsEl.classList.toggle("hidden", empty);
   for (const item of fileRefs) {
     const chip = el("span", `file-ref-chip${item.ignored ? " ignored" : ""}${item.sensitive ? " sensitive" : ""}`);
     chip.title = [item.path, item.ignored ? t.fileIgnoredBadge : "", item.sensitive ? t.fileSensitiveBadge : ""]
@@ -526,4 +623,38 @@ function renderFileRefs(): void {
     chip.append(el("span", "file-ref-label", `@${item.path}`), remove);
     fileRefsEl.appendChild(chip);
   }
+
+  for (const attachment of imageAttachments) {
+    // The chip shows the processed bytes, so what the user sees here is what
+    // the model gets — including a downscale that already happened.
+    const chip = el("span", `file-ref-chip image${attachment.note ? " warned" : ""}`);
+    chip.title = [attachment.image.name, attachment.note].filter(Boolean).join(" · ");
+    const thumb = document.createElement("img");
+    thumb.className = "file-ref-thumb";
+    thumb.src = `data:${attachment.image.mimeType};base64,${attachment.image.data}`;
+    thumb.alt = attachment.image.name ?? "";
+    const remove = button("file-ref-remove", "×", () => {
+      const index = imageAttachments.indexOf(attachment);
+      if (index !== -1) imageAttachments.splice(index, 1);
+      post({ type: "detachImage", id: attachment.id });
+      renderFileRefs();
+      inputEl.focus();
+    });
+    remove.title = t.fileRemoveTitle;
+    chip.append(thumb, el("span", "file-ref-label", attachment.image.name ?? t.imageAttachmentLabel), remove);
+    fileRefsEl.appendChild(chip);
+  }
+
+  for (let i = 0; i < pendingAttachments; i += 1) {
+    fileRefsEl.appendChild(el("span", "file-ref-chip image pending", t.imageAttaching));
+  }
+
+  // A refusal has to be visible: the image simply not appearing would read as
+  // the paste having been ignored.
+  if (attachmentError) fileRefsEl.appendChild(el("span", "file-ref-error", attachmentError));
+
+  // One shared note for the whole strip: it describes the session (no vision
+  // support, images blocked in settings), not an individual attachment.
+  const note = imageAttachments.find((item) => item.note)?.note;
+  if (note) fileRefsEl.appendChild(el("span", "file-ref-note", note));
 }

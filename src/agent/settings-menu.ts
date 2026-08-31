@@ -1,8 +1,8 @@
 import { promises as fs } from "node:fs";
 import { dirname, join } from "node:path";
 import * as vscode from "vscode";
-import { applyEdits, modify } from "jsonc-parser";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { writeJsoncValue } from "./jsonc-file.js";
 import type { PiRuntime } from "./runtime.js";
 import { configureHttpDispatcher } from "./http.js";
 import { pluginSettingId } from "./config.js";
@@ -422,9 +422,6 @@ async function pickToolSet(
   return BUILTIN_TOOLS.filter((tool) => checked.has(tool));
 }
 
-/** Indentation for the structural edit, matching the SDK's own writes. */
-const SETTINGS_FORMATTING = { tabSize: 2, insertSpaces: true };
-
 /**
  * Write `defaultTools` into a settings.json (`undefined` removes the key).
  * Returns false when the file cannot be edited — e.g. it is broken JSON, in
@@ -440,17 +437,9 @@ async function persistDefaultTools(path: string, tools: string[] | undefined): P
     await fs.mkdir(dirname(path), { recursive: true }).catch(() => {});
     await fs.writeFile(path, "{}\n", { flag: "wx" }).catch(() => {});
   }
-  const uri = vscode.Uri.file(path);
-  const document = await vscode.workspace.openTextDocument(uri);
-  const text = document.getText();
-  const edits = modify(text, ["defaultTools"], tools, { formattingOptions: SETTINGS_FORMATTING });
-  // Empty edits: the file already says what was picked (e.g. removing a key
-  // that was never set) — nothing to persist, but nothing failed either.
-  if (edits.length === 0) return true;
-  const edit = new vscode.WorkspaceEdit();
-  edit.replace(uri, new vscode.Range(document.positionAt(0), document.positionAt(text.length)), applyEdits(text, edits));
-  if (!(await vscode.workspace.applyEdit(edit))) return false;
-  return await document.save();
+  // "unchanged" counts as success: the file already says what was picked (e.g.
+  // removing a key that was never set) — nothing to persist, nothing failed.
+  return (await writeJsoncValue(path, ["defaultTools"], tools)) !== "failed";
 }
 
 /** Open the shared `~/.pi/agent/settings.json` in an editor tab. */

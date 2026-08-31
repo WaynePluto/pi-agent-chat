@@ -107,6 +107,25 @@ export function claimedSessionSourceStartup(location: "visible" | "background"):
 }
 
 /**
+ * Pure ownership rule pinned by host diagnostics: the session files a
+ * controller writes to, and therefore claims exclusively in this window.
+ *
+ * Takes no notice of what the controller's webview displays. A subagent
+ * transcript or a replayed session on screen belongs to another writer, and
+ * claiming it would both hand this controller's own file to whoever asks next
+ * and turn a running task line into ordinary rows in every session list.
+ */
+export function ownedSessionFiles(options: {
+  sessionFile?: string;
+  runningLaneFiles?: readonly string[];
+}): string[] {
+  const owned = new Set<string>();
+  if (options.sessionFile) owned.add(options.sessionFile);
+  for (const file of options.runningLaneFiles ?? []) owned.add(file);
+  return [...owned];
+}
+
+/**
  * A session with no messages has nothing worth carrying to another surface:
  * every target already has an "open a new session in …" menu item, which is
  * exactly what moving an empty session amounts to. Gates the visibility of
@@ -190,9 +209,7 @@ export class ChatSurfaceManager implements vscode.Disposable {
       if (moved) {
         moved.setSlot("editor");
         this.bindEditorPanel(panel, moved);
-        const replacement = await this.createController("sidebar", { mode: "new" });
-        this.sidebarController = replacement;
-        if (this.sidebar) this.sidebar.bind(replacement);
+        await this.refillSurface("sidebar", this.sidebar);
       } else {
         const controller = await this.createController("editor", { mode: "new" });
         this.bindEditorPanel(panel, controller);
@@ -277,9 +294,7 @@ export class ChatSurfaceManager implements vscode.Disposable {
         // The sidebar keeps the moved session's last frame until the fresh
         // controller takes over — the same stale window the previous ordering
         // showed, just without the editor-area stopover.
-        const replacement = await this.createController("sidebar", { mode: "new" });
-        this.sidebarController = replacement;
-        if (this.sidebar) this.sidebar.bind(replacement);
+        await this.refillSurface("sidebar", this.sidebar);
       } else {
         const controller = await this.createController("editor", { mode: "new" });
         this.bindEditorPanel(panel, controller);
@@ -412,11 +427,7 @@ export class ChatSurfaceManager implements vscode.Disposable {
     const owner = this.claims.owner(file);
     if (owner && !owner.disposed) {
       const source = owner.surface;
-      if (source && source !== target) {
-        const replacement = await this.createController(source.kind, { mode: "new" });
-        if (source.kind === "sidebar") this.sidebarController = replacement;
-        source.bind(replacement);
-      }
+      if (source && source !== target) await this.refillSurface(source.kind, source);
       this.moveHeadlessController(owner, target);
       return;
     }
@@ -540,7 +551,10 @@ export class ChatSurfaceManager implements vscode.Disposable {
       const controller = surface.controller;
       let effectiveMessage = message;
       if (message.type === "revealSession" && controller) {
-        if (await this.moveClaimedSession(controller, surface, message.file)) return;
+        if (await this.moveClaimedSession(controller, surface, message.file)) {
+          await this.revealLaneAfterMove(surface, message.file);
+          return;
+        }
         // The owner may have released its claim after the list was rendered.
         // Fall through to an ordinary live resume instead of turning a stale
         // row into a no-op.
@@ -610,6 +624,20 @@ export class ChatSurfaceManager implements vscode.Disposable {
     this.updateMoveMenuContext();
   }
 
+  /**
+   * Leave a surface whose controller went somewhere else with a fresh session.
+   *
+   * One rule in one place: whoever hands a controller away also has to answer
+   * "what does the vacated surface show now?", and the sidebar's controller is
+   * tracked even while no view is bound (it can be closed), so that bookkeeping
+   * follows the kind rather than the connection.
+   */
+  private async refillSurface(kind: SurfaceKind, surface: SurfaceConnection | undefined): Promise<void> {
+    const replacement = await this.createController(kind, { mode: "new" });
+    if (kind === "sidebar") this.sidebarController = replacement;
+    surface?.bind(replacement);
+  }
+
   private createController(slot: SurfaceKind, requestedStartup: StartupSession): Promise<ChatController> {
     const creation = this.creationQueue.then(async () => {
       // Sidebar resolve and panel restore can race during activation. Re-check a
@@ -665,24 +693,71 @@ export class ChatSurfaceManager implements vscode.Disposable {
     );
   }
 
+  /**
+   * The controller's own session file changed (a switch, a new session, or the
+   * first append giving an in-memory session a file). The lanes are re-read at
+   * the same time so both halves of ownership always land together.
+   */
   private updateControllerClaim(controller: ChatController, next: string | undefined): void {
-    const previous = controller.claimedFile;
-    if (previous && previous !== next) this.claims.release(previous, controller);
     controller.claimedFile = next;
-    if (next && !this.claims.claim(next, controller)) {
-      controller.claimConflict = true;
-      const owner = this.claims.owner(next);
-      this.log(`session claim collision refused: ${next} (${owner?.id ?? "unknown"} already owns it)`);
-    } else {
-      controller.claimConflict = false;
-    }
+    this.updateControllerClaims(controller);
   }
 
-  onControllerState(controller: ChatController, state: ChatState): void {
-    this.updateControllerClaim(controller, state.sessionFile);
+  onControllerState(controller: ChatController): void {
+    // Deliberately without the posted `ChatState`: ownership follows what this
+    // controller's runtime *writes*, never what its webview displays. Claiming
+    // `state.sessionFile` used to hand this controller's own file away the
+    // moment a subagent transcript went on screen — after which a second
+    // controller could resume that live session, and every session list showed
+    // the task line as ordinary rows.
+    this.updateControllerClaims(controller);
     if (controller.surface) this.updatePanelTitle(controller.surface);
     this.notifySessionsChanged();
     this.disposeIfSettledHeadless(controller);
+  }
+
+  /**
+   * Publish this controller's ownership: its own session file plus the files
+   * its running subagents append to, releasing everything it no longer writes.
+   *
+   * A running lane appends to its JSONL exactly like a top-level session does,
+   * so it needs the same exclusion — otherwise another surface can resume a
+   * subagent's file and produce a second writer for it.
+   */
+  private updateControllerClaims(controller: ChatController): void {
+    const owned = new Set(ownedSessionFiles({
+      sessionFile: controller.claimedFile,
+      runningLaneFiles: controller.laneSessionFiles(),
+    }));
+    for (const file of [...controller.claimedFiles]) {
+      if (owned.has(file)) continue;
+      this.claims.release(file, controller);
+      controller.claimedFiles.delete(file);
+    }
+    controller.claimConflict = false;
+    for (const file of owned) {
+      if (controller.claimedFiles.has(file)) continue;
+      if (this.claims.claim(file, controller)) {
+        controller.claimedFiles.add(file);
+        continue;
+      }
+      const owner = this.claims.owner(file);
+      this.log(`session claim collision refused: ${file} (${owner?.id ?? "unknown"} already owns it)`);
+      // Only the controller's own session can be started over; a lane file
+      // owned elsewhere is a bug in someone else's bookkeeping, not a reason to
+      // throw away this session.
+      if (file === controller.claimedFile) controller.claimConflict = true;
+    }
+  }
+
+  /** Task-line role of a session file in this window, whichever controller runs it. */
+  delegationRoleAt(file: string): "parent" | "child" | undefined {
+    for (const controller of this.controllers) {
+      if (controller.disposed) continue;
+      const role = controller.delegationRoleAt(file);
+      if (role) return role;
+    }
+    return undefined;
   }
 
   notifySessionsChanged(): void {
@@ -757,6 +832,18 @@ export class ChatSurfaceManager implements vscode.Disposable {
     return owner.surface ? "visible" : "background";
   }
 
+  /**
+   * A lane row addresses the controller that runs it, because the file belongs
+   * to a subagent rather than to a session anyone may open. Once that
+   * controller has moved to the requesting surface, land on the lane the user
+   * actually clicked instead of on the parent transcript.
+   */
+  private async revealLaneAfterMove(surface: SurfaceConnection, file: string): Promise<void> {
+    const moved = surface.controller;
+    if (!moved || moved.delegationRoleAt(file) !== "child") return;
+    await moved.handleMessage({ type: "showLane", sessionFile: file });
+  }
+
   /** Bring a claimed background run into the requesting surface without a second writer. */
   private moveHeadlessController(controller: ChatController, target: SurfaceConnection): void {
     const displaced = target.controller;
@@ -797,7 +884,9 @@ export class ChatSurfaceManager implements vscode.Disposable {
   }
 
   private releaseController(controller: ChatController): void {
-    if (controller.claimedFile) this.claims.release(controller.claimedFile, controller);
+    for (const file of controller.claimedFiles) this.claims.release(file, controller);
+    controller.claimedFiles.clear();
+    controller.claimedFile = undefined;
     this.controllers.delete(controller);
     controller.dispose();
     this.notifySessionsChanged();
@@ -840,7 +929,10 @@ class ChatController implements vscode.Disposable {
   state?: ChatState;
   surface?: SurfaceConnection;
   rememberedFile?: string;
+  /** Its own session file: the one a startup or a session switch addresses. */
   claimedFile?: string;
+  /** Everything it currently claims: `claimedFile` plus its running lanes. */
+  readonly claimedFiles = new Set<string>();
   claimConflict = false;
   disposed = false;
   disposeWhenSettled = false;
@@ -859,6 +951,16 @@ class ChatController implements vscode.Disposable {
   get busy(): boolean {
     const session = this.runtime?.session;
     return Boolean(session?.isStreaming || session?.isCompacting);
+  }
+
+  /** Session files this controller's subagents are appending to right now. */
+  laneSessionFiles(): string[] {
+    return this.bridge?.runningLaneFiles() ?? [];
+  }
+
+  /** Task-line role of a session file in this controller's run, if any. */
+  delegationRoleAt(file: string): "parent" | "child" | undefined {
+    return this.bridge?.delegationRoleAt(file);
   }
 
   async start(startup: StartupSession, sharedServices?: AgentSessionServices): Promise<void> {
@@ -883,6 +985,7 @@ class ChatController implements vscode.Disposable {
         rememberSession: (file) => this.owner.remember(this, file),
         revealClaimedSession: (file) => this.owner.redirectClaimedSession(this, file),
         claimedSessionLocation: (file) => this.owner.claimedSessionLocation(this, file),
+        delegationRoleAt: (file) => this.owner.delegationRoleAt(file),
         notifySessionsChanged: () => this.owner.notifySessionsChanged(),
         onDidChangeSessions: this.owner.onDidChangeSessions,
       },
@@ -918,7 +1021,7 @@ class ChatController implements vscode.Disposable {
   private post(message: HostMessage): void {
     if (message.type === "state") {
       this.state = message.state;
-      this.owner.onControllerState(this, message.state);
+      this.owner.onControllerState(this);
     }
     this.surface?.post(message);
   }

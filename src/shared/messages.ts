@@ -31,6 +31,43 @@ export function localize(text: LocalizedText, language: string): string {
 
 /** Fixed strings. */
 export const sharedMessages = {
+  /* Image attachments -------------------------------------------------- */
+
+  /** The webview handed over zero bytes (empty file / empty clipboard image). */
+  imageEmpty: {
+    en: "That image is empty.",
+    zh: "这张图片是空的。",
+  },
+  /** Larger than `MAX_ATTACHMENT_BYTES`, refused before any decoding. */
+  imageTooLarge: {
+    en: "That image is too large to attach.",
+    zh: "图片过大，无法作为附件发送。",
+  },
+  /** photon could not decode it: not an image, or an unsupported encoding. */
+  imageUnsupported: {
+    en: "That file could not be read as an image.",
+    zh: "无法将该文件读取为图片。",
+  },
+  /** Even at 1x1 the encoded image stayed above the provider's inline limit. */
+  imageTooLargeToResize: {
+    en: "That image could not be scaled below the inline size limit.",
+    zh: "图片无法缩小到内联体积上限以内。",
+  },
+  /** Attaching while the current model has no vision support. */
+  imageModelNoVision: {
+    en: "The current model cannot read images; switch models before sending.",
+    zh: "当前模型不支持读图，发送前请先切换模型。",
+  },
+  /** `images.blockImages` is on in the shared settings: the SDK replaces them with a placeholder. */
+  imageBlockedBySettings: {
+    en: "Image reading is disabled in settings.json; the model receives a placeholder instead.",
+    zh: "settings.json 中已禁用读图，模型收到的是占位文本。",
+  },
+  /** The composer already holds `MAX_IMAGE_ATTACHMENTS` images. */
+  imageTooMany: {
+    en: "Too many images attached to one message.",
+    zh: "单条消息的图片数量已达上限。",
+  },
   /* Active-runtime replacement guard ---------------------------------- */
 
   /** Error notice when new / resume / tree would replace a running session. */
@@ -562,6 +599,11 @@ ${modelsConfigProviderEntry.zh}
 
 /** Strings with interpolated values. Both languages must take the same arguments. */
 export const sharedTemplates = {
+  /** One image attachment was re-encoded before being sent (see `agent/images.ts`). */
+  imageConverted: {
+    en: (from: string, to: string) => `[Image converted from ${from} to ${to}.]`,
+    zh: (from: string, to: string) => `[图片已从 ${from} 转换为 ${to}。]`,
+  },
   /** Prompt prefix folded in before referenced `@file` lines when sending a message. */
   referencedFilesHeader: {
     en: (lines: string) =>

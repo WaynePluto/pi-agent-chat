@@ -5,7 +5,7 @@ import {
   DEFAULT_WIDE_THRESHOLD,
   WIDE_THRESHOLD_MIN,
 } from "../shared/protocol.js";
-import { clearFileRefs, initComposer, onProjectFiles, populateInputHistoryFromEvents, send, setInput, setSlashCommands } from "./composer.js";
+import { clearFileRefs, initComposer, onAttachment, onProjectFiles, populateInputHistoryFromEvents, send, setInput, setSlashCommands } from "./composer.js";
 import { getPersisted, post, setPersisted } from "./host.js";
 import { setFoldMaxLines } from "./bubble.js";
 import { getDict } from "./i18n.js";
@@ -601,12 +601,15 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
     // composer's ↑ history; the composer dedupes per transcript.
     if (message.populateInputHistory) populateInputHistoryFromEvents(message.transcriptId, message.events);
   }
-  else if (message.type === "entryIds") assignEntryIds(message.ids, message.labels);
+  else if (message.type === "entryIds") {
+    assignEntryIds(message.ids, message.labels, message.assistantIds, message.assistantLabels);
+  }
   else if (message.type === "sessions") renderSessions(message.items);
   else if (message.type === "models") setModelCatalog(message.catalog);
   else if (message.type === "openPicker") openPicker(message.picker);
   else if (message.type === "commands") setSlashCommands(message.items);
   else if (message.type === "projectFiles") onProjectFiles(message.requestId, message.items, message.error);
+  else if (message.type === "attachment") onAttachment(message.id, message.image, message.note, message.error);
   else if (message.type === "resources") {
     renderResources(message.sections);
     applyResourcesVisibility();

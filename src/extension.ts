@@ -3,25 +3,10 @@ import * as vscode from "vscode";
 // variable specifiers so bundlers cannot follow them (see esbuild.mjs).
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import {
+  DIAGNOSTIC_SUITES,
   formatDiagnostics,
-  runHistoryReplayTest,
+  runAllDiagnostics,
   runLiveToolCallTest,
-  runManualRetryTest,
-  runReplayedRetryOfferTest,
-  runRetryOfferLifecycleTest,
-  runProjectFilesTest,
-  runResourceListingTest,
-  runViewStateTest,
-  runStartupSessionTest,
-  runExtensionReloadTest,
-  runExtensionCommandContextTest,
-  runSessionTreeTest,
-  runSlashCommandTest,
-  runSpikeDiagnostics,
-  runSurfaceCoordinationTest,
-  runSubagentToolTest,
-  runTerminalToolTest,
-  runExtensionSdkImportTest,
 } from "./agent/diagnostics.js";
 import { OriginalContentProvider, ORIGINAL_SCHEME } from "./agent/diff-view.js";
 import { configureHttpProxy } from "./agent/http.js";
@@ -66,25 +51,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("piAgentChat.moveSessionFromEditorToWindow", () => surfaces.moveToNewWindow("editor")),
     vscode.commands.registerCommand("piAgentChat.focus", () => vscode.commands.executeCommand(`${CHAT_VIEW_ID}.focus`)),
     vscode.commands.registerCommand("piAgentChat.runSpikeDiagnostics", async () => {
-      const results = [
-        ...(await runSpikeDiagnostics()),
-        ...runSurfaceCoordinationTest(),
-        ...(await runHistoryReplayTest(resolveWorkspaceCwd())),
-        ...(await runSlashCommandTest(resolveWorkspaceCwd())),
-        ...(await runManualRetryTest(resolveWorkspaceCwd())),
-        ...(await runReplayedRetryOfferTest(resolveWorkspaceCwd())),
-        ...(await runRetryOfferLifecycleTest(resolveWorkspaceCwd())),
-        ...(await runSessionTreeTest(resolveWorkspaceCwd())),
-        ...(await runSubagentToolTest(resolveWorkspaceCwd())),
-        ...(await runTerminalToolTest(resolveWorkspaceCwd())),
-        ...(await runProjectFilesTest(resolveWorkspaceCwd())),
-        ...(await runExtensionSdkImportTest(resolveWorkspaceCwd())),
-        ...(await runExtensionReloadTest(resolveWorkspaceCwd())),
-        ...(await runExtensionCommandContextTest(resolveWorkspaceCwd())),
-        ...(await runResourceListingTest(resolveWorkspaceCwd())),
-        ...(await runViewStateTest(resolveWorkspaceCwd())),
-        ...(await runStartupSessionTest(resolveWorkspaceCwd())),
-      ];
+      const results = await runAllDiagnostics(resolveWorkspaceCwd());
       const report = formatDiagnostics(results);
       output.appendLine(report);
       output.show(true);
@@ -134,23 +101,7 @@ export function deactivate(): void {}
  * with a stubbed `vscode` module. Not part of the extension's public surface.
  */
 export const __spike = {
-  runSpikeDiagnostics,
-  runSurfaceCoordinationTest,
-  runHistoryReplayTest,
-  runSlashCommandTest,
-  runManualRetryTest,
-  runReplayedRetryOfferTest,
-  runRetryOfferLifecycleTest,
-  runSessionTreeTest,
-  runSubagentToolTest,
-  runTerminalToolTest,
-  runProjectFilesTest,
-  runExtensionSdkImportTest,
-  runExtensionReloadTest,
-  runExtensionCommandContextTest,
-  runResourceListingTest,
-  runViewStateTest,
-  runStartupSessionTest,
+  DIAGNOSTIC_SUITES,
   runLiveToolCallTest,
   formatDiagnostics,
   resolveWorkspaceCwd,

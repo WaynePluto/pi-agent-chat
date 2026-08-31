@@ -73,6 +73,12 @@ const PATCH = [
    which is highlighted and gets its own copy button, and an unlabelled one,
    which stays plain text because the language is never guessed). */
 const LONG_PROMPT = "Refactor the transcript renderer and explain every step in detail. ".repeat(11);
+
+/* A 1x1 PNG, base64. The snapshot only records that an <img> with a data: URL
+   exists in the right place; the bytes themselves are irrelevant, and a real
+   screenshot would bloat the baseline. */
+const TINY_PNG =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 const LONG_ANSWER = [
   "Here is the plan.",
   "",
@@ -299,11 +305,21 @@ const SCRIPT = [
           { kind: "user_message", text: "second prompt" },
         ],
       },
-      { type: "entryIds", ids: ["entry-1", "entry-2"], labels: [undefined, "before refactor"] },
+      { type: "entryIds", ids: ["entry-1", "entry-3"], labels: [undefined, "before refactor"], assistantIds: ["entry-2"], assistantLabels: [undefined] },
       { type: "state", state: baseState },
     ],
+    beforeSnapshot: (window) => {
+      const problems = [];
+      const assistant = [...window.document.querySelectorAll(".bubble.assistant")];
+      if (assistant.length !== 1) throw new Error(`expected 1 assistant bubble, got ${assistant.length}`);
+      // A reply is an addressable entry too: same three actions, in the gutter
+      // on its right.
+      if (assistant[0].dataset.entryId !== "entry-2") problems.push(`assistant bubble should get entry-2, got "${assistant[0].dataset.entryId}"`);
+      if (assistant[0].querySelectorAll(".bubble-actions > .bubble-action").length !== 3) problems.push("assistant bubble should carry three actions");
+      if (problems.length > 0) throw new Error(`entry id binding: ${problems.join("; ")}`);
+    },
   },
-  // Extension commands never reach the session file, so `userEntryIds` has
+  // Extension commands never reach the session file, so `bubbleEntryIds` has
   // no entry for them. The extension-command bubble must be skipped when
   // mapping ids by position, otherwise the real message after it shifts by
   // one and loses its action buttons.
@@ -317,7 +333,7 @@ const SCRIPT = [
           { kind: "user_message", text: "real prompt" },
         ],
       },
-      { type: "entryIds", ids: ["entry-real"], labels: [undefined] },
+      { type: "entryIds", ids: ["entry-real"], labels: [undefined], assistantIds: [], assistantLabels: [] },
       { type: "state", state: baseState },
     ],
     beforeSnapshot: (window) => {
@@ -328,6 +344,42 @@ const SCRIPT = [
       if (bubbles[0].dataset.entryId) problems.push(`extension bubble should not get an entry id, got "${bubbles[0].dataset.entryId}"`);
       if (bubbles[1].dataset.entryId !== "entry-real") problems.push(`real bubble should get entry-real, got "${bubbles[1].dataset.entryId}"`);
       if (problems.length > 0) throw new Error(`entry id binding: ${problems.join("; ")}`);
+    },
+  },
+  // Image attachments: the thumbnails must sit outside `.bubble-content` (the
+  // element folding clips), and an attachment-only message must still render a
+  // bubble even though its display text is empty — that bubble is what the
+  // host's `bubbleEntryIds` counts, so losing it here would shift every entry
+  // id after it.
+  {
+    label: "user message with image attachments",
+    messages: [
+      {
+        type: "history",
+        transcriptId: "image-attachments",
+        events: [
+          {
+            kind: "user_message",
+            text: "what is wrong here?",
+            images: [{ mimeType: "image/png", data: TINY_PNG, name: "shot.png" }],
+          },
+          { kind: "assistant_message", text: "The border is 1px off." },
+          { kind: "user_message", text: "", images: [{ mimeType: "image/png", data: TINY_PNG }] },
+        ],
+      },
+      { type: "state", state: baseState },
+    ],
+    beforeSnapshot: (window) => {
+      const bubbles = [...window.document.querySelectorAll(".bubble.user")];
+      const problems = [];
+      if (bubbles.length !== 2) throw new Error(`expected 2 user bubbles, got ${bubbles.length}`);
+      for (const [index, bubble] of bubbles.entries()) {
+        const strip = bubble.querySelector(".bubble-images");
+        if (!strip) problems.push(`bubble ${index} has no image strip`);
+        else if (strip.parentElement !== bubble) problems.push(`bubble ${index}: images must not live inside the folding content`);
+        if (bubble.querySelector(".bubble-content .bubble-images")) problems.push(`bubble ${index}: image strip is inside .bubble-content`);
+      }
+      if (problems.length > 0) throw new Error(`image attachments: ${problems.join("; ")}`);
     },
   },
   // Folding: only the newest message of each role stays open, and only long
@@ -632,6 +684,26 @@ const SCRIPT = [
             current: false,
             delegationRole: "child",
           },
+          // A task line whose parent went headless: both facts are true of
+          // these rows, and the role is the more informative badge. The claim
+          // still decides the click (it routes to the owning controller), so
+          // naming the role costs nothing.
+          {
+            file: "/workspace/e.jsonl",
+            title: "waiting parent, elsewhere",
+            timestamp: "2026-01-03T01:00:00.000Z",
+            current: false,
+            delegationRole: "parent",
+            claimedElsewhere: "background",
+          },
+          {
+            file: "/workspace/f.jsonl",
+            title: "running child, elsewhere",
+            timestamp: "2026-01-03T02:00:00.000Z",
+            current: false,
+            delegationRole: "child",
+            claimedElsewhere: "background",
+          },
         ],
       },
     ],
@@ -666,6 +738,18 @@ const SCRIPT = [
       if (!visible || visible.disabled) throw new Error("a session visible on another surface must be movable here");
       const background = window.document.querySelector(".session-row.claimed-background .session-main");
       if (!background || background.disabled) throw new Error("a background run must remain recoverable");
+      // A lane of a headless parent must still read as a subagent, and clicking
+      // it must address the owning controller rather than open a second writer.
+      const foreignLane = window.document.querySelector(".session-row.claimed-background.delegation-child");
+      const foreignLaneBadge = foreignLane?.querySelector(".session-badge");
+      if (!foreignLaneBadge?.classList.contains("subagent")) {
+        throw new Error("a running lane owned by another controller must keep the subagent badge");
+      }
+      // The click is recorded in the "posted to host" section of the snapshot:
+      // it must address the owning controller (`revealSession`) rather than
+      // resume the file, which would open a second writer for it.
+      foreignLane.querySelector(".session-main").click();
+      window.document.getElementById("btn-sessions").click();
     },
   },
   {

@@ -62,6 +62,12 @@ export interface MessageBubble {
 export interface MessageBubbleOptions {
   role: string;
   text: string;
+  /**
+   * Extra content placed between the rendered Markdown and the footer, e.g.
+   * image attachments. Deliberately outside `.bubble-content`: folding clips
+   * that element, and an attachment is not part of the prose that folds away.
+   */
+  extra?: HTMLElement;
   /** Remembered manual state from an earlier visit to this transcript. */
   folded?: boolean;
   onToggle?(folded: boolean): void;
@@ -170,7 +176,8 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
   };
 
   footer.append(toggle, copyButton("bubble-copy", t.copyMessage, () => text));
-  root.append(content, footer);
+  if (options.extra) root.append(content, options.extra, footer);
+  else root.append(content, footer);
   setText(options.text);
 
   return {

@@ -9,11 +9,15 @@
   position: relative;
   padding: 0 var(--content-pad) var(--content-pad);
   background: var(--surface-bg);
-  /* 输入区与消息列的几何是恒等式：两者都没被上限截断时，输入框比消息列每侧宽 10px
-     （composer 内缩 12 对 `.messages` 内缩 22）。若把 composer 的上限也定成
-     `--content-max-width`，上限生效时这个外伸会反转成每侧窄 12px（「输入框比正文窄」）。
-     取整条聊天列的宽度，任何宽度区间下相对关系都不变。 */
-  width: min(100%, var(--chat-column-width));
+  /* 输入区与消息列的几何是恒等式：**输入框的左右边框与消息列对齐**——agent 消息与
+     执行过程块的左边框、用户消息与执行过程块的右边框，都落在 `.composer-box` 的
+     两条边上。`.messages` 每侧内缩 `--content-pad + --scrollbar-size`（右侧那份是
+     常驻的滚动条槽），而 composer 每侧只内缩 `--content-pad`，所以这里的宽度必须比
+     正文列宽出正好两个 `--content-pad`，再由 `.content-column` 的 `margin-inline: auto`
+     居中：两个宽度区间（被上限截断与否）下对齐关系都成立。
+     不要写成 `min(100%, --chat-column-width)`：那会让输入框每侧比正文外伸
+     `--scrollbar-size`。 */
+  width: min(calc(100% - var(--content-pad) * 2), calc(var(--content-max-width) + var(--content-pad) * 2));
   box-sizing: border-box;
 }
 
@@ -121,6 +125,48 @@
   &.sensitive {
     border-color: var(--ember);
   }
+
+  /* 图片附件：缩略图 + 文件名。它与 @ 引用共用同一条 chips 行，
+     因为两者是同一件事：这条消息带上了什么。 */
+  &.image {
+    padding-left: 2px;
+  }
+
+  /* 已附上、但有一件事要告知（模型不支持读图 / settings 里禁了图）。
+     不用 --ember：它没失败，只是不会按用户以为的方式生效。 */
+  &.warned {
+    border-style: dashed;
+  }
+
+  &.pending {
+    padding: 0 8px;
+    opacity: 0.75;
+    font-style: italic;
+  }
+}
+
+.file-ref-thumb {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+/* 拒绝必须看得见：图片“没出现”会被读成粘贴被忽略了。 */
+.file-ref-error,
+.file-ref-note {
+  align-self: center;
+  font-size: 0.85em;
+  line-height: 1.4;
+}
+
+.file-ref-error {
+  color: var(--ember);
+}
+
+.file-ref-note {
+  color: var(--text-dim);
 }
 
 .file-ref-remove {

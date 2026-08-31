@@ -130,17 +130,25 @@ function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelIte
   }
 
   const rest = models.filter((model) => !scopedSet.has(modelRef(model)));
-  const byProvider = new Map<string, AvailableModel[]>();
-  for (const model of rest) {
-    const list = byProvider.get(model.provider) ?? [];
-    list.push(model);
-    byProvider.set(model.provider, list);
-  }
-  for (const [provider, list] of byProvider) {
+  for (const [provider, list] of groupByProvider(rest)) {
     items.push({ label: provider, kind: vscode.QuickPickItemKind.Separator });
     for (const model of list) items.push(row(model));
   }
   return items;
+}
+
+/**
+ * Models grouped under their provider, in first-seen order — the shape both
+ * QuickPicks list them in (a separator row per provider, then its models).
+ */
+function groupByProvider(models: readonly AvailableModel[]): Map<string, AvailableModel[]> {
+  const byProvider = new Map<string, AvailableModel[]>();
+  for (const model of models) {
+    const list = byProvider.get(model.provider) ?? [];
+    list.push(model);
+    byProvider.set(model.provider, list);
+  }
+  return byProvider;
 }
 
 /**
@@ -227,13 +235,7 @@ export async function manageScopedModels(runtime: PiRuntime, ui: ModelPickerUi):
   const enabled = new Set(runtime.scopedModels.map((scoped) => modelRef(scoped.model)));
   type ModelItem = vscode.QuickPickItem & { model?: AvailableModel };
   const items: ModelItem[] = [];
-  const byProvider = new Map<string, AvailableModel[]>();
-  for (const model of models) {
-    const list = byProvider.get(model.provider) ?? [];
-    list.push(model);
-    byProvider.set(model.provider, list);
-  }
-  for (const [provider, list] of byProvider) {
+  for (const [provider, list] of groupByProvider(models)) {
     items.push({ label: provider, kind: vscode.QuickPickItemKind.Separator });
     for (const model of list) {
       items.push({

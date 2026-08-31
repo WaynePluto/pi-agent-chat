@@ -21,6 +21,14 @@ export type JsonValue = string | number | boolean | null | JsonValue[] | { [key:
 export const MAX_FILE_REFERENCES = 10;
 
 /**
+ * Upper bound for image attachments on a single prompt. Enforced on both ends
+ * for the same reason as {@link MAX_FILE_REFERENCES}. Deliberately not a
+ * setting: it bounds one message, not a capability, and every attachment is
+ * already capped in size by the host.
+ */
+export const MAX_IMAGE_ATTACHMENTS = 8;
+
+/**
  * Default of `piAgentChat.transcript.foldLines`. Lives here because three
  * places must agree on it: the manifest default, the host that pushes the
  * value to the webview, and the webview's fallback before the first push. A
@@ -422,6 +430,19 @@ export interface ExtensionWidget {
   placement: "aboveEditor" | "belowEditor";
 }
 
+/**
+ * One image carried by a transcript message, already processed host-side
+ * (converted / downscaled), so the webview can render it straight from a
+ * `data:` URL — which the webview CSP allows.
+ */
+export interface TranscriptImage {
+  mimeType: string;
+  /** base64, without the `data:` prefix. */
+  data: string;
+  /** Display name, e.g. the dropped file's basename. */
+  name?: string;
+}
+
 /** One entry of the `/` autocomplete list. */
 export interface SlashCommand {
   name: string;
@@ -438,7 +459,7 @@ export type ChatEvent =
    * `agent/invocations.ts`). `extension` carries the providing extension's
    * absolute path, the same value its resource row opens.
    */
-  | { kind: "user_message"; text: string; mode?: "steer" | "followUp"; skill?: string; prompt?: string; extension?: string }
+  | { kind: "user_message"; text: string; mode?: "steer" | "followUp"; skill?: string; prompt?: string; extension?: string; images?: TranscriptImage[] }
   | { kind: "assistant_start" }
   | { kind: "text_delta"; delta: string }
   | { kind: "thinking_delta"; delta: string }
@@ -597,13 +618,37 @@ export type HostMessage =
   /** Results for the webview @ project-file picker. */
   | { type: "projectFiles"; requestId: number; items: ProjectFileItem[]; error?: string }
   /**
-   * Session-tree ids for the user bubbles currently on screen, in transcript
-   * order, so each bubble can act on its own entry (switch / fork / label).
-   * Shorter than the bubble list while messages are still queued, and empty
-   * whenever acting on the displayed transcript is not allowed (preview,
-   * subagent view).
+   * Outcome of one `attachImage` request.
+   *
+   * On success the payload is the *processed* image, so the composer thumbnail
+   * shows exactly what the model will receive and the original bytes never
+   * travel back. `note` carries a condition the user should know about but
+   * which does not block sending (no vision support on the current model,
+   * `blockImages` on in the shared settings).
    */
-  | { type: "entryIds"; ids: string[]; labels: (string | undefined)[] }
+  | {
+      type: "attachment";
+      requestId: number;
+      id?: string;
+      image?: TranscriptImage;
+      note?: string;
+      error?: string;
+    }
+  /**
+   * Session-tree ids for the message bubbles currently on screen, per role and
+   * in transcript order, so each bubble can act on its own entry (switch /
+   * fork / label). `ids`/`labels` bind the user bubbles, `assistantIds`/
+   * `assistantLabels` the assistant ones. Shorter than the bubble list while
+   * messages are still queued, and empty whenever acting on the displayed
+   * transcript is not allowed (preview, subagent view).
+   */
+  | {
+      type: "entryIds";
+      ids: string[];
+      labels: (string | undefined)[];
+      assistantIds: string[];
+      assistantLabels: (string | undefined)[];
+    }
   /**
    * Full replacement of the extension-owned status entries and widgets of the
    * session on screen. These are live UI state rather than transcript history,
@@ -621,7 +666,23 @@ export type HostMessage =
 /** Webview -> extension host. */
 export type WebviewMessage =
   | { type: "ready" }
-  | { type: "prompt"; text: string; references?: string[]; streamingBehavior?: "steer" | "followUp" }
+  | { type: "prompt"; text: string; references?: string[]; imageIds?: string[]; streamingBehavior?: "steer" | "followUp" }
+  | { type: "attachImage"; requestId: number; name?: string; mimeType?: string; data?: string }
+  /**
+   * Attach an image the user pasted into the composer.
+   *
+   * Paste is the only route: VS Code's workbench disables pointer events on
+   * every webview iframe as soon as a drag starts in the window, so a webview
+   * cannot receive `drop` at all. Screenshots and files copied in the OS file
+   * manager both arrive through the clipboard.
+   *
+   * The bytes cross once, on attach rather than on send: the host processes
+   * them immediately (convert / downscale) so the composer can show a real
+   * thumbnail and report a rejection while the user is still composing. The
+   * prompt then only carries the ids.
+   */
+  /** Drop an attachment again before sending. */
+  | { type: "detachImage"; id: string }
   | { type: "listProjectFiles"; requestId: number; query: string; includeIgnored: boolean }
   | { type: "abort" }
   /** Re-issue the request that failed, without adding a user message (see `status.retry`). */
@@ -658,7 +719,11 @@ export type WebviewMessage =
   | { type: "renameCurrentSession" }
   /** Open the session tree navigator (switch branch / fork / label). */
   | { type: "openSessionTree" }
-  /** Same three operations, applied to one message bubble in the transcript. */
+  /**
+   * Same three operations, applied to one message bubble in the transcript.
+   * The entry itself says which role it is, so the host — not the webview —
+   * decides what each operation means there (see `forkFromEntry`).
+   */
   | { type: "entryAction"; action: "switch" | "fork" | "label"; entryId: string }
   /** Ask for the models offered by the composer's quick model menu. */
   | { type: "listModels" }

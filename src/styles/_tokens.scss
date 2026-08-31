@@ -80,7 +80,8 @@
   --scrollbar-size: 12px;
   /* 聊天列的基础内边距。`.messages` / `.sessions` 的左内边距 = 它 + 滚动条宽度。 */
   --content-pad: 12px;
-  /* 用户气泡左侧为 hover 动作条预留的空白：3 个按钮 + 间隙 + 动作条自身外边距。 */
+  /* 气泡外侧为 hover 动作条预留的空白（3 个按钮 + 间隙 + 动作条自身外边距）：
+     用户消息在左侧，agent 回答在右侧，两边取同一个值。 */
   --bubble-gutter: 98px;
   /* 会话行右侧动作条的几何。按钮尺寸、间隙与行右缘内缩都从这里读，
      标题的淡出遮罩也由它们算出——增删按钮或改按钮大小只改这几个值，
@@ -104,8 +105,9 @@
      可读列住在它们「里面」，所以任何包裹 transcript 的容器都要比正文列宽这么多。
      与 `shared/protocol.ts` 的 `CHAT_COLUMN_GUTTER_WIDTH` 互为镜像。 */
   --content-gutter: calc(var(--content-pad) * 2 + var(--scrollbar-size) * 2);
-  /* 整条聊天列（transcript 外框 + composer）的宽度。窄屏天然到达这个值；
-     宽屏栅格必须给 chat 轨道同样的值，否则进入宽屏会悄悄把正文压窄一个 gutter。 */
+  /* 整条聊天列（`.messages` 外框）的宽度：正文列 + 它两侧的内边距与滚动条槽。
+     窄屏天然到达这个值；宽屏栅格必须给 chat 轨道同样的值，否则进入宽屏会惄惄把正文
+     压窄一个 gutter。composer 不用它（它没有滚动条槽），见 `_composer.scss`。 */
   --chat-column-width: calc(var(--content-max-width) + var(--content-gutter));
   /* 快捷菜单行左侧的勾选槽宽度，`.picker-mark` 与 `.picker-more` 共用。 */
   --picker-gutter: 14px;

@@ -8,12 +8,13 @@
   background: var(--section-bg);
 }
 
-/* 区域边界是 hairline 而不是投影。header 永远声明自己的下沿；窄屏下由当前显示的
-   顶部面板声明它自己的，transcript 上方因此不会叠出两条线。 */
+/* 区域边界是 hairline 而不是投影。header 永远声明自己的下沿；窄屏下资源面板显示时
+   改由它声明，transcript 上方因此不会叠出两条线。
+   委派栏不参与这条规则：它是一张带内缩与圆角的独立卡片（四边同色的框已经把自己
+   划完了），再给它一条灰色下沿只会让那一边与其余三边不是同一个东西。 */
 #root {
-  &:not(.layout-wide):not(:has(.resources:not(.hidden), .delegation-bar:not(.hidden))) > .header,
-  &:not(.layout-wide) .resources:not(.hidden):not(:has(~ .chat-column .delegation-bar:not(.hidden))),
-  &:not(.layout-wide) .delegation-bar:not(.hidden),
+  &:not(.layout-wide):not(:has(.resources:not(.hidden))) > .header,
+  &:not(.layout-wide) .resources:not(.hidden),
   &.layout-wide > .header {
     border-bottom: 1px solid var(--border);
   }

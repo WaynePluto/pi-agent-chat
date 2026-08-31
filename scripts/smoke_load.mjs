@@ -81,69 +81,11 @@ function report(results) {
   console.log(formatDiagnostics(results));
 }
 
-const {
-  runSpikeDiagnostics,
-  runSurfaceCoordinationTest,
-  runHistoryReplayTest,
-  runSlashCommandTest,
-  runManualRetryTest,
-  runReplayedRetryOfferTest,
-  runRetryOfferLifecycleTest,
-  runSessionTreeTest,
-  runSubagentToolTest,
-  runTerminalToolTest,
-  runProjectFilesTest,
-  runExtensionSdkImportTest,
-  runExtensionReloadTest,
-  runExtensionCommandContextTest,
-  runResourceListingTest,
-  runViewStateTest,
-  runStartupSessionTest,
-  runLiveToolCallTest,
-  formatDiagnostics,
-} = extension.__spike;
-report(await runSpikeDiagnostics());
-report(runSurfaceCoordinationTest());
-report(await runHistoryReplayTest(root));
-report(await runSlashCommandTest(root));
-// Pins the private SDK entry point the "retry" action on a failed-request
-// notice rides on, and that resuming re-issues the request without inventing a
-// user message.
-report(await runManualRetryTest(root));
-// Pins the same offer on a transcript replayed from disk: a window that reopens
-// a session which died mid-request must not leave the user with a dead end.
-report(await runReplayedRetryOfferTest(root));
-// Pins what becomes of the offer once it is clicked: the button is drawn from
-// the state the host records on the notice, so a finished retry stops claiming
-// it is running, and a transcript replay does not resurrect a spent offer.
-report(await runRetryOfferLifecycleTest(root));
-report(await runSessionTreeTest(root));
-report(await runSubagentToolTest(root));
-// Pins the terminal tool's refusal paths against a scripted terminal API: no
-// shell integration must refuse rather than report an empty success, an
-// unfinished command must not be killed, and `close` must be unable to reach a
-// terminal the tool did not create.
-report(await runTerminalToolTest(root));
-report(await runProjectFilesTest(root));
-// Must run inside the bundle: it proves the rebuilt `import.meta.url` still
-// lets the SDK hand jiti working aliases (see sdkModuleUrlPlugin in esbuild.mjs).
-report(await runExtensionSdkImportTest(root));
-// Pins that reloading resources rebuilds the session's extension runner
-// instead of leaving it on the previously loaded instances.
-report(await runExtensionReloadTest(root));
-// Pins that extension command handlers can actually drive the session
-// (`ctx.newSession()` and friends are host-supplied, not SDK defaults).
-report(await runExtensionCommandContextTest(root));
-report(await runResourceListingTest(root));
-// Pins the host-side view state machine through the real ChatBridge: what the
-// webview shows (live / lane / preview) and every flag derived from it, plus
-// the extras a session switch must deliver (fold threshold, the input-history
-// populate flag and where it must NOT appear). A hand-built ChatState snapshot
-// cannot see bugs in the code that builds it.
-report(await runViewStateTest(root));
-// Pins which session a window opens with: the remembered one, including the
-// new-and-still-empty state that leaves no file on disk.
-report(await runStartupSessionTest(root));
+const { DIAGNOSTIC_SUITES, runLiveToolCallTest, formatDiagnostics } = extension.__spike;
+
+// One list, defined in `src/agent/diagnostics.ts`: a self-check added there
+// runs here and in the VS Code command without touching either runner.
+for (const suite of DIAGNOSTIC_SUITES) report(await suite(root));
 
 if (process.env.PI_SPIKE_LIVE === "1") {
   console.log("\n# Live prompt + tool call");

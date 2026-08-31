@@ -1,15 +1,13 @@
-import { isAbsolute, basename, relative as relativePath, resolve as resolvePath } from "node:path";
-import { homedir } from "node:os";
+import { basename } from "node:path";
 import { existsSync } from "node:fs";
 import * as vscode from "vscode";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type { ModelsRefreshResult } from "@earendil-works/pi-ai";
-import { sessionEntryToContextMessages, SessionManager } from "@earendil-works/pi-coding-agent";
-import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, HostMessage, ResourceItem, ResourceScope, ResourceSection, RetryOfferState, SessionListItem, SubagentSetup, ToolSetup, WebviewMessage } from "../shared/protocol.js";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
+import type { ChatEvent, ChatState, ChatStats, DelegationLane, ExtensionWidget, HostMessage, RetryOfferState, SessionListItem, SubagentSetup, ToolSetup, TranscriptImage, WebviewMessage } from "../shared/protocol.js";import { MAX_IMAGE_ATTACHMENTS } from "../shared/protocol.js";
 import { formatLocalTimestamp } from "../shared/time.js";
 import { loginFlow, logoutFlow } from "./auth.js";
-import { ActivityTracker, type ResourceActivity } from "./activity.js";
+import { ActivityTracker } from "./activity.js";
 import { affectsFoldConfig, affectsLayoutConfig, affectsShowThinkingConfig, affectsSubagentConfig, affectsTerminalConfig, readContentMaxWidth, readFoldLines, readShowThinking, readSubagentConfig, readTerminalConfig, readWideThreshold } from "./config.js";
 import { collectSlashCommands, formatHelp, runBuiltinCommand } from "./commands.js";
 import { describe } from "./errors.js";
@@ -23,9 +21,18 @@ import { isResumable, resumeAfterError, supportsResume } from "./resume.js";
 import { buildModelCatalog, manageScopedModels, pickModel } from "./model-picker.js";
 import { isModelsConfigPath, repairEmptyModelsConfig } from "./model-config.js";
 import type { PiRuntime } from "./runtime.js";
-import { EMPTY_PROMPT_INDEX, buildPromptIndex, expandedPrompt, resolveInvocation, type PromptIndex } from "./invocations.js";
-import { EMPTY_SKILL_INDEX, buildSkillIndex, collapseSkillInvocation, invokedSkill, matchSkill, readSkillInvocation, type SkillIndex } from "./skills.js";
-import { contentText, firstUserLine, sessionTitle } from "./session-title.js";
+import { EMPTY_PROMPT_INDEX, buildPromptIndex, resolveInvocation, type PromptIndex } from "./invocations.js";
+import { EMPTY_SKILL_INDEX, buildSkillIndex, invokedSkill, matchSkill, type SkillIndex } from "./skills.js";
+import { firstUserLine, sessionTitle, userDisplayFromText } from "./session-title.js";
+import { buildHistoryEntryEvents, bubbleEntryIds, resultText, toolFilePath } from "./history.js";
+import { collectResourceSections } from "./resources.js";
+import {
+  attachmentName,
+  imageAttachmentMarkup,
+  prepareImage,
+  stripImageAttachmentMarkup,
+  MAX_ATTACHMENT_BYTES,
+} from "./images.js";
 import { sanitizeToolDetails } from "./tool-details.js";
 import type { LaneNotice, LaneState, SubagentObserver, SubagentRun } from "./subagent.js";
 
@@ -44,6 +51,15 @@ export interface BridgeHost {
   revealClaimedSession?(sessionFile: string): boolean;
   /** Where another top-level runtime that owns this persisted session lives. */
   claimedSessionLocation?(sessionFile: string): "visible" | "background" | undefined;
+  /**
+   * Task-line role of a session file anywhere in this window.
+   *
+   * A run belongs to a controller, not to a surface: once the user navigates
+   * away, the parent keeps running headlessly and its lanes keep appending to
+   * their own files. Asking the window (rather than only this bridge) is what
+   * keeps the badges honest in every other session list.
+   */
+  delegationRoleAt?(sessionFile: string): "parent" | "child" | undefined;
   /** Announce that session metadata or live ownership changed in this VS Code window. */
   notifySessionsChanged?(): void;
   /** Window-level event shared by every top-level bridge in this extension host. */
@@ -198,6 +214,14 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private readonly activity = new ActivityTracker();
   /** >0 while an extension `/command` handler is running (nestable in theory). */
   private extensionCommandDepth = 0;
+  /**
+   * Images attached to the composer but not sent yet, keyed by the id the
+   * webview holds. Processed on arrival so a rejection surfaces while the user
+   * is still composing; consumed by the next prompt and dropped on a session
+   * change (they belong to the composer that is being replaced).
+   */
+  private readonly pendingImages = new Map<string, { name: string; mimeType: string; data: string; hints: string[] }>();
+  private nextAttachmentId = 0;
   /** Watches saves of the shared `~/.pi/agent/models.json`. */
   private modelsConfigWatcher?: vscode.Disposable;
   private settingsWatcher?: vscode.Disposable;
@@ -570,6 +594,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.lanes = [];
     this.laneSessions.clear();
     this.parentActivityWhileAway = false;
+    // Attachments belong to the composer being replaced, and the ids the old
+    // webview state holds mean nothing to the new session.
+    this.pendingImages.clear();
     this.histories.clear();
     this.extensionStatuses.clear();
     this.extensionWidgets.clear();
@@ -801,8 +828,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   }
 
   /**
-   * Tell the webview which session entry each user bubble belongs to, so the
-   * per-bubble actions (switch / fork / label) can address it.
+   * Tell the webview which session entry each message bubble belongs to, so the
+   * per-bubble actions (switch / fork / label) can address it. Both roles are
+   * addressable: an assistant reply is an entry like any other, so the session
+   * tree can be rewound to it, forked at it or bookmarked on it.
    *
    * Only the live runtime transcript is actionable: a live or replayed
    * subagent transcript gets an empty list, which hides the buttons.
@@ -813,13 +842,19 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     // too: rewriting history under a running delegation would strand its lanes.
     const actionable = this.view.kind === "live" && !this.activeRun;
     if (!actionable) {
-      this.host.post({ type: "entryIds", ids: [], labels: [] });
+      this.host.post({ type: "entryIds", ids: [], labels: [], assistantIds: [], assistantLabels: [] });
       return;
     }
     try {
-      const ids = userEntryIds(session.sessionManager.getBranch());
-      const labels = ids.map((id) => session.sessionManager.getLabel(id));
-      this.host.post({ type: "entryIds", ids, labels });
+      const label = (id: string) => session.sessionManager.getLabel(id);
+      const { user, assistant } = bubbleEntryIds(session.sessionManager.getBranch());
+      this.host.post({
+        type: "entryIds",
+        ids: user,
+        labels: user.map(label),
+        assistantIds: assistant,
+        assistantLabels: assistant.map(label),
+      });
     } catch (error) {
       this.host.log(`failed to collect entry ids: ${describe(error)}`);
     }
@@ -1057,15 +1092,17 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     followUp: readonly string[] = session.getFollowUpMessages(),
   ): void {
     const local = this.compactionQueues.get(session.sessionId) ?? [];
+    // Only display copies are projected: the stored text is what gets re-sent
+    // to the model when the queue is flushed, so its markup has to survive.
     this.emit(session, {
       kind: "queue_update",
       steering: [
-        ...steering.map(collapseSkillInvocation),
-        ...local.filter((item) => item.mode === "steer").map((item) => item.text),
+        ...steering.map(userDisplayFromText),
+        ...local.filter((item) => item.mode === "steer").map((item) => userDisplayFromText(item.text)),
       ],
       followUp: [
-        ...followUp.map(collapseSkillInvocation),
-        ...local.filter((item) => item.mode === "followUp").map((item) => item.text),
+        ...followUp.map(userDisplayFromText),
+        ...local.filter((item) => item.mode === "followUp").map((item) => userDisplayFromText(item.text)),
       ],
     });
   }
@@ -1481,18 +1518,23 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    * framing.
    */
   private showLane(laneId?: string, fallbackFile?: string, laneTitle?: string): void {
-    if (!laneId) {
-      this.setView({ kind: "live" });
+    // A lane can also be addressed by its file alone: a session list rendered by
+    // another bridge knows the row is a subagent (the window says so) but not
+    // which lane id this run gave it.
+    const resolved = laneId ?? (fallbackFile ? this.lanes.find((lane) => lane.sessionFile === fallbackFile)?.id : undefined);
+    if (!resolved) {
+      if (fallbackFile) void this.replayLaneSession(fallbackFile, laneTitle ?? "");
+      else this.setView({ kind: "live" });
       return;
     }
-    const session = this.laneSessions.get(laneId);
+    const session = this.laneSessions.get(resolved);
     if (!session) {
       // The child session is gone (an earlier window, or a session switch), but
       // its transcript is on disk. Replay it *as that subagent*.
       if (fallbackFile) void this.replayLaneSession(fallbackFile, laneTitle ?? "");
       return;
     }
-    this.setView({ kind: "lane", laneId, session });
+    this.setView({ kind: "lane", laneId: resolved, session });
   }
 
   /**
@@ -1527,7 +1569,13 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         await this.postState();
         break;
       case "prompt":
-        await this.sendPrompt(message.text, message.streamingBehavior, message.references);
+        await this.sendPrompt(message.text, message.streamingBehavior, message.references, message.imageIds);
+        break;
+      case "attachImage":
+        await this.attachImage(message.requestId, message);
+        break;
+      case "detachImage":
+        this.pendingImages.delete(message.id);
         break;
       case "listProjectFiles":
         await this.listProjectFiles(message.requestId, message.query, message.includeIgnored);
@@ -1541,9 +1589,9 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         break;
       case "dequeue": {
         const session = this.runtime.session;
-        const sdkQueued = [...session.getSteeringMessages(), ...session.getFollowUpMessages()].map(collapseSkillInvocation);
+        const sdkQueued = [...session.getSteeringMessages(), ...session.getFollowUpMessages()].map(userDisplayFromText);
         const compactingQueued = this.compactionQueues.get(session.sessionId) ?? [];
-        const queued = [...sdkQueued, ...compactingQueued.map((item) => item.text)];
+        const queued = [...sdkQueued, ...compactingQueued.map((item) => userDisplayFromText(item.text))];
         if (queued.length === 0) break;
         // Tell the webview first so pending bubbles are removed before the
         // queue_update from clearQueue() arrives (which would otherwise
@@ -1793,6 +1841,73 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     }
   }
 
+  /**
+   * Process one pasted or dropped image and hand the result back to the
+   * composer.
+   *
+   * Runs on attach rather than on send so a refusal (not an image, too large,
+   * unscalable) reaches the user while they are still composing, and so the
+   * chip can show the processed bytes the model will actually receive.
+   *
+   * Two conditions are reported but do not block: a model without vision
+   * support (the user may still switch models before sending) and
+   * `images.blockImages` in the shared settings, where the SDK swaps the image
+   * for a placeholder on its way to the provider — without saying so the user
+   * would believe the model saw the screenshot.
+   */
+  private async attachImage(
+    requestId: number,
+    request: { name?: string; mimeType?: string; data?: string },
+  ): Promise<void> {
+    const result = await this.prepareAttachment(request);
+    if ("error" in result) return void this.host.post({ type: "attachment", requestId, error: result.error });
+    this.host.post({ type: "attachment", requestId, id: result.id, image: result.image, note: this.attachmentNote() });
+  }
+
+  /** Read, sniff and process one pasted attachment. */
+  private async prepareAttachment(request: {
+    name?: string;
+    mimeType?: string;
+    data?: string;
+  }): Promise<{ id: string; image: TranscriptImage } | { error: string }> {
+    if (this.pendingImages.size >= MAX_IMAGE_ATTACHMENTS) return { error: t("imageTooMany") };
+    if (request.data === undefined) return { error: t("imageUnsupported") };
+
+    // The declared type is not evidence: `prepareImage` decodes the bytes and
+    // refuses anything photon cannot read as an image.
+    const bytes = Buffer.from(request.data, "base64");
+    if (bytes.byteLength > MAX_ATTACHMENT_BYTES) return { error: t("imageTooLarge") };
+
+    const prepared = await prepareImage(bytes, request.mimeType ?? "", this.runtime.settingsManager.getImageAutoResize());
+    if (!prepared.ok) return { error: prepared.message };
+
+    const id = `image-${++this.nextAttachmentId}`;
+    const name = attachmentName(this.nextAttachmentId, request.name);
+    this.pendingImages.set(id, { name, ...prepared.image });
+    return { id, image: { mimeType: prepared.image.mimeType, data: prepared.image.data, name } };
+  }
+
+  /** Condition the user should know about before sending, if any. */
+  private attachmentNote(): string | undefined {
+    if (this.runtime.settingsManager.getBlockImages()) return t("imageBlockedBySettings");
+    const model = this.runtime.session.model;
+    if (model && !model.input.includes("image")) return t("imageModelNoVision");
+    return undefined;
+  }
+
+  /** Consume the attachments a prompt claims, in the order the composer shows them. */
+  private takeAttachments(ids?: string[]): { name: string; mimeType: string; data: string; hints: string[] }[] {
+    if (!ids?.length) return [];
+    const taken: { name: string; mimeType: string; data: string; hints: string[] }[] = [];
+    for (const id of ids.slice(0, MAX_IMAGE_ATTACHMENTS)) {
+      const image = this.pendingImages.get(id);
+      if (!image) continue;
+      this.pendingImages.delete(id);
+      taken.push(image);
+    }
+    return taken;
+  }
+
   /** Answer a webview @ picker query; errors are reported inline, never thrown. */
   private async listProjectFiles(requestId: number, query: string, includeIgnored: boolean): Promise<void> {
     try {
@@ -1812,12 +1927,26 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.emit(session, { kind: "error", text: messageText, scope });
   }
 
-  private async sendPrompt(text: string, streamingBehavior?: "steer" | "followUp", references?: string[]): Promise<void> {
+  private async sendPrompt(
+    text: string,
+    streamingBehavior?: "steer" | "followUp",
+    references?: string[],
+    imageIds?: string[],
+  ): Promise<void> {
     // Only the parent takes input, and only when it is the live view. Both other
     // views are read-only; a queued prompt from them would land in a session the
     // user is not looking at.
     if (this.view.kind !== "live") return;
     let trimmed = text.trim();
+
+    // Attachments are resolved before the empty-text check: an image on its own
+    // is a message, and its markup is what keeps the text block non-empty (the
+    // SDK always puts one first, and providers reject an empty one).
+    const attachments = this.takeAttachments(imageIds);
+    if (attachments.length > 0) {
+      const markup = attachments.map((item) => imageAttachmentMarkup(item.name, item.hints));
+      trimmed = `${trimmed ? `${trimmed}\n\n` : ""}${markup.join("\n")}`;
+    }
 
     // Validate untrusted webview paths and fold them into the prompt as plain
     // text; the model reads files itself via the `read` tool.
@@ -1865,16 +1994,18 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     // still the command form, so the skill is resolved from the command itself.
     this.emit(session, {
       kind: "user_message",
-      text: trimmed,
+      text: stripImageAttachmentMarkup(trimmed),
       mode,
       skill: invokedSkill(this.skillIndex, trimmed),
       prompt: invocation.prompt,
       extension: invocation.extension,
+      images: attachments.length > 0 ? attachments.map(({ mimeType, data, name }) => ({ mimeType, data, name })) : undefined,
     });
     try {
       if (extensionCommand) this.extensionCommandDepth += 1;
       await session.prompt(trimmed, {
         streamingBehavior: mode,
+        images: attachments.length > 0 ? attachments.map(({ mimeType, data }) => ({ type: "image", mimeType, data })) : undefined,
       });
     } catch (error) {
       this.reportError(this.runtime.session, "prompt failed", error);
@@ -2096,6 +2227,29 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     session.setThinkingLevel(level);
   }
 
+  /**
+   * Session files this bridge's runtime is appending to besides its own: the
+   * lanes of a run still in progress.
+   *
+   * Both an ownership fact (nothing else may open these as a top-level session
+   * while the subagent writes to them) and the source of the "subagent" badge,
+   * so there is exactly one definition of "a lane is running".
+   */
+  runningLaneFiles(): string[] {
+    if (!this.activeRun) return [];
+    return this.lanes
+      .filter((lane) => lane.status === "running")
+      .map((lane) => lane.sessionFile)
+      .filter((file): file is string => Boolean(file));
+  }
+
+  /** Task-line role of a session file in *this* bridge's run, if any. */
+  delegationRoleAt(file: string): "parent" | "child" | undefined {
+    if (!this.activeRun) return undefined;
+    if (this.runningLaneFiles().includes(file)) return "child";
+    return file === this.runtime.session.sessionFile ? "parent" : undefined;
+  }
+
   private async listSessions(): Promise<SessionListItem[]> {
     const sessions = await SessionManager.list(this.runtime.cwd);
     const displayedFile = this.view.kind === "replay" ? this.view.file : this.displayedSession.sessionFile;
@@ -2104,26 +2258,22 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
       : undefined;
     // The badge spins and means "busy right now", so only lanes of a run still
     // in progress may carry it. Finished subagents are ordinary sessions.
-    const runningLanes = new Set(
-      (this.activeRun
-        ? this.lanes.filter((lane) => lane.status === "running").map((lane) => lane.sessionFile)
-        : []
-      ).filter(Boolean) as string[],
-    );
+    // Asked of the window rather than of this bridge: a task line whose parent
+    // has moved to the background is still a task line, and its rows must not
+    // turn into ordinary (openable) sessions in every other list.
+    const delegationRole = (file: string) =>
+      this.host.delegationRoleAt?.(file) ?? this.delegationRoleAt(file);
     const items: SessionListItem[] = sessions.map((info) => ({
       file: info.path,
-      // The SDK stores an expanded <skill> block as the first user message.
-      // Restore the command form so session lists show `/skill:name ...`
-      // instead of the skill XML and its filesystem location.
-      title: info.name || collapseSkillInvocation(info.firstMessage) || t("emptySessionTitle"),
+      // The SDK stores an expanded <skill> block as the first user message and
+      // an attachment as `<image …>` markup. Project it the way every other
+      // surface does, so a row, the header title and the rename prefill of the
+      // same session never disagree.
+      title: info.name || userDisplayFromText(info.firstMessage) || t("emptySessionTitle"),
       timestamp: info.modified?.toISOString(),
       current: Boolean(displayedFile) && info.path === displayedFile,
       running: Boolean(runningFile) && info.path === runningFile,
-      delegationRole: runningLanes.has(info.path)
-        ? "child"
-        : this.activeRun && info.path === this.runtime.session.sessionFile
-          ? "parent"
-          : undefined,
+      delegationRole: delegationRole(info.path),
       claimedElsewhere: this.host.claimedSessionLocation?.(info.path),
     }));
     // The SDK defers writing a brand-new session to disk until its first
@@ -2138,7 +2288,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
         timestamp: new Date().toISOString(),
         current: live.sessionFile === displayedFile,
         running: live.isStreaming || live.isCompacting,
-        delegationRole: undefined,
+        delegationRole: delegationRole(live.sessionFile),
         claimedElsewhere: this.host.claimedSessionLocation?.(live.sessionFile),
       });
     }
@@ -2174,10 +2324,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   /** Delete a session file after confirmation; sessions of the active run cannot be deleted. */
   private async deleteSession(file: string): Promise<void> {
     if (this.host.revealClaimedSession?.(file)) return;
-    const runningLaneFiles = this.activeRun
-      ? new Set(this.lanes.map((lane) => lane.sessionFile).filter(Boolean) as string[])
-      : new Set<string>();
-    if (file === this.runtime.session.sessionFile || runningLaneFiles.has(file)) {
+    if (file === this.runtime.session.sessionFile || this.runningLaneFiles().includes(file)) {
       this.emitCommandError(t("deleteActiveSession"));
       return;
     }
@@ -2204,10 +2351,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   private async renameSession(file?: string): Promise<void> {
     // Renaming just appends metadata — it does not interfere with a running
     // session, so claimed sessions can be renamed from any surface.
-    const runningLaneFiles = this.activeRun
-      ? new Set(this.lanes.map((lane) => lane.sessionFile).filter(Boolean) as string[])
-      : new Set<string>();
-    if (file && runningLaneFiles.has(file)) {
+    if (file && (this.host.delegationRoleAt?.(file) ?? this.delegationRoleAt(file)) === "child") {
       this.emitCommandError(t("renameRunningSession"));
       return;
     }
@@ -2281,306 +2425,3 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.unsubscribe = undefined;
   }
 }
-
-/**
- * What the listing needs from the runtime. Structural so the offline
- * diagnostics can pass a bare session instead of a full `PiRuntime`.
- */
-export interface ResourceHost {
-  session: AgentSession;
-  cwd: string;
-}
-
-/**
- * Build the CLI-style startup listing from the session's resource loader,
- * mirroring `interactive-mode`'s [Context] / [Skills] / [Prompts] /
- * [Extensions] sections, plus a [Tools] section the CLI has no equivalent for.
- * Empty sections are omitted, and the CLI's [Themes] section is dropped
- * entirely: the webview renders with VS Code theme variables, so a pi theme
- * would be listed as loaded while having no effect here.
- *
- * Only pi's own resource kinds are listed. Directory conventions invented by a
- * single extension (`~/.pi/agent/agents/`, for one) are deliberately absent:
- * pi has no loader for them, so listing them here would present one
- * extension's private layout as a first-class concept of this host.
- *
- * `activity` marks the rows that took effect in this session (see
- * `agent/activity.ts`); the diagnostics command omits it and gets a listing
- * without any "used here" marks.
- */
-export function collectResourceSections(runtime: ResourceHost, activity?: ResourceActivity): ResourceSection[] {
-  const loader = runtime.session.resourceLoader;
-  const sections: ResourceSection[] = [];
-  // Every row can be opened in the editor, so it shows just the name (the path
-  // stays in the row's tooltip); provenance drives the webview's grouping.
-  const entry = (name: string, path: string, sourceInfo?: { origin?: string }) => resourceEntry(name, path, runtime.cwd, sourceInfo);
-
-  const systemPromptSource = loader.getSystemPromptSource();
-  const contextFiles = [
-    ...(systemPromptSource ? [systemPromptSource] : []),
-    ...loader.getAppendSystemPromptSources(),
-    ...loader.getAgentsFiles().agentsFiles,
-  ];
-  if (contextFiles.length > 0) {
-    // Context files are inlined into the system prompt on every request, so
-    // they are all in effect together, from the first request onwards.
-    sections.push(
-      sortedSection(
-        "Context",
-        contextFiles.map((file) => ({ ...entry(basename(file.path), file.path), ...(activity?.contextUsed ? { used: true } : {}) })),
-      ),
-    );
-  }
-
-  const skills = loader.getSkills().skills;
-  if (skills.length > 0) {
-    sections.push(sortedSection("Skills", skills.map((skill) => entry(skill.name, skill.filePath, skill.sourceInfo))));
-  }
-
-  const prompts = loader.getPrompts().prompts;
-  if (prompts.length > 0) {
-    sections.push(sortedSection("Prompts", prompts.map((prompt) => entry(`/${prompt.name}`, prompt.filePath, prompt.sourceInfo))));
-  }
-
-  const { extensions: allExtensions, errors: extensionErrors } = runtime.session.resourceLoader.getExtensions();
-  const extensions = allExtensions.filter((extension) => !extension.hidden);
-  if (extensions.length > 0 || extensionErrors.length > 0) {
-    sections.push(
-      sortedSection("Extensions", [
-        ...extensions.map((extension) => ({
-          ...entry(basename(extension.path), extension.path, (extension as { sourceInfo?: { origin?: string } }).sourceInfo),
-          ...(activity?.isExtensionUsed(extension.path) ? { used: true } : {}),
-        })),
-        // A failed extension has no loaded file to open, so it keeps the error
-        // as its row text, and is dimmed: it is configured but not in effect.
-        ...extensionErrors.map((failure) => ({
-          label: `${basename(failure.path)} (load failed)`,
-          detail: `${failure.path}: ${String(failure.error)}`,
-          inactive: true,
-          scope: resourceScope(failure.path, runtime.cwd),
-        })),
-      ]),
-    );
-  }
-
-  const tools = collectToolItems(runtime);
-  if (tools.length > 0) {
-    sections.push(sortedSection("Tools", tools));
-  }
-
-  return sections;
-}
-
-/**
- * Every tool the session has configured, whether or not it is active.
- *
- * pi registers seven built-in tools but only activates `read`/`bash`/`edit`/
- * `write` (`core/sdk.ts`), so `grep`/`find`/`ls` show up here as inactive until
- * an extension turns them on — which is exactly the question this row answers.
- * Built-in and SDK-provided tools carry a synthetic `<builtin:read>` path and
- * open nothing; tools registered by an extension keep that extension's file,
- * so the row leads to whoever provides them.
- */
-function collectToolItems(runtime: ResourceHost): ResourceItem[] {
-  const session = runtime.session;
-  const active = new Set(session.getActiveToolNames());
-  return session.getAllTools().map((tool) => {
-    const sourceInfo = tool.sourceInfo as { path?: string; origin?: string } | undefined;
-    const path = sourceInfo?.path && !sourceInfo.path.startsWith("<") ? sourceInfo.path : undefined;
-    const hint = tool.description?.split("\n").find((line) => line.trim())?.trim();
-    return {
-      label: tool.name,
-      scope: path ? resourceScope(path, runtime.cwd, sourceInfo) : ("builtin" as const),
-      ...(path ? { path } : {}),
-      ...(hint ? { hint } : {}),
-      ...(active.has(tool.name) ? {} : { inactive: true }),
-    };
-  });
-}
-
-/**
- * Build one listing section, sorted by label. Rows carry their scope so the
- * webview can group them (global first, then project) instead of tagging every
- * row with its origin.
- */
-function sortedSection(name: string, items: ResourceItem[]): ResourceSection {
-  return { name, items: [...items].sort((a, b) => a.label.localeCompare(b.label)) };
-}
-
-/**
- * One listing row: the resource name as the text, the file behind it as the
- * click/tooltip target.
- */
-function resourceEntry(name: string, path: string, cwd: string, sourceInfo?: { origin?: string }): ResourceItem {
-  if (!path) return { label: name, scope: "other" };
-  return { label: name, path, scope: resourceScope(path, cwd, sourceInfo) };
-}
-
-/**
- * Where a resource comes from, in the terms the SDK documents
- * (`docs/skills.md`). `sourceInfo.scope` is not usable directly: skills under
- * `~/.agents/skills` or a project `.agents/skills` are neither of the SDK's
- * "user"/"project" roots and end up as "temporary", so classify by location.
- */
-function resourceScope(filePath: string, cwd: string, sourceInfo?: { origin?: string }): ResourceScope {
-  if (sourceInfo?.origin === "package") return "package";
-  const path = resolvePath(filePath);
-  if (isInside(path, cwd)) return "project";
-  if (isInside(path, homedir())) return "global";
-  return "other";
-}
-
-function isInside(path: string, root: string): boolean {
-  const relative = relativePath(root, path);
-  return relative !== "" && !relative.startsWith("..") && !isAbsolute(relative);
-}
-
-/** Extract plain text from an `AgentToolResult`-shaped value. */
-function resultText(result: unknown): string {
-  const content = (result as { content?: Array<{ type?: string; text?: string }> } | undefined)?.content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .filter((part) => part?.type === "text" && typeof part.text === "string")
-    .map((part) => part.text as string)
-    .join("\n");
-}
-
-/**
- * Convert a persisted transcript into the same `ChatEvent` shapes the live
- * stream produces, so the webview has a single rendering path.
- */
-export function buildHistoryEvents(
-  messages: readonly unknown[],
-  cwd: string,
-  skills: SkillIndex = EMPTY_SKILL_INDEX,
-  prompts: PromptIndex = EMPTY_PROMPT_INDEX,
-): ChatEvent[] {
-  const events: ChatEvent[] = [];
-  const toolArgs = new Map<string, unknown>();
-  for (const message of messages) appendHistoryMessage(events, toolArgs, message, cwd, skills, prompts);
-  return events;
-}
-
-/**
- * Replay the complete active branch rather than the compaction-aware model
- * context. Compaction entries become visible boundaries; their retainedTail is
- * deliberately not expanded because those messages already exist earlier in a
- * regular Pi session and would otherwise be duplicated.
- */
-export function buildHistoryEntryEvents(
-  entries: readonly SessionEntry[],
-  cwd: string,
-  skills: SkillIndex = EMPTY_SKILL_INDEX,
-  prompts: PromptIndex = EMPTY_PROMPT_INDEX,
-): ChatEvent[] {
-  const events: ChatEvent[] = [];
-  const toolArgs = new Map<string, unknown>();
-  for (const entry of entries) {
-    if (entry.type === "compaction") {
-      events.push({
-        kind: "compaction_boundary",
-        summary: entry.summary,
-        tokensBefore: entry.tokensBefore,
-      });
-      continue;
-    }
-    for (const message of sessionEntryToContextMessages(entry)) {
-      appendHistoryMessage(events, toolArgs, message, cwd, skills, prompts);
-    }
-  }
-  return events;
-}
-
-function appendHistoryMessage(
-  events: ChatEvent[],
-  toolArgs: Map<string, unknown>,
-  raw: unknown,
-  cwd: string,
-  skills: SkillIndex,
-  prompts: PromptIndex,
-): void {
-  const message = raw as {
-    role?: string;
-    content?: unknown;
-    toolCallId?: string;
-    toolName?: string;
-    isError?: boolean;
-    stopReason?: string;
-    errorMessage?: string;
-    details?: { patch?: string; path?: string };
-  };
-
-  if (message.role === "user") {
-    const { text, skill } = readSkillInvocation(contentText(message.content));
-    // Prompt templates leave no marker once expanded, so only placeholder-free
-    // bodies can be traced back to their `/command` here.
-    if (text.trim()) events.push({ kind: "user_message", text, skill, prompt: skill ? undefined : expandedPrompt(prompts, text) });
-    return;
-  }
-
-  if (message.role === "assistant") {
-    const parts = Array.isArray(message.content) ? (message.content as Array<Record<string, unknown>>) : [];
-    const thinking = parts
-      .filter((part) => part.type === "thinking" && typeof part.thinking === "string")
-      .map((part) => part.thinking as string)
-      .join("\n\n");
-    if (thinking.trim()) events.push({ kind: "thinking_message", text: thinking });
-    const text = parts
-      .filter((part) => part.type === "text" && typeof part.text === "string")
-      .map((part) => part.text as string)
-      .join("");
-    if (text.trim()) events.push({ kind: "assistant_message", text });
-    for (const part of parts) {
-      if (part.type === "toolCall" && typeof part.id === "string") toolArgs.set(part.id, part.arguments);
-    }
-    if (message.stopReason === "error" && message.errorMessage) {
-      events.push({ kind: "error", text: message.errorMessage });
-    }
-    return;
-  }
-
-  if (message.role === "toolResult" && typeof message.toolCallId === "string") {
-    const args = toolArgs.get(message.toolCallId);
-    events.push({
-      kind: "tool_end",
-      id: message.toolCallId,
-      name: message.toolName ?? "tool",
-      isError: Boolean(message.isError),
-      text: contentText(message.content),
-      args,
-      patch: typeof message.details?.patch === "string" ? message.details.patch : undefined,
-      path: toolFilePath(args, cwd),
-      details: sanitizeToolDetails(message.toolName ?? "", message.details),
-      skill: matchSkill(skills, message.toolName ?? "", args, cwd),
-    });
-  }
-}
-
-/**
- * Session-entry ids of the user bubbles a transcript shows, in the same order.
- *
- * Mirrors the `role === "user"` branch of `buildHistoryEntryEvents` (same
- * projection and "skip empty text" rule) so the k-th id belongs to the k-th
- * user bubble. Compaction entries are boundaries, not sources of retainedTail
- * bubbles, and must therefore be skipped here too. Exported for diagnostics.
- */
-export function userEntryIds(entries: readonly SessionEntry[]): string[] {
-  const ids: string[] = [];
-  for (const entry of entries) {
-    if (entry.type === "compaction") continue;
-    for (const message of sessionEntryToContextMessages(entry)) {
-      if ((message as { role?: string }).role !== "user") continue;
-      const text = collapseSkillInvocation(contentText((message as { content?: unknown }).content));
-      if (text.trim()) ids.push(entry.id);
-    }
-  }
-  return ids;
-}
-
-/** The edit/write tools name their target file through the `path` argument. */
-function toolFilePath(args: unknown, cwd: string): string | undefined {
-  const path = (args as { path?: unknown } | undefined)?.path;
-  if (typeof path !== "string" || !path.trim()) return undefined;
-  return isAbsolute(path) ? path : resolvePath(cwd, path);
-}
-

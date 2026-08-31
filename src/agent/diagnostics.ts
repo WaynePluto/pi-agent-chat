@@ -1,12 +1,17 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { deflateSync } from "node:zlib";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAgentSession, createAgentSessionFromServices, createAgentSessionServices, getAgentDir, getPackageDir, SessionManager, type AgentSession, type ToolDefinition } from "@earendil-works/pi-coding-agent";
-import { buildHistoryEntryEvents, ChatBridge, collectResourceSections } from "./bridge.js";
+import { ChatBridge } from "./bridge.js";
+import { buildHistoryEntryEvents, bubbleEntryIds } from "./history.js";
+import { collectResourceSections } from "./resources.js";
 import { collectSlashCommands } from "./commands.js";
 import { OriginalContentProvider } from "./diff-view.js";
 import { describe } from "./errors.js";
+import { imageAttachmentMarkup, prepareImage } from "./images.js";
+import { userDisplayFromText } from "./session-title.js";
 import { createSubagentServices, findShadowedExtensionTool, PiRuntime, type StartupSession } from "./runtime.js";
 import { buildTreeChoices } from "./session-tree.js";
 import { SubagentCoordinator, SUBAGENT_TOOL, planModel, type LaneState, type SubagentRun } from "./subagent.js";
@@ -27,7 +32,7 @@ import { isResumable, resumeAfterError, supportsResume } from "./resume.js";
 import { readContentMaxWidth, readFoldLines, readWideThreshold } from "./config.js";
 import type { ChatState, HostMessage } from "../shared/protocol.js";
 import { CONTENT_WIDTH_MIN, WIDE_THRESHOLD_MIN } from "../shared/protocol.js";
-import { claimedSessionSourceStartup, editorPanelTitle, isMovableSessionState, MAX_EDITOR_TAB_TITLE_CHARS, replacementStartupForRunningController, restoredSessionFile, SessionClaimRegistry, shouldDisposeHeadlessRuntime } from "../chat-surfaces.js";
+import { claimedSessionSourceStartup, editorPanelTitle, isMovableSessionState, MAX_EDITOR_TAB_TITLE_CHARS, ownedSessionFiles, replacementStartupForRunningController, restoredSessionFile, SessionClaimRegistry, shouldDisposeHeadlessRuntime } from "../chat-surfaces.js";
 
 /** Injected by esbuild (see esbuild.mjs). */
 declare const __PI_UNDICI_VERSION__: string;
@@ -37,6 +42,116 @@ export interface DiagnosticResult {
   name: string;
   ok: boolean;
   detail: string;
+}
+
+/**
+ * Every offline self-check, in the order they run.
+ *
+ * The single list. Both runners — the `piAgentChat.runSpikeDiagnostics`
+ * command and `scripts/smoke_load.mjs` (what `pnpm verify` executes) — iterate
+ * it, so adding a check is one edit here instead of four. It used to be spelled
+ * out in four places (definitions, the command body, the `__spike` re-export
+ * and the smoke script), where forgetting one meant the new check silently did
+ * not run in `pnpm verify` — which is this project's only safety net.
+ *
+ * The live LLM check is deliberately absent: it costs tokens and is opt-in.
+ */
+export const DIAGNOSTIC_SUITES: ReadonlyArray<(cwd: string) => DiagnosticResult[] | Promise<DiagnosticResult[]>> = [
+  // SDK load, undici alias, jiti, clipboard: the bundle's own plumbing.
+  () => runSpikeDiagnostics(),
+  runSurfaceCoordinationTest,
+  runHistoryReplayTest,
+  runSlashCommandTest,
+  // Pins the private SDK entry point the "retry" action on a failed-request
+  // notice rides on, and that resuming re-issues the request without inventing
+  // a user message.
+  runManualRetryTest,
+  // Pins the same offer on a transcript replayed from disk: a window that
+  // reopens a session which died mid-request must not leave the user with a
+  // dead end.
+  runReplayedRetryOfferTest,
+  // Pins what becomes of the offer once it is clicked: the button is drawn from
+  // the state the host records on the notice, so a finished retry stops
+  // claiming it is running, and a replay does not resurrect a spent offer.
+  runRetryOfferLifecycleTest,
+  runSessionTreeTest,
+  runSubagentToolTest,
+  // Pins the terminal tool's refusal paths against a scripted terminal API: no
+  // shell integration must refuse rather than report an empty success, an
+  // unfinished command must not be killed, and `close` must be unable to reach
+  // a terminal the tool did not create.
+  runTerminalToolTest,
+  runProjectFilesTest,
+  // Must run inside the bundle: it proves the rebuilt `import.meta.url` still
+  // lets the SDK hand jiti working aliases (see sdkModuleUrlPlugin).
+  runExtensionSdkImportTest,
+  // Pins that reloading resources rebuilds the session's extension runner
+  // instead of leaving it on the previously loaded instances.
+  runExtensionReloadTest,
+  // Pins that extension command handlers can actually drive the session
+  // (`ctx.newSession()` and friends are host-supplied, not SDK defaults).
+  runExtensionCommandContextTest,
+  runResourceListingTest,
+  // Pins the host-side view state machine through the real ChatBridge: what the
+  // webview shows (live / lane / preview) and every flag derived from it. A
+  // hand-built ChatState snapshot cannot see bugs in the code that builds it.
+  runViewStateTest,
+  // Pins who owns a session file while subagents run: ownership and the
+  // task-line role come from the runtime, not from the transcript on screen.
+  runSessionOwnershipTest,
+  // Pins which session a window opens with: the remembered one, including the
+  // new-and-still-empty state that leaves no file on disk.
+  runStartupSessionTest,
+  // Pins the image-attachment path end to end: photon/WASM and the resize
+  // worker must actually run from inside the bundle, an attachment-only message
+  // must keep the two transcript projections aligned, and every surface must
+  // title a session through the same projection.
+  runImageAttachmentTest,
+];
+
+/** Run every offline self-check. */
+export async function runAllDiagnostics(cwd: string): Promise<DiagnosticResult[]> {
+  const results: DiagnosticResult[] = [];
+  for (const suite of DIAGNOSTIC_SUITES) results.push(...(await suite(cwd)));
+  return results;
+}
+
+type StoredMessage = Parameters<SessionManager["appendMessage"]>[0];
+
+/**
+ * A throwaway session file whose last entry is a failed response — the state
+ * both retry checks start from, and the one a window inherits when a request
+ * dies with it on screen.
+ *
+ * Its own directory on purpose: this transcript must never show up in the
+ * user's session list. The caller removes it.
+ */
+async function createFailedResponseSession(
+  cwd: string,
+  prefix: string,
+): Promise<{ dir: string; file: string | undefined }> {
+  const dir = await mkdtemp(join(tmpdir(), prefix));
+  const manager = SessionManager.create(cwd, dir);
+  manager.appendMessage({ role: "user", content: [{ type: "text", text: "hi" }], timestamp: Date.now() } as StoredMessage);
+  manager.appendMessage({
+    role: "assistant",
+    content: [],
+    api: "anthropic-messages",
+    provider: "probe-provider",
+    model: "probe-model",
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: "error",
+    errorMessage: "Request timed out.",
+    timestamp: Date.now(),
+  } as StoredMessage);
+  return { dir, file: manager.getSessionFile() };
 }
 
 /**
@@ -114,19 +229,30 @@ export function runSurfaceCoordinationTest(): DiagnosticResult[] {
   const emptyStateIgnored = restoredSessionFile(undefined, cwd) === undefined
     && restoredSessionFile({ contentMaxWidth: 950 }, cwd) === undefined
     && restoredSessionFile({ session: { cwd, file: "" } }, cwd) === undefined;
+  // Ownership is about what a controller writes, so a running lane is claimed
+  // (nothing else may resume a file a subagent is appending to) and a lane the
+  // controller merely *displays* is not (that would release its own file and
+  // let a second writer resume the live session).
+  const ownsItsOwnSessionAndRunningLanes = ownedSessionFiles({
+    sessionFile: "parent.jsonl",
+    runningLaneFiles: ["lane-a.jsonl", "lane-b.jsonl"],
+  }).join(",") === "parent.jsonl,lane-a.jsonl,lane-b.jsonl";
+  const finishedLanesAreOrdinarySessions = ownedSessionFiles({ sessionFile: "parent.jsonl" }).join(",") === "parent.jsonl";
+  const emptySessionOwnsOnlyItsLanes = ownedSessionFiles({ runningLaneFiles: ["lane-a.jsonl"] }).join(",") === "lane-a.jsonl";
   const ok = firstClaim && collisionRejected && wrongOwnerDidNotRelease && released
     && runningHeadlessRetained && settledHeadlessDisposed && visibleRetained && sidebarRetained
     && replacementNew && selectedSessionBecomesLive && ownSessionDoesNotDuplicate && idleSessionUsesExistingController
     && editorTabTitleIsCapped && shortTabTitleIsUntouched
     && visibleMoveLeavesFreshSource && backgroundMoveHasNoSource
     && emptySessionNotMovable && transcriptSessionMovable
+    && ownsItsOwnSessionAndRunningLanes && finishedLanesAreOrdinarySessions && emptySessionOwnsOnlyItsLanes
     && tabRemembersOwnSession && foreignCwdIgnored && emptyStateIgnored;
   return [{
     name: "chat surface coordination",
     ok,
     detail: ok
-      ? "claims are exclusive; claimed sessions move to the requesting surface with a fresh visible source; background runs survive until settle; each tab restores its own session"
-      : "claim ownership, claimed-session transfer, tab-title cap, per-tab session memory or headless runtime lifecycle invariant failed",
+      ? "claims are exclusive and cover running lanes; claimed sessions move to the requesting surface with a fresh visible source; background runs survive until settle; each tab restores its own session"
+      : "claim ownership, running-lane ownership, claimed-session transfer, tab-title cap, per-tab session memory or headless runtime lifecycle invariant failed",
   }];
 }
 
@@ -276,7 +402,6 @@ export async function runHistoryReplayTest(cwd: string): Promise<DiagnosticResul
  * test's job.
  */
 export async function runManualRetryTest(cwd: string): Promise<DiagnosticResult[]> {
-  type StoredMessage = Parameters<SessionManager["appendMessage"]>[0];
   type Runner = { _runAgentPrompt: (messages: unknown[]) => Promise<void> };
   const user = (text: string): StoredMessage => ({
     role: "user",
@@ -366,34 +491,12 @@ export async function runManualRetryTest(cwd: string): Promise<DiagnosticResult[
  * real `ChatBridge.attach()`, down to the `history` message actually posted.
  */
 export async function runReplayedRetryOfferTest(cwd: string): Promise<DiagnosticResult[]> {
-  type StoredMessage = Parameters<SessionManager["appendMessage"]>[0];
   let dir: string | undefined;
   let runtime: PiRuntime | undefined;
   try {
-    // A throwaway session directory: this transcript must not show up in the
-    // user's own session list.
-    dir = await mkdtemp(join(tmpdir(), "pi-vscode-retry-replay-"));
-    const manager = SessionManager.create(cwd, dir);
-    manager.appendMessage({ role: "user", content: [{ type: "text", text: "hi" }], timestamp: Date.now() } as StoredMessage);
-    manager.appendMessage({
-      role: "assistant",
-      content: [],
-      api: "anthropic-messages",
-      provider: "probe-provider",
-      model: "probe-model",
-      usage: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-        totalTokens: 0,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-      },
-      stopReason: "error",
-      errorMessage: "Request timed out.",
-      timestamp: Date.now(),
-    } as StoredMessage);
-    const file = manager.getSessionFile();
+    const fixture = await createFailedResponseSession(cwd, "pi-vscode-retry-replay-");
+    dir = fixture.dir;
+    const file = fixture.file;
     if (!file) return [{ name: "replayed retry offer", ok: false, detail: "session file was not written" }];
 
     const posted: HostMessage[] = [];
@@ -445,34 +548,14 @@ export async function runReplayedRetryOfferTest(cwd: string): Promise<Diagnostic
  * are stubbed; a real one is the live test's job.
  */
 export async function runRetryOfferLifecycleTest(cwd: string): Promise<DiagnosticResult[]> {
-  type StoredMessage = Parameters<SessionManager["appendMessage"]>[0];
   type Runner = { _runAgentPrompt: (messages: unknown[]) => Promise<void> };
   const name = "retry offer lifecycle";
   let dir: string | undefined;
   let runtime: PiRuntime | undefined;
   try {
-    dir = await mkdtemp(join(tmpdir(), "pi-vscode-retry-lifecycle-"));
-    const manager = SessionManager.create(cwd, dir);
-    manager.appendMessage({ role: "user", content: [{ type: "text", text: "hi" }], timestamp: Date.now() } as StoredMessage);
-    manager.appendMessage({
-      role: "assistant",
-      content: [],
-      api: "anthropic-messages",
-      provider: "probe-provider",
-      model: "probe-model",
-      usage: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-        totalTokens: 0,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-      },
-      stopReason: "error",
-      errorMessage: "Request timed out.",
-      timestamp: Date.now(),
-    } as StoredMessage);
-    const file = manager.getSessionFile();
+    const fixture = await createFailedResponseSession(cwd, "pi-vscode-retry-lifecycle-");
+    dir = fixture.dir;
+    const file = fixture.file;
     if (!file) return [{ name, ok: false, detail: "session file was not written" }];
 
     const posted: HostMessage[] = [];
@@ -1762,6 +1845,160 @@ export async function runViewStateTest(cwd: string): Promise<DiagnosticResult[]>
 }
 
 /**
+ * Offline check on who owns a session file while a task line runs.
+ *
+ * The reported bug: opening a subagent's transcript and then navigating to
+ * another session left the parent with no owner and no badge, so the session
+ * list offered a live conversation as an ordinary row — clicking it opened a
+ * second writer for a JSONL that was still being appended to, and the running
+ * task line disappeared from every list in the window.
+ *
+ * Ownership and the task-line role must therefore be facts about the runtime,
+ * not about the transcript on screen. Both are read here through the real
+ * `ChatBridge` while it displays the lane, which is exactly the state that
+ * used to invert them.
+ */
+export async function runSessionOwnershipTest(cwd: string): Promise<DiagnosticResult[]> {
+  const message = (text: string) =>
+    ({ role: "user", content: [{ type: "text", text }], timestamp: Date.now() }) as StoredMessage;
+  let dir: string | undefined;
+  let runtime: PiRuntime | undefined;
+  let child: AgentSession | undefined;
+  const failures: string[] = [];
+  const expect = (label: string, ok: boolean) => {
+    if (!ok) failures.push(label);
+  };
+  try {
+    // A throwaway session directory: these transcripts must not show up in the
+    // user's own session list.
+    dir = await mkdtemp(join(tmpdir(), "pi-vscode-ownership-"));
+    const parentManager = SessionManager.create(cwd, dir);
+    parentManager.appendMessage(message("delegate this"));
+    const parentFile = parentManager.getSessionFile();
+    const childManager = SessionManager.create(cwd, dir);
+    childManager.appendMessage(message("lane task"));
+    const childFile = childManager.getSessionFile();
+    if (!parentFile || !childFile) {
+      return [{ name: "session ownership", ok: false, detail: "session files were not written" }];
+    }
+
+    const roleQueries: string[] = [];
+    const posted: HostMessage[] = [];
+    const lastState = (): ChatState | undefined => {
+      for (let i = posted.length - 1; i >= 0; i -= 1) {
+        const entry = posted[i];
+        if (entry?.type === "state") return entry.state;
+      }
+      return undefined;
+    };
+    // View changes post their state without awaiting it (`void postState()`).
+    const waitForState = async (predicate: (snapshot: ChatState | undefined) => boolean): Promise<void> => {
+      for (let attempt = 0; attempt < 500 && !predicate(lastState()); attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+    };
+    runtime = await PiRuntime.create({ cwd, startup: { mode: "file", path: parentFile }, log: () => {} });
+    const bridge = new ChatBridge(
+      runtime,
+      {
+        post: (hostMessage) => posted.push(hostMessage),
+        log: () => {},
+        // Stands in for the window: the list must ask it about every row, so a
+        // task line whose parent has gone headless still reads as one here.
+        delegationRoleAt: (file) => {
+          roleQueries.push(file);
+          return undefined;
+        },
+      },
+      new OriginalContentProvider(),
+    );
+    await bridge.attach();
+    // The runtime's own spelling of the path (the temp dir can come back
+    // normalized), which is what every comparison in the host uses.
+    const ownFile = runtime.session.sessionFile;
+    expect("parent session was reopened from its file", ownFile !== undefined);
+
+    const childResult = await createAgentSession({ cwd, sessionManager: childManager });
+    child = childResult.session;
+    const laneFile = child.sessionFile ?? childFile;
+    const lane: LaneState = {
+      id: "lane-owned",
+      title: "probe",
+      task: "probe task",
+      scope: [],
+      status: "running",
+      writtenFiles: [],
+      scopeViolations: 0,
+      deniedPaths: [],
+      bashMayHaveWritten: false,
+      startedAt: Date.now(),
+      sessionId: child.sessionId,
+      sessionFile: laneFile,
+    };
+    const run: SubagentRun = { id: "run-owned", parent: runtime.session, lanes: [lane], startedAt: Date.now() };
+    bridge.onRunStarted(run);
+    bridge.onLaneStarted(run, lane, child);
+
+    expect("running: the lane file is owned", bridge.runningLaneFiles().includes(laneFile));
+    expect("running: parent role", ownFile !== undefined && bridge.delegationRoleAt(ownFile) === "parent");
+    expect("running: child role", bridge.delegationRoleAt(laneFile) === "child");
+    expect("running: unrelated file has no role", bridge.delegationRoleAt(join(dir, "nobody.jsonl")) === undefined);
+
+    // The crux: displaying the lane must change nothing about ownership. The
+    // state posted for that view does point at the child (that is what the
+    // webview shows), which is precisely why claims must not be read from it.
+    await bridge.handleMessage({ type: "showLane", laneId: lane.id });
+    await waitForState((snapshot) => snapshot?.delegation?.role === "child");
+    expect("lane view: state follows the display", lastState()?.sessionFile === laneFile);
+    expect("lane view: lane still owned", bridge.runningLaneFiles().includes(laneFile));
+    expect("lane view: parent is still the parent", ownFile !== undefined && bridge.delegationRoleAt(ownFile) === "parent");
+    expect("lane view: child is still a child", bridge.delegationRoleAt(laneFile) === "child");
+
+    // A session list rendered by another controller knows the row is a subagent
+    // but not which lane id this run gave it, so a lane can be addressed by its
+    // file alone.
+    await bridge.handleMessage({ type: "showLane" });
+    await waitForState((snapshot) => snapshot?.delegation?.role === "parent");
+    await bridge.handleMessage({ type: "showLane", sessionFile: laneFile });
+    await waitForState((snapshot) => snapshot?.delegation?.role === "child");
+    expect("lane addressed by file lands on that lane", lastState()?.delegation?.currentLaneId === lane.id);
+
+    // The list is the window's, not this bridge's: every row goes past the
+    // host so a foreign task line keeps its badge.
+    await bridge.handleMessage({ type: "sessionsVisible", visible: true });
+    const listed = [...posted].reverse().find((entry) => entry.type === "sessions");
+    const rows = listed?.type === "sessions" ? listed.items.length : 0;
+    expect("session list asks the window about every row", rows === 0 || roleQueries.length >= rows);
+
+    // A finished lane is an ordinary session again: nothing is appending to it,
+    // so holding on to it would block resuming it forever.
+    lane.status = "completed";
+    lane.endedAt = Date.now();
+    bridge.onRunFinished(run);
+    expect("settled: no lane is owned", bridge.runningLaneFiles().length === 0);
+    expect(
+      "settled: no roles remain",
+      bridge.delegationRoleAt(laneFile) === undefined && (ownFile === undefined || bridge.delegationRoleAt(ownFile) === undefined),
+    );
+
+    bridge.dispose();
+    return [{
+      name: "session ownership",
+      ok: failures.length === 0,
+      detail: failures.length === 0
+        ? `task line owned by its runtime, not by the displayed transcript (${rows} row(s) listed, ${roleQueries.length} role query/queries)`
+        : `failed: ${failures.join("; ")}`,
+    }];
+  } catch (error) {
+    return [{ name: "session ownership", ok: false, detail: describe(error) }];
+  } finally {
+    child?.dispose();
+    runtime?.dispose();
+    if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/**
  * Offline check on which session a window opens with.
  *
  * Guarded because every wrong branch still lands the user in *a* session, just
@@ -1939,3 +2176,167 @@ export async function runLiveToolCallTest(cwd: string, log: (message: string) =>
 
   return results;
 }
+
+/* ---------------------------------------------------------------- */
+/* Image attachments                                                 */
+/* ---------------------------------------------------------------- */
+
+/** Minimal solid-colour PNG, so the check does not need a fixture on disk. */
+function probePng(width: number, height: number): Buffer {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  const crc = (bytes: Uint8Array): number => {
+    let c = 0xffffffff;
+    for (const byte of bytes) c = table[(c ^ byte) & 0xff]! ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const head = Buffer.alloc(8);
+    head.writeUInt32BE(data.length, 0);
+    head.write(type, 4, "ascii");
+    const tail = Buffer.alloc(4);
+    tail.writeUInt32BE(crc(Buffer.concat([head.subarray(4), data])), 0);
+    return Buffer.concat([head, data, tail]);
+  };
+  const raw = Buffer.alloc(height * (1 + width * 3));
+  for (let y = 0; y < height; y++) raw[y * (1 + width * 3)] = 0;
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", deflateSync(raw)),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+/**
+ * Offline check (no LLM call): pasted images survive the round trip, and an
+ * image-only message keeps the two transcript projections aligned.
+ *
+ * Three things are pinned, all of which fail silently otherwise.
+ *
+ * `prepareImage()` runs photon/WASM in a worker thread from inside the bundle,
+ * where `import.meta.url` has been rewritten (see `sdkModuleUrlPlugin`). If the
+ * worker file stops resolving, the SDK falls back to in-process WASM without
+ * telling anyone; if photon stops loading altogether, every attachment is
+ * dropped with "could not be scaled". Neither shows up in a type check.
+ *
+ * And `buildHistoryEntryEvents` / `bubbleEntryIds` must agree entry for entry
+ * (AGENTS.md red line). An attachment-only message has no text left once its
+ * markup is stripped, so both sides need the same "there is still a bubble
+ * here" rule — otherwise every later bubble binds to someone else's entry and
+ * the session-tree actions act on the wrong message.
+ *
+ * The third is the shared "user message as it is shown" projection
+ * (`session-title.ts`): the sessions list titles a row from a plain string
+ * while the transcript projects content parts, and the copy that forgot to
+ * strip attachment markup is exactly how this drifted before.
+ */
+export async function runImageAttachmentTest(cwd: string): Promise<DiagnosticResult[]> {
+  const results: DiagnosticResult[] = [];
+  let dir: string | undefined;
+  try {
+    // Oversized on purpose: this is the path that has to reach the worker.
+    const prepared = await prepareImage(probePng(2400, 1400), "image/png", true);
+    results.push({
+      name: "image processing",
+      ok: prepared.ok && prepared.image.mimeType.startsWith("image/") && prepared.image.hints.length > 0,
+      detail: prepared.ok
+        ? `${prepared.image.mimeType}, ${Math.round(Buffer.byteLength(prepared.image.data, "utf8") / 1024)}KB base64, hints: ${prepared.image.hints.join(" ") || "(none)"}`
+        : `rejected: ${prepared.message} (photon or the resize worker is unavailable)`,
+    });
+    const attached = prepared.ok ? prepared.image : { data: "", mimeType: "image/png", hints: [] };
+
+    // A non-image must be refused rather than attached as garbage: the webview
+    // reports whatever `File.type` claims, which is not evidence.
+    const bogus = await prepareImage(Buffer.from("not an image at all"), "application/x-msdownload", true);
+    results.push({
+      name: "image refusal",
+      ok: !bogus.ok,
+      detail: bogus.ok ? "a non-image was accepted as an attachment" : bogus.message,
+    });
+
+    dir = await mkdtemp(join(tmpdir(), "pi-vscode-image-"));
+    const manager = SessionManager.create(cwd, dir);
+    const image = { type: "image", mimeType: attached.mimeType, data: attached.data };
+    // 1: text + attachment. 2: attachment only (markup is the whole text).
+    // 3: an ordinary message, so a mis-projection shows up as a shift.
+    manager.appendMessage({
+      role: "user",
+      content: [{ type: "text", text: `look at this\n\n${imageAttachmentMarkup("shot.png", attached.hints)}` }, image],
+      timestamp: Date.now(),
+    } as StoredMessage);
+    manager.appendMessage({
+      role: "user",
+      content: [{ type: "text", text: imageAttachmentMarkup("clipboard-1", []) }, image],
+      timestamp: Date.now(),
+    } as StoredMessage);
+    manager.appendMessage({ role: "user", content: [{ type: "text", text: "and this" }], timestamp: Date.now() } as StoredMessage);
+    // The SDK writes a brand-new session file only once a response lands, and
+    // the check below reads the file back through the session scan.
+    manager.appendMessage({
+      role: "assistant",
+      content: [{ type: "text", text: "ok" }],
+      api: "anthropic-messages",
+      provider: "probe-provider",
+      model: "probe-model",
+      usage: {
+        input: 0,
+        output: 1,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 1,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "stop",
+      timestamp: Date.now(),
+    } as StoredMessage);
+
+    const entries = manager.getBranch();
+    const events = buildHistoryEntryEvents(entries, cwd);
+    const bubbles = events.filter((event) => event.kind === "user_message") as Array<{ text: string; images?: unknown[] }>;
+    const ids = bubbleEntryIds(entries).user;
+    results.push({
+      name: "image bubble projection",
+      ok: bubbles.length === 3 && ids.length === 3,
+      detail: `${bubbles.length} user bubble(s), ${ids.length} entry id(s) — an attachment-only message must produce exactly one of each`,
+    });
+    results.push({
+      name: "image markup hidden",
+      ok:
+        bubbles[0]?.text === "look at this" &&
+        bubbles[1]?.text === "" &&
+        bubbles[0]?.images?.length === 1 &&
+        bubbles[1]?.images?.length === 1,
+      detail: `bubble texts: ${JSON.stringify(bubbles.map((bubble) => bubble.text))}, images: ${JSON.stringify(bubbles.map((bubble) => bubble.images?.length ?? 0))}`,
+    });
+
+    // The sessions list titles a row from the scan's `firstMessage` — plain
+    // text, not content parts — so it needs the same projection as the header
+    // and the rename prefill. When it grew its own copy, a row whose first
+    // message was a pasted screenshot showed the raw `<image name="…">` markup
+    // while the rename box next to it showed a clean title.
+    const [info] = await SessionManager.list(cwd, dir);
+    const listTitle = info ? userDisplayFromText(info.firstMessage) : "";
+    results.push({
+      name: "image session title",
+      ok: Boolean(info) && listTitle === "look at this",
+      detail: info
+        ? `list title: ${JSON.stringify(listTitle)} (raw first message: ${JSON.stringify(info.firstMessage.slice(0, 60))})`
+        : "the probe session was not listed",
+    });  } catch (error) {
+    results.push({ name: "image attachments", ok: false, detail: describe(error) });
+  } finally {
+    if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+  return results;
+}
+
