@@ -14,9 +14,9 @@ export type ThinkingLevelName = "off" | "minimal" | "low" | "medium" | "high" | 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 /**
- * Upper bound for `@` file references attached to a single prompt. Lives here
- * because both ends enforce it: the composer stops adding chips, the host
- * rejects over-long reference lists.
+ * Upper bound for `@` project-path references attached to a single prompt.
+ * Lives here because both ends enforce it: the composer stops adding chips,
+ * the host rejects over-long reference lists.
  */
 export const MAX_FILE_REFERENCES = 10;
 
@@ -317,8 +317,9 @@ export interface ModelCatalog {
 }
 
 export interface ProjectFileItem {
-  /** Workspace-relative path, always using forward slashes. */
+  /** Workspace-relative path, always using forward slashes and no trailing slash. */
   path: string;
+  kind: "file" | "directory";
   ignored?: boolean;
   sensitive?: boolean;
 }
@@ -615,7 +616,7 @@ export type HostMessage =
   | { type: "commands"; items: SlashCommand[] }
   /** Startup resource listing, pinned above the transcript. */
   | { type: "resources"; sections: ResourceSection[] }
-  /** Results for the webview @ project-file picker. */
+  /** Results for the webview @ project-path picker. */
   | { type: "projectFiles"; requestId: number; items: ProjectFileItem[]; error?: string }
   /**
    * Outcome of one `attachImage` request.

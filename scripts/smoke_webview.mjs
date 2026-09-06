@@ -536,12 +536,40 @@ const SCRIPT = [
   },
   {
     label: "expanded cards: work block, tool card, resources",
-    messages: [],
+    // Exercise the directory-reference branch without adding a dedicated
+    // snapshot section. The host returns normalized paths; the picker and chip
+    // both make the directory kind visible with a trailing slash.
+    beforeMessages: async (window) => {
+      const input = window.document.getElementById("input");
+      input.value = "@src";
+      input.setSelectionRange(input.value.length, input.value.length);
+      input.dispatchEvent(new window.Event("input", { bubbles: true }));
+      await new Promise((resolvePromise) => window.setTimeout(resolvePromise, 100));
+    },
+    messages: [{
+      type: "projectFiles",
+      requestId: 1,
+      items: [
+        { path: "src", kind: "directory" },
+        { path: "src/index.ts", kind: "file" },
+      ],
+    }],
     // Card bodies render lazily; expanding them is the only way the snapshot
     // can cover tool args/output, diff rendering and the thinking card body.
     // The resources panel itself only enters the layout once its header button
     // is toggled on.
     beforeSnapshot: (window) => {
+      const names = [...window.document.querySelectorAll(".autocomplete-name")].map((node) => node.textContent);
+      if (names[0] !== "src/") throw new Error(`directory picker label must end in /, got ${JSON.stringify(names)}`);
+      const input = window.document.getElementById("input");
+      input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter" }));
+      const chip = window.document.querySelector(".file-ref-label");
+      if (chip?.textContent !== "@src/") throw new Error(`directory chip must end in /, got ${chip?.textContent}`);
+      window.document.querySelector(".file-ref-remove")?.click();
+      // Hidden completion rows are intentionally retained by production code;
+      // clear this test-only residue so unrelated later snapshots stay focused.
+      window.document.getElementById("autocomplete").replaceChildren();
+
       window.document.getElementById("btn-resources").click();
       for (const selector of [".work-header", ".resources-toggle", ".resource-header", ".card-header"]) {
         for (const header of window.document.querySelectorAll(selector)) header.click();
@@ -1466,6 +1494,7 @@ async function run() {
     return id;
   };
   window.cancelAnimationFrame = () => {};
+  window.HTMLElement.prototype.scrollIntoView = () => {};
   const posted = [];
   // The persisted-state half of the api, as VS Code provides it: an opaque
   // object that survives webview reloads. Kept on the window so a test could

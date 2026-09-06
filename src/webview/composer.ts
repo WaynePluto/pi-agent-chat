@@ -29,7 +29,7 @@ let slashCommands: SlashCommand[] = [];
 let matches: SlashCommand[] = [];
 let selectedIndex = 0;
 
-/* `@` project-file picker state. */
+/* `@` project-path picker state. */
 let acMode: "slash" | "file" = "slash";
 let fileMatches: ProjectFileItem[] = [];
 let fileIncludeIgnored = false;
@@ -357,7 +357,8 @@ function pushInputHistory(entry: InputHistoryEntry): void {
 }
 
 function sameReferences(a: ProjectFileItem[], b: ProjectFileItem[]): boolean {
-  return a.length === b.length && a.every((item, index) => item.path === b[index]?.path);
+  return a.length === b.length
+    && a.every((item, index) => item.path === b[index]?.path && item.kind === b[index]?.kind);
 }
 
 /**
@@ -511,7 +512,7 @@ function closeAutocomplete(): void {
 }
 
 /* ---------------------------------------------------------------- */
-/* `@` project-file picker                                           */
+/* `@` project-path picker                                           */
 /* ---------------------------------------------------------------- */
 
 /** The file picker triggers on an `@token` touching the caret (start or after whitespace). */
@@ -562,7 +563,7 @@ function renderFileAutocomplete(): void {
 
   fileMatches.forEach((item, index) => {
     const row = el("div", `autocomplete-row${index === selectedIndex ? " selected" : ""}`);
-    row.appendChild(el("span", "autocomplete-name", item.path));
+    row.appendChild(el("span", "autocomplete-name", displayProjectPath(item)));
     if (item.ignored) row.appendChild(el("span", "autocomplete-kind", t.fileIgnoredBadge));
     if (item.sensitive) row.appendChild(el("span", "autocomplete-kind sensitive", t.fileSensitiveBadge));
     row.addEventListener("mousedown", (event) => {
@@ -602,13 +603,18 @@ function acceptFileCompletion(): void {
   inputEl.focus();
 }
 
+function displayProjectPath(item: ProjectFileItem): string {
+  return item.kind === "directory" ? `${item.path}/` : item.path;
+}
+
 function renderFileRefs(): void {
   fileRefsEl.replaceChildren();
   const empty = fileRefs.length === 0 && imageAttachments.length === 0 && pendingAttachments === 0 && !attachmentError;
   fileRefsEl.classList.toggle("hidden", empty);
   for (const item of fileRefs) {
     const chip = el("span", `file-ref-chip${item.ignored ? " ignored" : ""}${item.sensitive ? " sensitive" : ""}`);
-    chip.title = [item.path, item.ignored ? t.fileIgnoredBadge : "", item.sensitive ? t.fileSensitiveBadge : ""]
+    const displayPath = displayProjectPath(item);
+    chip.title = [displayPath, item.ignored ? t.fileIgnoredBadge : "", item.sensitive ? t.fileSensitiveBadge : ""]
       .filter(Boolean)
       .join(" · ");
 
@@ -620,7 +626,7 @@ function renderFileRefs(): void {
     });
     remove.title = t.fileRemoveTitle;
 
-    chip.append(el("span", "file-ref-label", `@${item.path}`), remove);
+    chip.append(el("span", "file-ref-label", `@${displayPath}`), remove);
     fileRefsEl.appendChild(chip);
   }
 

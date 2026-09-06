@@ -743,30 +743,43 @@ export async function runSessionTreeTest(cwd: string): Promise<DiagnosticResult[
   }
 }
 
-/** Offline check: project file discovery, filtering and path validation for the @ picker. */
+/** Offline check: project path discovery, filtering and validation for the @ picker. */
 export async function runProjectFilesTest(cwd: string): Promise<DiagnosticResult[]> {
   try {
     const index = new ProjectFileIndex(() => {});
     const items = await index.search(cwd, "", false);
-    const hasFiles = items.length > 0;
+    const sampleFile = items.find((item) => item.kind === "file")?.path;
+    const sampleDirectory = items.find((item) => item.kind === "directory")?.path;
 
-    // Path safety: escaping / absolute paths must be rejected.
+    // Path safety: escaping and excluded bulk paths must be rejected before
+    // the webview-provided value can enter a prompt.
     let escapeRejected = false;
     try {
       await index.validate(cwd, ["../outside.txt"]);
     } catch {
       escapeRejected = true;
     }
+    let excludedRejected = false;
+    try {
+      await index.validate(cwd, ["node_modules"]);
+    } catch {
+      excludedRejected = true;
+    }
 
-    // A known real file must validate cleanly.
-    const sample = items[0]?.path;
-    const validated = sample ? await index.validate(cwd, [sample]) : { paths: [] };
-    const sampleOk = !sample || validated.paths.length === 1;
+    const validatedFile = sampleFile ? await index.validate(cwd, [sampleFile]) : { paths: [] };
+    const validatedDirectory = sampleDirectory
+      ? await index.validate(cwd, [sampleDirectory])
+      : { paths: [], directories: [] };
+    const samplesOk = Boolean(sampleFile)
+      && validatedFile.paths.length === 1
+      && Boolean(sampleDirectory)
+      && validatedDirectory.paths.length === 1
+      && validatedDirectory.directories[0] === sampleDirectory;
 
     return [{
       name: "project files",
-      ok: hasFiles && escapeRejected && sampleOk,
-      detail: `indexed=${items.length}, escapeRejected=${escapeRejected}, sample=${sample ?? "n/a"}`,
+      ok: samplesOk && escapeRejected && excludedRejected,
+      detail: `indexed=${items.length}, escapeRejected=${escapeRejected}, excludedRejected=${excludedRejected}, file=${sampleFile ?? "n/a"}, directory=${sampleDirectory ?? "n/a"}`,
     }];
   } catch (error) {
     return [{ name: "project files", ok: false, detail: describe(error) }];

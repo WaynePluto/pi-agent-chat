@@ -604,11 +604,12 @@ export const sharedTemplates = {
     en: (from: string, to: string) => `[Image converted from ${from} to ${to}.]`,
     zh: (from: string, to: string) => `[图片已从 ${from} 转换为 ${to}。]`,
   },
-  /** Prompt prefix folded in before referenced `@file` lines when sending a message. */
+  /** Prompt prefix folded in before referenced `@path` lines when sending a message. */
   referencedFilesHeader: {
     en: (lines: string) =>
-      `Referenced project files (relative to the workspace root; use the read tool to inspect them):\n${lines}`,
-    zh: (lines: string) => `引用的项目文件（相对于工作区根目录，请使用 read 工具查看）：\n${lines}`,
+      `Referenced project paths (relative to the workspace root; inspect files with read and directories with ls/find/read; directory contents are not attached automatically):\n${lines}`,
+    zh: (lines: string) =>
+      `引用的项目路径（相对于工作区根目录；请使用 read 查看文件，使用 ls/find/read 查看目录；目录内容不会自动附加）：\n${lines}`,
   },
   diffEditorTitle: {
     en: (name: string) => `${name} (pi edit)`,

@@ -1908,7 +1908,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     return taken;
   }
 
-  /** Answer a webview @ picker query; errors are reported inline, never thrown. */
+  /** Answer a webview @ project-path query; errors are reported inline, never thrown. */
   private async listProjectFiles(requestId: number, query: string, includeIgnored: boolean): Promise<void> {
     try {
       const items = await this.projectFiles.search(this.runtime.cwd, query, includeIgnored);
@@ -1949,16 +1949,18 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     }
 
     // Validate untrusted webview paths and fold them into the prompt as plain
-    // text; the model reads files itself via the `read` tool.
+    // text; the model inspects files and directories itself via tools.
     if (references?.length) {
       try {
         const validated = await this.projectFiles.validate(this.runtime.cwd, references);
         if (validated.paths.length > 0) {
+          const directories = new Set(validated.directories);
           const lines = validated.paths.map((path) => {
             const flags: string[] = [];
             if (validated.ignored.includes(path)) flags.push("gitignored");
             if (validated.sensitive.includes(path)) flags.push("potentially sensitive");
-            return `@${path}${flags.length ? ` (${flags.join(", ")})` : ""}`;
+            const displayPath = directories.has(path) ? `${path}/` : path;
+            return `@${displayPath}${flags.length ? ` (${flags.join(", ")})` : ""}`;
           });
           trimmed = `${trimmed ? `${trimmed}\n\n` : ""}${tf("referencedFilesHeader", lines.join("\n"))}`;
         }

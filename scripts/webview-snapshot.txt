@@ -184,7 +184,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -400,7 +400,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -616,7 +616,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -832,7 +832,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -1048,7 +1048,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -1264,7 +1264,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -1480,7 +1480,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -1696,7 +1696,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -1912,7 +1912,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -2128,7 +2128,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -2423,7 +2423,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -2718,7 +2718,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -3013,7 +3013,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -3333,7 +3333,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -3635,7 +3635,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -3951,7 +3951,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -4227,7 +4227,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -4483,7 +4483,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -4761,7 +4761,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -5097,7 +5097,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -5433,7 +5433,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -5859,7 +5859,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -6308,7 +6308,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -7270,7 +7270,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -7859,7 +7859,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -8448,7 +8448,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -9104,7 +9104,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -10562,7 +10562,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -11363,7 +11363,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -11682,7 +11682,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -12136,7 +12136,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -12506,7 +12506,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -12888,7 +12888,7 @@ Open in editor" type="button">
                   "api :3000 pid 5678"
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -13286,7 +13286,7 @@ Open in editor" type="button">
                   "api :3000 pid 5678"
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -13671,7 +13671,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -14487,7 +14487,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -14896,7 +14896,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -15305,7 +15305,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -15722,7 +15722,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -16115,7 +16115,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -16576,7 +16576,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -17037,7 +17037,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -17528,7 +17528,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -18019,7 +18019,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -18510,7 +18510,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -18899,7 +18899,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -19370,7 +19370,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -19841,7 +19841,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -20312,7 +20312,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -20783,7 +20783,7 @@ Open in editor" type="button">
           <div id="widgets-above" class="widgets hidden">
           <div id="composer-box" class="composer-box">
             <div id="file-refs" class="file-refs hidden">
-            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ files, paste screenshots)">
+            <textarea id="input" placeholder="Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
@@ -20819,6 +20819,7 @@ Open in editor" type="button">
 {"type":"listModels"}
 {"type":"listModels"}
 {"type":"newSession"}
+{"type":"listProjectFiles","requestId":1,"query":"src","includeIgnored":false}
 {"type":"sessionsVisible","visible":true}
 {"type":"sessionsVisible","visible":false}
 {"type":"sessionsVisible","visible":true}
