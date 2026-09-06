@@ -90,6 +90,9 @@ export function configureHttpDispatcher(timeoutMs: number | undefined = DEFAULT_
   const dispatcher = withUndiciErrorListener(
     new undici.EnvHttpProxyAgent({
       allowH2: false,
+      // Keep HTTP origins on CONNECT tunnels as they were before Undici 8.7
+      // (SDK fix for proxied plain-HTTP requests hanging after a tool call).
+      proxyTunnel: true,
       bodyTimeout: normalized,
       connect: { autoSelectFamilyAttemptTimeout: DEFAULT_AUTO_SELECT_FAMILY_ATTEMPT_TIMEOUT_MS },
       headersTimeout: normalized,
@@ -146,7 +149,13 @@ function readGlobalSettings(cwd: string, log: (message: string) => void) {
 }
 
 /** `"disabled"`/0 disables the timeout; invalid values fall back to the default. */
-function parseHttpIdleTimeoutMs(value: number | undefined): number | undefined {
+function parseHttpIdleTimeoutMs(value: number | string | undefined): number | undefined {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.toLowerCase() === "disabled") return 0;
+    if (trimmed.length === 0) return undefined;
+    return parseHttpIdleTimeoutMs(Number(trimmed));
+  }
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return undefined;
   return Math.floor(value);
 }

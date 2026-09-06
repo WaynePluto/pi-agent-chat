@@ -49,6 +49,11 @@ export const runtimePackages = [
   // openai-responses, openrouter-images and every Mistral-compatible api.
   "openai",
   "@anthropic-ai/sdk",
+  // Top-level require of the anthropic SDK's webhooks resource (pulled in
+  // whenever the provider module is imported); plus its two crypto helpers.
+  "standardwebhooks",
+  "@stablelib/base64",
+  "fast-sha256",
   "@google/genai",
   // The hoisted closure of @google/genai (auth + websocket + protobuf).
   "google-auth-library",
@@ -127,6 +132,11 @@ export const runtimePackages = [
   // the *on-disk* copy, whose own `import "partial-json"` then resolves
   // against `dist/node_modules` with nothing to fall back on. Without these,
   // any extension touching the SDK dies with "Cannot find module".
+  // Runtime dependency of the SDK's harness layer (agent-core re-exports its
+  // context helpers at the top level). Only `chord/context` and the main entry
+  // are reached from the SDK's entry closure; the esbuild-backed `chord/node`
+  // bundler is not, so esbuild itself does not need to ship.
+  "@earendil-works/chord",
   "@earendil-works/pi-telemetry",
   "balanced-match",
   "brace-expansion",
