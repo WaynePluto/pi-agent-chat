@@ -2,47 +2,32 @@ import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { ChatEvent } from "../shared/protocol.js";
 
 /**
- * Tracks which listed resources actually took effect in the displayed session,
- * for the resources panel's "used here" colour.
+ * 记录资源面板各栏里哪些资源在当前会话中真正生效过，供「本会话用过」
+ * 的着色。有两栏无法只靠 transcript 归因：Context 文件每次请求都无条件
+ * 拼进 system prompt、不留痕迹，有过一次请求就已全部交给过模型；扩展
+ * 只有命令执行或工具被调才上 transcript，只装 handler 的扩展（最常见
+ * 形态）永不点亮，改按「它订阅的事件被 emit 过」判定。
  *
- * Two of the panel's sections cannot be attributed from the transcript alone:
- *
- * - **Context** files are inlined into the system prompt on every request
- *   (`core/system-prompt.ts` appends them unconditionally), so they leave no
- *   trace in the transcript at all. Once a single model request has gone out,
- *   every one of them has been handed to the model.
- * - **Extensions** show up in the transcript only when their `/command` runs or
- *   a tool they registered is called. An extension that only installs event
- *   handlers — the most common shape — would never light up. Handlers are not
- *   observable directly, but `Extension.handlers` lists the events each
- *   extension subscribed to, and the runner calls every handler registered for
- *   an event it emits. So an extension counts as having run as soon as an event
- *   it subscribed to has been emitted.
- *
- * Both readings are deliberately wide: they answer "did this take effect in
- * this conversation?", not "did the user see it happen?".
+ * 两种判读都刻意取宽口径：回答「这次对话里真的生效了吗」。
  */
 
 /**
- * SDK-MIRROR: `core/agent-session.ts` emits `session_start` (and, right after
- * it, `resources_discover`) from `bindExtensions()`, so any extension listening
- * for them has run by the time binding resolves. `project_trust` is emitted
- * earlier still, while the resource loader loads the extensions.
+ * SDK-MIRROR: `core/agent-session.ts` 在 `bindExtensions()` 里发
+ * `session_start`（紧随其后是 `resources_discover`），因此监听它们的
+ * 扩展在绑定完成前就已运行。`project_trust` 更早，在 resource loader
+ * 加载扩展时发出。
  */
 const BIND_EVENTS = ["session_start", "resources_discover", "project_trust"] as const;
 
 /**
- * Extension events the SDK emits around one of our own session events, keyed by
- * the `AgentSessionEvent` type we observe.
+ * SDK 在本宿主某个会话事件前后发出的扩展事件，按观察到的
+ * `AgentSessionEvent` 类型作键。名字与会话事件逐字相同的（`agent_start`、
+ * `message_end`、`tool_execution_*` 等）无需条目，按名匹配。
  *
- * Extension events whose name matches the session event verbatim (`agent_start`,
- * `message_end`, `tool_execution_*`, `session_info_changed`, ...) need no entry:
- * they are matched by name.
- *
- * SDK-MIRROR: emit sites in `core/agent-session.ts` and `core/agent.ts`
- * (`emitInput` / `emitBeforeAgentStart` / `emitContext` /
- * `emitBeforeProviderRequest` / `emitBeforeProviderHeaders` around a run,
- * `emitToolCall` / `emitToolResult` around a tool call).
+ * SDK-MIRROR: emit 位置在 `core/agent-session.ts` 与 `core/agent.ts`
+ * （一次运行的 `emitInput` / `emitBeforeAgentStart` / `emitContext` /
+ * `emitBeforeProviderRequest` / `emitBeforeProviderHeaders`，工具调用的
+ * `emitToolCall` / `emitToolResult`）。
  */
 const COMPANION_EVENTS: Readonly<Record<string, readonly string[]>> = {
   agent_start: ["input", "before_agent_start", "context", "before_provider_request", "before_provider_headers", "turn_start"],
@@ -55,7 +40,7 @@ const COMPANION_EVENTS: Readonly<Record<string, readonly string[]>> = {
   thinking_level_changed: ["thinking_level_select"],
 };
 
-/** History events that prove the session already sent a request to the model. */
+/** 能证明会话已向模型发出过请求的历史事件。 */
 const REQUEST_SENT_KINDS: ReadonlySet<ChatEvent["kind"]> = new Set([
   "assistant_message",
   "assistant_start",
@@ -64,18 +49,17 @@ const REQUEST_SENT_KINDS: ReadonlySet<ChatEvent["kind"]> = new Set([
   "tool_end",
 ]);
 
-/** Read-only view handed to the listing builder. */
+/** 交给清单构建器的只读视图。 */
 export interface ResourceActivity {
-  /** True once the system prompt — context files included — has been sent. */
+  /** system prompt（含 context 文件）一旦发出即为真。 */
   readonly contextUsed: boolean;
-  /** True when this extension's command, tool, handler or error was seen. */
+  /** 该扩展的命令、工具、handler 或错误被见到过则为真。 */
   isExtensionUsed(path: string): boolean;
 }
 
 /**
- * Mutating side of {@link ResourceActivity}. Every marking method reports
- * whether something changed, so the caller only re-posts the listing when the
- * panel would actually look different.
+ * {@link ResourceActivity} 的可变侧。每个标记方法都返回是否有变化，
+ * 调用方只在面板真的会变样时才重发清单。
  */
 export class ActivityTracker implements ResourceActivity {
   private readonly extensions = new Set<string>();
@@ -89,20 +73,20 @@ export class ActivityTracker implements ResourceActivity {
     return this.extensions.has(path);
   }
 
-  /** Drop everything; called when another session is attached. */
+  /** 全部清空；另一个会话 attach 时调用。 */
   reset(): void {
     this.extensions.clear();
     this.requestSent = false;
   }
 
-  /** An extension ran, proven directly (its handler threw, its command ran). */
+  /** 扩展确实运行过（handler 抛错、命令执行等直接证据）。 */
   markExtension(path: string): boolean {
     if (this.extensions.has(path)) return false;
     this.extensions.add(path);
     return true;
   }
 
-  /** Replayed history: assistant output means the system prompt went out. */
+  /** 回放历史：出现 assistant 输出即说明 system prompt 发出去过。 */
   noteHistory(events: readonly ChatEvent[]): boolean {
     if (this.requestSent) return false;
     if (!events.some((event) => REQUEST_SENT_KINDS.has(event.kind))) return false;
@@ -110,15 +94,15 @@ export class ActivityTracker implements ResourceActivity {
     return true;
   }
 
-  /** Extensions bound: startup-time handlers have run by now. */
+  /** 扩展已绑定：启动期的 handler 此刻都已跑过。 */
   noteBind(session: AgentSession): boolean {
     return this.markByEvents(session, BIND_EVENTS);
   }
 
-  /** One `AgentSessionEvent` was observed; mark whoever it reached. */
+  /** 观察到一个 `AgentSessionEvent`；标记它触及的所有人。 */
   noteSessionEvent(session: AgentSession, type: string): boolean {
-    // A run starting means the system prompt (context files included) is on
-    // its way to the provider.
+    // 一次运行开始即意味着 system prompt（含 context 文件）正在
+    // 发往供应商。
     let changed = false;
     if (type === "agent_start" && !this.requestSent) {
       this.requestSent = true;
@@ -127,7 +111,7 @@ export class ActivityTracker implements ResourceActivity {
     return this.markByEvents(session, [type, ...(COMPANION_EVENTS[type] ?? [])]) || changed;
   }
 
-  /** Mark every extension subscribed to one of `events`. */
+  /** 标记订阅了 `events` 中任一事件的全部扩展。 */
   private markByEvents(session: AgentSession, events: readonly string[]): boolean {
     let changed = false;
     for (const extension of loadedExtensions(session)) {
@@ -140,7 +124,7 @@ export class ActivityTracker implements ResourceActivity {
   }
 }
 
-/** Loaded extensions, or nothing when the session cannot report them. */
+/** 已加载的扩展；会话报不出来时返回空。 */
 function loadedExtensions(session: AgentSession): Array<{ path: string; handlers: Map<string, unknown[]> }> {
   try {
     return session.resourceLoader.getExtensions().extensions;

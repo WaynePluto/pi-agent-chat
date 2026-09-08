@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Verify build output invariants for the Pi Agent Chat extension bundle.
+"""校验 Pi Agent Chat 扩展 bundle 的构建产物不变量。
 
-Checks (see vscode-pi-design.md 2.1):
-  1. dist/extension.js and dist/webview.js exist.
-  2. Exactly one undici copy is embedded in the extension bundle, and it is
-     the top-level dependency (this repo's explicit undici), not the SDK's
-     nested copy.
-  3. The top-level undici is >= 8.7.0 (proxy absolute-form forwarding fix).
+检查项（见 vscode-pi-design.md 2.1）：
+  1. dist/extension.js 与 dist/webview.js 存在。
+  2. 扩展 bundle 里恰好嵌入一份 undici，且是顶层依赖（本仓库显式声明的
+     undici），不是 SDK 的嵌套副本。
+  3. 顶层 undici >= 8.7.0（代理绝对形式转发的修复版本）。
 """
 
 from __future__ import annotations
@@ -31,7 +30,7 @@ def parse_version(value: str) -> tuple[int, ...]:
 
 
 def installed_undici_versions() -> dict[str, str]:
-    """Map every undici package.json under node_modules to its version."""
+    """把 node_modules 下每个 undici 的 package.json 映射到版本号。"""
     versions: dict[str, str] = {}
     for path in (ROOT / "node_modules").rglob("undici/package.json"):
         try:
@@ -53,8 +52,8 @@ def main() -> None:
     for path, version in sorted(installed.items()):
         print(f"       {version}  {path}")
 
-    # esbuild keeps original module paths in bundle comments; count the distinct
-    # undici package roots that actually made it into the bundle.
+    # esbuild 会在 bundle 注释里保留原始模块路径；统计真正进 bundle 的
+    # 不同 undici 包根。
     roots = {
         match.replace("\\", "/")
         for match in re.findall(r"[\w\\/.@-]*node_modules[\\/](?:[\w\\/.@-]*node_modules[\\/])?undici[\\/]", bundle)

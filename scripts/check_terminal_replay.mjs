@@ -1,18 +1,11 @@
 /**
- * Replay fixtures for the VS Code terminal tool (`src/agent/terminal-replay.ts`).
- *
- * The replay is the only part of that tool with real logic, and it fails
- * *silently*: a broken cursor operation does not throw, it hands the model
- * plausible-looking text that never appeared on screen. So the cases are
- * checked on every `pnpm verify` rather than only when someone runs the spike
- * in a real window.
- *
- * The module is compiled here with esbuild rather than imported as `.ts`
- * directly: Node's type stripping only exists from 22.18, and this repository
- * declares `node >=20`. esbuild is already a dev dependency and already runs
- * earlier in `verify`, so this adds no new tooling. Nothing from the extension
- * bundle is loaded — the module is deliberately free of `vscode` imports so it
- * can be tested exactly like this.
+ * VS Code 终端工具（src/agent/terminal-replay.ts）的重放用例。
+ * 重放是该工具唯一有真实逻辑的部分，且会静默失败：坏掉的光标操作不抛错，
+ * 只会把屏幕上从未出现的、貌似合理的文本交给模型，所以用例要在每次
+ * `pnpm verify` 里跑，而不是只靠有人在真窗口里跑 spike。
+ * 模块在这里用 esbuild 编译而不是直接 import .ts：Node 的类型剥离 22.18 才
+ * 有，而仓库声明 `node >=20`；esbuild 已是 dev 依赖且已在 verify 前面跑过。
+ * 模块故意不含 vscode import，正好这样单独加载，完全不碰扩展 bundle。
  */
 import { build } from "esbuild";
 import { resolve } from "node:path";

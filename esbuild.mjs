@@ -13,7 +13,7 @@ const root = dirname(fileURLToPath(import.meta.url));
 const watch = process.argv.includes("--watch");
 const production = process.argv.includes("--production");
 
-/** Read a package version from node_modules without relying on its `exports` map. */
+/** 从 node_modules 直接读包版本，不依赖包的 `exports` map。 */
 function packageVersion(packageName) {
   try {
     const manifest = resolve(root, "node_modules", packageName, "package.json");
@@ -24,33 +24,24 @@ function packageVersion(packageName) {
 }
 
 /**
- * Modules that must stay outside the bundle:
- * - vscode: provided by the host
- * - photon-node / clipboard: native / wasm assets resolved relative to their package dir
+ * 必须留在 bundle 之外的模块：
+ * - vscode：宿主提供
+ * - photon-node / clipboard：原生 / wasm 资产按各自包目录相对解析
  *
- * `jiti` is intentionally bundled: the SDK imports the ESM-only `jiti/static`
- * entry point, which cannot be `require()`d from a CJS bundle.
+ * jiti 故意打进 bundle：SDK 导入的是 ESM-only 的 `jiti/static` 入口，
+ * CJS bundle 无法 `require()` 它。
  */
 const external = ["vscode", "@silvia-odwyer/photon-node", "@mariozechner/clipboard"];
 
 /**
- * The SDK anchors paths on `import.meta.url`. Bundling to CJS erases that, so
- * `define` rewrites every occurrence to `__piSdkEntryUrl`, pointing at the real
- * on-disk SDK: `dist/node_modules/...` in a packaged VSIX, or the repository's
- * own `node_modules/...` during development.
- *
- * One constant is not enough, though. Most SDK modules only want the package
- * root (docs, examples, themes, templates), but `core/extensions/loader.js`
- * derives its *own* directory from it to build the jiti aliases handed to pi
- * extensions:
- *
- *   const packageIndex = path.resolve(__dirname, "../..", "index.js");
- *
- * With every module reporting the entry's URL that lands two levels too high
- * (`@earendil-works/index.js`), and any extension importing
- * `@earendil-works/pi-coding-agent` fails to load. So `sdkModuleUrlPlugin`
- * below gives each SDK module its own URL through `__piSdkModuleUrl`, which is
- * both correct for the loader and strictly more accurate for everyone else.
+ * SDK 用 `import.meta.url` 锚定路径，打成 CJS 后它会消失，故 `define` 把所有出现
+ * 改写为 `__piSdkEntryUrl`，指向磁盘上的真 SDK：VSIX 内是 dist/node_modules/...，
+ * 开发时是仓库自己的 node_modules/...。
+ * 单个常量不够：多数 SDK 模块只要包根（docs/examples/themes/templates），但
+ * core/extensions/loader.js 要用它推自己所在目录拼给 pi 扩展用的 jiti alias
+ * （path.resolve(__dirname, "../..", "index.js")）——全都报入口的 URL 会高两层
+ * （@earendil-works/index.js），import 该 SDK 的扩展一律加载失败。故下面的
+ * sdkModuleUrlPlugin 经 `__piSdkModuleUrl` 给每个 SDK 模块自己的 URL。
  */
 const sdkEntryUrlBanner = `const __piSdkEntryUrl = (() => {
   const nodePath = require("node:path");
@@ -121,16 +112,13 @@ const __piSdkModuleUrl = (relative) => {
 };`;
 
 /**
- * Give every bundled SDK module the URL of its own file on disk, shadowing the
- * single `__piSdkEntryUrl` the banner defines.
- *
- * `define` turns `import.meta.url` into a bare `__piSdkEntryUrl` reference, so
- * a module-scoped constant of that name is enough to redirect it: esbuild's
- * scope analysis binds the reference to the nearest declaration.
- *
- * Without this, `core/extensions/loader.js` mis-resolves the jiti alias for
- * `@earendil-works/pi-coding-agent`, and every extension importing it dies
- * with "Cannot find module .../@earendil-works/index.js".
+ * 给每个打进 bundle 的 SDK 模块它自己文件的磁盘 URL，遮蔽 banner 定义的
+ * 那个全局 `__piSdkEntryUrl`。
+ * `define` 把 `import.meta.url` 变成裸的 `__piSdkEntryUrl` 引用，故模块作用域
+ * 里同名常量即可完成改道：esbuild 的作用域分析把引用绑到最近的声明。
+ * 缺了它，core/extensions/loader.js 会拼错 `@earendil-works/pi-coding-agent`
+ * 的 jiti alias，import 该 SDK 的扩展全部死于
+ * "Cannot find module .../@earendil-works/index.js"。
  */
 const sdkModuleUrlPlugin = {
   name: "pi-sdk-module-url",
@@ -150,10 +138,9 @@ const sdkModuleUrlPlugin = {
 };
 
 /**
- * Packages that ship unbundled under `dist/node_modules/` so a VSIX is
- * self-contained (vsce only strips `node_modules` at the repository root).
- * The list and the copying rules live in `scripts/runtime-packages.mjs`,
- * shared with the check that proves the list is complete.
+ * 这些包不打进 bundle、随 `dist/node_modules/` 发行，VSIX 才自给自足
+ * （vsce 只剥掉仓库根的 node_modules）。清单与拷贝规则都在
+ * scripts/runtime-packages.mjs，与证明清单完整的校验共用。
  */
 async function copyRuntimePackagesIntoDist() {
   const { skipped } = await copyRuntimePackages(resolve(root, "dist", "node_modules"), {
@@ -173,18 +160,16 @@ const extensionConfig = {
   sourcemap: !production,
   minify: production,
   external,
-  // `src/agent/http.ts` (this repo's explicit undici dependency) installs a
-  // global proxy dispatcher and must share one undici instance with the SDK's
-  // fetch calls. Alias every `import "undici"` — including the SDK's nested
-  // copy — to the top-level dependency so exactly one undici is embedded
-  // (asserted by scripts/check_bundle.py, which also enforces >= 8.7.0 for
-  // the proxy absolute-form forwarding fix).
+  // src/agent/http.ts（本仓库显式声明的 undici 依赖）会装全局代理 dispatcher，
+  // 必须与 SDK 的 fetch 调用共用同一个 undici 实例。把所有 `import "undici"`
+  // （含 SDK 的嵌套副本）alias 到顶层依赖，bundle 里就只嵌一份
+  // （scripts/check_bundle.py 断言这一点，并强制 >= 8.7.0——代理绝对形式
+  // 转发的修复版本）。
   alias: {
     undici: resolve(root, "node_modules", "undici"),
-    // jsonc-parser has no "exports" map, so platform:node picks its UMD build,
-    // whose internal `require("./impl/format")` esbuild cannot follow: the
-    // bundle then fails to load with "Cannot find module ./impl/format".
-    // Point at the ESM build, which uses static imports.
+    // jsonc-parser 没有 exports map，platform:node 会选中其 UMD 构建，内部的
+    // require("./impl/format") esbuild 跟不进去，bundle 加载即报
+    // "Cannot find module ./impl/format"。钉到使用静态 import 的 ESM 构建。
     "jsonc-parser": resolve(root, "node_modules", "jsonc-parser", "lib", "esm", "main.js"),
   },
   logOverride: { "require-resolve-not-external": "silent" },
@@ -193,8 +178,8 @@ const extensionConfig = {
   define: {
     "process.env.NODE_ENV": production ? '"production"' : '"development"',
     "import.meta.url": "__piSdkEntryUrl",
-    // The extension loader falls back to import.meta.resolve() for package
-    // entry points; CJS bundles otherwise leave it undefined.
+    // 扩展加载器对包入口会回退到 import.meta.resolve()；CJS bundle 缺省把它
+    // 置为 undefined，这里补上。
     "import.meta.resolve": "__piSdkResolve",
     __PI_UNDICI_VERSION__: JSON.stringify(packageVersion("undici")),
     __PI_SDK_VERSION__: JSON.stringify(packageVersion("@earendil-works/pi-coding-agent")),
@@ -213,7 +198,7 @@ const webviewConfig = {
   minify: production,
 };
 
-/** Compile SCSS sources into dist/main.css. */
+/** 把 SCSS 源码编译到 dist/main.css。 */
 async function compileSass() {
   const entry = resolve(root, "src/styles/main.scss");
   const result = sass.compile(entry, {
@@ -227,8 +212,8 @@ async function compileSass() {
       : result.css;
   await writeFile(resolve(root, "dist/main.css"), withMapLink);
   if (result.sourceMap && !production) {
-    // Sources are absolute file:// URLs from sass; rewrite to paths relative to
-    // dist/ so DevTools resolves them in the webview (and in scratch/repro.html).
+    // sass 给的 sources 是绝对 file:// URL；改写成相对 dist/ 的路径，DevTools
+    // 才能在 webview（以及 scratch/repro.html）里解析它们。
     const map = {
       ...result.sourceMap,
       sources: result.sourceMap.sources.map((s) =>
@@ -244,7 +229,7 @@ async function compileSass() {
 if (watch) {
   const contexts = await Promise.all([esbuild.context(extensionConfig), esbuild.context(webviewConfig)]);
   await Promise.all(contexts.map((ctx) => ctx.watch()));
-  // Initial SCSS build + simple poll watcher (sass has no built-in watch).
+  // 首次 SCSS 构建 + 简单的目录监听（sass 的 JS API 没有内置 watch）。
   await compileSass();
   const { watch: fsWatch } = await import("node:fs");
   fsWatch(resolve(root, "src/styles"), { recursive: true }, async () => {

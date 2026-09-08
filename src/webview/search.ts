@@ -3,59 +3,42 @@ import { getDict } from "./i18n.js";
 import { byId, messagesEl, searchBarEl, searchCountEl, searchInputEl } from "./shell.js";
 
 /**
- * Transcript search (the header button), the GUI counterpart of the TUI's
- * fullscreen transcript search: the query is a literal,
- * case-insensitive, whitespace-normalized string matched against a corpus of
- * the transcript's text, and matches are highlighted with next/previous
- * navigation.
- *
- * Mechanics, in three layers:
- *
- * - **The DOM corpus mirrors the TUI's** (`buildSearchCorpus` in pi-tui):
- *   every text node is concatenated (a space separates nodes of different
- *   parent elements, like the TUI's span separator), the match runs over the
- *   corpus, and each match maps back to per-node segments. That is what lets
- *   a match span inline markup (`hel<b>lo</b>`) the same way it spans styled
- *   spans in the terminal. Collapsed cards and folded messages are part of
- *   it — their text stays in the DOM, and navigation expands them.
- * - **Lazy card bodies that have never rendered are searched through their
- *   data** (`collectHiddenBodies` in transcript.ts): tool output, thinking
- *   text and details payloads exist as data until the card is first expanded,
- *   so such regions match without DOM and anchor on the card root.
- * - **Navigation reveals.** Landing on a hidden-region match expands the work
- *   block, then the card (`revealTranscriptElement`), rebuilds the corpus —
- *   the body text is DOM now — and re-lands on the first visible match inside
- *   it; a details block nested in that body registers its own region on the
- *   way, so the next Enter opens that layer too.
- *
- * Highlighting never touches the DOM: the CSS Custom Highlight API paints
- * ranges from a registry, so streaming re-renders, markdown re-parsing and
- * history rebuilds cannot be disturbed by injected `<mark>` elements, and the
- * smoke snapshot (a DOM serialization) never sees them. Where the API does
- * not exist (jsdom), matches are still counted and navigation still runs —
- * only the paint is skipped.
+ * transcript 搜索（header 按钮）：字面量、忽略大小写、空白归一的查询，
+ * 匹配可前后导航。机制分三层：
+ * - DOM 语料镜像 TUI 的做法（pi-tui 的 `buildSearchCorpus`）：拼接全部文本
+ *   节点、跨父元素以空格分隔，匹配映射回逐节点片段，因此能跨内联标记
+ *   （`hel<b>lo</b>`）；折叠的卡片与气泡也算语料——文本仍在 DOM，导航
+ *   时展开。
+ * - 从未渲染的懒卡片体走数据层（transcript.ts 的 `collectHiddenBodies`），
+ *   命中锚在卡片根上。
+ * - 导航即揭示：命中隐藏区时展开工作块与卡片（`revealTranscriptElement`），
+ *   重建语料后重新落到其中首个可见命中；嵌套 details 顺路注册自己的区域，
+ *   下一次 Enter 再开那一层。
+ * 高亮不碰 DOM：CSS Custom Highlight API 从注册表画 Range，流式重渲染、
+ * markdown 重解析与历史重建都不会被打扰，DOM 快照也看不到它；API 缺席
+ * 时（jsdom）仍可计数与导航，只是不绘制。
  */
 
 const t = getDict();
 
-/** Chrome 105+. Absent in jsdom: count/navigate still work, paint is skipped. */
+/** Chrome 105+ 才有；jsdom 没有：计数与导航照常，只是不绘制。 */
 const HIGHLIGHT_SUPPORTED = typeof CSS !== "undefined" && "highlights" in CSS && typeof Highlight !== "undefined";
 const ALL_HIGHLIGHT = "pi-search";
 const CURRENT_HIGHLIGHT = "pi-search-current";
 
 interface SearchMatch {
-  /** One range per corpus segment the match spans; empty for a data-layer hit. */
+  /** 命中跨越的每个语料段各一个 Range；数据层命中为空。 */
   ranges: Range[];
-  /** Element scrolled into view when the match becomes current. */
+  /** 该命中成为当前项时滚入视野的元素。 */
   anchor: Element;
-  /** Card root of a data-layer hit: no DOM until it is revealed. */
+  /** 数据层命中的卡片根：揭示前没有 DOM。 */
   root?: HTMLElement;
 }
 
 let matches: SearchMatch[] = [];
 let currentIndex = -1;
 let rebuildTimer: ReturnType<typeof setTimeout> | undefined;
-/** One-shot: the reveal path rebuilds itself, so skip the redundant follow-up. */
+/** 一次性标志：揭示路径自己会重建，观察者的后续重建是多余的。 */
 let suppressObserverRebuild = false;
 
 export function isSearchOpen(): boolean {
@@ -82,23 +65,22 @@ export function toggleSearch(): void {
 }
 
 /* ---------------------------------------------------------------- */
-/* Corpus                                                            */
+/* 语料 */
 /* ---------------------------------------------------------------- */
 
-/** What a page switch hides is not searched. Collapsed cards and folded
- * messages are — see the module header. */
+/** 页面切换隐藏的内容不参与搜索；折叠的卡片与气泡参与——见模块头说明。 */
 function isSearchableText(node: Text): boolean {
   const parent = node.parentElement;
   if (!parent || !node.data) return false;
   if (parent.closest(".hidden")) return false;
-  // Bubble footers are chrome (fold toggle label), not conversation.
+  // 气泡 footer 是界面部件（折叠开关文案），不是对话内容。
   if (parent.closest(".bubble-footer")) return false;
   return true;
 }
 
 interface Corpus {
   text: string;
-  /** Per corpus character: the text node and offset it came from. */
+  /** 按语料字符记录：它来自哪个文本节点及偏移。 */
   source: Array<{ node: Text; offset: number } | undefined>;
 }
 
@@ -110,8 +92,8 @@ function buildCorpus(): Corpus {
   let lastParent: Element | null = null;
   for (let current = walker.nextNode(); current; current = walker.nextNode()) {
     const node = current as Text;
-    // Text nodes of one parent belong to the same inline run; anything else
-    // gets a space, like the TUI corpus' span separator.
+    // 同一父元素的文本节点属同一段内联文本；否则补一个空格，对应 TUI
+    // 语料的 span 分隔。
     if (corpus.text.length > 0 && node.parentElement !== lastParent) {
       corpus.text += " ";
       corpus.source.push(undefined);
@@ -126,7 +108,7 @@ function buildCorpus(): Corpus {
 }
 
 /* ---------------------------------------------------------------- */
-/* Matching                                                          */
+/* 匹配 */
 /* ---------------------------------------------------------------- */
 
 function normalizeQuery(query: string): string {
@@ -173,9 +155,8 @@ function rebuild(): void {
       const anchor = ranges[0]?.startContainer.parentElement;
       if (ranges.length > 0 && anchor) matches.push({ ranges, anchor });
     }
-    // Lazy bodies that never rendered: match their data-layer text and anchor
-    // on the card root. No ranges — the highlight appears once navigation has
-    // expanded the card and the corpus picks the rendered text up.
+    // 从未渲染的懒卡片体：匹配其数据层文本并锚在卡片根上。不带 Range
+    // ——导航展开卡片、语料收进渲染文本后，高亮自然出现。
     for (const region of collectHiddenBodies()) {
       const regionHaystack = region.text.toLowerCase();
       for (const hit of regionHaystack.matchAll(expression)) {
@@ -183,15 +164,15 @@ function rebuild(): void {
         matches.push({ ranges: [], anchor: region.root, root: region.root });
       }
     }
-    // Walk order and registration order only approximate document order once
-    // the two sources mix; sort by anchor so next/previous run top to bottom.
+    // 两个来源混合后，遍历序与注册序只是近似文档序；按 anchor 排序，
+    // 前后导航才能自上而下。
     matches.sort((a, b) => {
       if (a.anchor === b.anchor) return 0;
       return a.anchor.compareDocumentPosition(b.anchor) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
     });
   }
-  // Stay at "no current match" until the user navigates: typing must not
-  // yank the scroll position, and the first Enter then lands on match one.
+  // 用户导航前保持「无当前命中」：输入不得拽动滚动位置，首次 Enter 落
+  // 在第一条命中。
   paint();
   renderCount();
 }
@@ -209,7 +190,7 @@ function renderCount(): void {
 }
 
 /* ---------------------------------------------------------------- */
-/* Highlight paint                                                   */
+/* 高亮绘制 */
 /* ---------------------------------------------------------------- */
 
 function paint(): void {
@@ -227,21 +208,19 @@ function paint(): void {
 }
 
 /* ---------------------------------------------------------------- */
-/* Navigation                                                        */
+/* 导航 */
 /* ---------------------------------------------------------------- */
 
 function setCurrent(index: number, scroll = true): void {
   if (matches.length === 0) return;
-  // Enter/prev/next step by one and rely on the wrap here, not at each call site.
+  // Enter/prev/next 只走一步，环绕在这统一处理，不在各调用点做。
   const wrapped = ((index % matches.length) + matches.length) % matches.length;
   const target = matches[wrapped];
   if (!target) return;
-  // A hidden-region hit has no DOM yet: open its card and every collapsed
-  // ancestor, rebuild now that the body text is rendered, and re-land on the
-  // first visible match inside the body.
+  // 隐藏区命中还没有 DOM：展开它的卡片与所有折叠祖先，待正文渲染后重建
+  // 语料，重新落到正文里首个可见命中。
   if (target.root) {
-    // Our own rebuild just ran over these mutations; the observer would only
-    // run a second, redundant one that resets the current match.
+    // 我们自己的重建刚消化过这些变更；观察者再跑一次只会多余地重置当前命中。
     suppressObserverRebuild = true;
     const body = revealTranscriptElement(target.root);
     rebuild();
@@ -250,18 +229,16 @@ function setCurrent(index: number, scroll = true): void {
       setCurrent(landed, scroll);
       return;
     }
-    // The hit may be text that does not survive rendering verbatim (markdown
-    // syntax, for instance, or the details payload of a nested block that is
-    // only now registered): settle for putting the card on screen; the next
-    // Enter then lands on the first visible match inside it.
+    // 命中的可能是渲染后不逐字存活的文本（markdown 语法、此刻才注册的
+    // 嵌套块 details）：退而求其次把卡片带到屏幕上，下一次 Enter 再落到
+    // 其中的首个可见命中。
     currentIndex = -1;
     if (scroll) target.root.scrollIntoView?.({ block: "center" });
     paint();
     renderCount();
     return;
   }
-  // A DOM hit still needs its collapsed ancestors expanded (and a folded
-  // bubble opened) before the anchor can be scrolled into view.
+  // DOM 命中也要先展开折叠的祖先（及折叠的气泡），anchor 才能滚入视野。
   revealTranscriptElement(target.anchor);
   currentIndex = wrapped;
   if (scroll) {
@@ -272,7 +249,7 @@ function setCurrent(index: number, scroll = true): void {
 }
 
 /* ---------------------------------------------------------------- */
-/* Wiring                                                            */
+/* 接线 */
 /* ---------------------------------------------------------------- */
 
 function scheduleRebuild(): void {
@@ -300,7 +277,7 @@ byId<HTMLButtonElement>("search-next").addEventListener("click", () => {
 });
 byId<HTMLButtonElement>("search-close").addEventListener("click", () => closeSearch());
 
-/** Streaming, history replays and lane switches all land here as DOM edits. */
+/** 流式输出、历史重放、lane 切换最终都落为 DOM 变更。 */
 new MutationObserver(() => {
   if (!isSearchOpen()) return;
   if (suppressObserverRebuild) {

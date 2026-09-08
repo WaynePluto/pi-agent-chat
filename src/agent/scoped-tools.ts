@@ -8,33 +8,22 @@ import {
 import type { ScopeGuard } from "./scope.js";
 
 /**
- * `edit` and `write` for a subagent, restricted to its declared write ranges.
+ * 供子代理使用的 `edit`/`write`，限制在其声明的可写范围内。这就是
+ * pi 自己的工具定义——同名、同 schema、同行为——只是经 SDK 公开工厂
+ * 重建并替换文件操作层；新增的只有范围检查与写入记账。
  *
- * These are pi's own tool definitions — same name, same schema, same behaviour —
- * built through the SDK's public factories with a replacement file-operation
- * layer. Nothing about the tools is reimplemented here; the only additions are
- * a range check and a record of what was written.
- *
- * This is the single enforcement point, and it exists because
- * `CreateAgentSessionFromServicesOptions` has no `toolsOptions`: the built-in
- * tools cannot be reconfigured, so a child session excludes them by name and
- * receives these instead.
- *
- * Reads are deliberately unrestricted. A subagent has to understand code it is
- * not allowed to change, so the range governs mutation only.
- *
- * Known gap: `bash` can still write anywhere. Whether a shell command writes,
- * and where, is not decidable without running it, so neither the check nor the
- * bookkeeping can cover it. Results say so explicitly rather than implying the
- * file list is complete.
+ * 唯一强制点：`CreateAgentSessionFromServicesOptions` 没有
+ * `toolsOptions`，内置工具无法重配，故子会话按名排除内置版、改收这里的
+ * 同名版本。读刻意不受限（范围只管写）。已知缺口：`bash` 仍可写任何
+ * 位置——shell 命令写不写、写哪里不跑就不可判定，结果文本会明说。
  */
 export function createScopedFileTools(cwd: string, guard: ScopeGuard): ToolDefinition[] {
   const editTool = createEditToolDefinition(cwd, {
     operations: {
       readFile: (path) => readFile(path),
       access: async (path) => {
-        // `edit` only calls this on files it is about to modify, so refusing
-        // here surfaces the range violation before any diff work happens.
+        // `edit` 只在即将修改某文件时才调它，在这里拒绝可让越界
+        // 在进入 diff 流程之前就暴露。
         guard.assertWritable(path);
         await access(path, constants.R_OK | constants.W_OK);
       },
@@ -61,5 +50,5 @@ export function createScopedFileTools(cwd: string, guard: ScopeGuard): ToolDefin
   return [editTool as ToolDefinition, writeTool as ToolDefinition];
 }
 
-/** Names the child session must drop so the scoped versions above take over. */
+/** 子会话必须排除这两个内置名，上面的受限版本才能接管。 */
 export const SCOPED_TOOL_NAMES = ["edit", "write"] as const;

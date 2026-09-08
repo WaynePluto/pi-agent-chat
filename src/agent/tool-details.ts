@@ -1,34 +1,24 @@
 /**
- * Host-side sanitizing of `AgentToolResult.details` before it crosses into the
- * webview.
+ * `AgentToolResult.details` 跨进 webview 前的宿主侧清洗。
  *
- * Why this exists: `details` is whatever the tool author put there. Extensions
- * are the interesting case — a tool's `renderCall`/`renderResult` only ever
- * emit a pi-tui `Component` (ANSI lines), so its *presentation* cannot be
- * reused by a DOM host, but the data those functions were given can. Passing
- * `details` through lets the webview draw it in its own idiom instead of
- * showing nothing.
+ * 存在理由：`details` 是工具作者放进去的任意东西。扩展是有意思的情形——
+ * 工具的 `renderCall`/`renderResult` 只产出 pi-tui `Component`（ANSI 行），
+ * 其「呈现」无法被 DOM 宿主复用，但喂给它们的数据可以。透传 `details`
+ * 让 webview 用自己的语言去画，而不是什么都不显示。
  *
- * Nothing here knows any specific extension's schema, by design: the output is
- * rendered as a generic tree.
+ * 这里刻意不认任何具体扩展的 schema：输出渲染为通用树。
  */
 
 import type { JsonValue } from "../shared/protocol.js";
 
 /**
- * Tools this webview draws a purpose-built card for. Their `details` is
- * implementation detail already covered by that card, so echoing a raw tree
- * underneath would be noise.
+ * 本 webview 为其画专用卡片的工具（前七个即 pi 自带工具，
+ * `core/tools/index.ts`）。它们的 `details` 是已被卡片覆盖的实现细节，
+ * 在下面再回显一棵原始树只是噪声。
  *
- * The first seven are the tools pi ships (`core/tools/index.ts`).
- *
- * `subagent` is deliberately *not* here even though it has a card of
- * its own: that card is built *from* `details`, which is what carries the
- * per-lane state both while the call runs and when the transcript is replayed
- * later.
- *
- * Not an extension allow/deny list — extensions are exactly what this feature
- * is for.
+ * `subagent` 刻意不在列中，尽管它有自己的卡片：那张卡片正是用
+ * `details` 画的——运行期间与事后回放，每路子代理的状态都靠它携带。
+ * 这不是扩展的允许/拒绝清单——扩展恰恰是这个功能存在的理由。
  */
 const TOOLS_WITH_DEDICATED_CARDS = new Set([
   "read",
@@ -40,24 +30,23 @@ const TOOLS_WITH_DEDICATED_CARDS = new Set([
   "ls",
 ]);
 
-/** Nesting past this is elided; deep trees are unreadable in a sidebar anyway. */
+/** 超过此深度的嵌套省略；深树在侧栏里反正读不动。 */
 const MAX_DEPTH = 4;
-/** Per-object / per-array cap, so one huge collection cannot flood the card. */
+/** 每对象/数组的条目上限，防单个大集合刷爆卡片。 */
 const MAX_ENTRIES = 50;
-/** Long strings (file contents, logs) are truncated rather than dropped. */
+/** 长字符串（文件内容、日志）截断而不是丢弃。 */
 const MAX_STRING_LENGTH = 2000;
-/** Total budget across the whole tree, counted in serialized characters. */
+/** 整棵树的总额预算，按序列化字符数计。 */
 const MAX_TOTAL_CHARS = 20000;
 
 const ELIDED = "\u2026";
 
 /**
- * Convert arbitrary tool `details` into structured-clone-safe JSON, or
- * `undefined` when there is nothing worth showing.
+ * 把任意工具 `details` 转成可结构化克隆的安全 JSON；
+ * 没有值得展示的内容时返回 `undefined`。
  *
- * Guards three ways VS Code's `postMessage` would otherwise fail or misbehave:
- * values it cannot clone (functions, symbols, class instances with accessors),
- * cycles, and unbounded size.
+ * 挡住 VS Code `postMessage` 会失败或出问题的三种情况：
+ * 克隆不了的值（函数、symbol、带 getter 的类实例）、循环引用、无上限的体积。
  */
 export function sanitizeToolDetails(
   toolName: string,
@@ -68,7 +57,7 @@ export function sanitizeToolDetails(
   const budget = { remaining: MAX_TOTAL_CHARS };
   const value = sanitize(details, 0, new WeakSet(), budget);
   if (value === undefined) return undefined;
-  // An empty object carries no information but would still draw a header row.
+  // 空对象没有任何信息，却仍会画出一行标题。
   if (typeof value === "object" && value !== null && !Array.isArray(value) && Object.keys(value).length === 0) {
     return undefined;
   }
@@ -88,7 +77,7 @@ function sanitize(value: unknown, depth: number, seen: WeakSet<object>, budget: 
     }
     case "number":
       budget.remaining -= 8;
-      // NaN/Infinity are valid JS but not JSON; show them rather than drop them.
+      // NaN/Infinity 是合法 JS 但不是 JSON；展示而不是丢弃。
       return Number.isFinite(value) ? value : String(value);
     case "boolean":
       budget.remaining -= 5;
@@ -99,18 +88,18 @@ function sanitize(value: unknown, depth: number, seen: WeakSet<object>, budget: 
     case "undefined":
     case "function":
     case "symbol":
-      // Dropped: absent keys read better than a column of "[function]".
+      // 丢弃：键缺失比一列 "[function]" 好读。
       return undefined;
   }
 
   const object = value as object;
   if (seen.has(object)) return "[circular]";
-  // Say what was elided, so a cut branch does not read like an empty one.
+  // 说明省略了什么，免得被剪的分支读成空分支。
   if (depth >= MAX_DEPTH) {
     return Array.isArray(object) ? `[${ELIDED} ${object.length} items]` : `{${ELIDED}}`;
   }
 
-  // Common non-plain objects that would otherwise clone to `{}`.
+  // 常见的非普通对象，否则会被克隆成 `{}`。
   if (object instanceof Date) return object.toISOString();
   if (object instanceof Error) return `${object.name}: ${object.message}`;
   if (object instanceof RegExp) return String(object);
@@ -121,7 +110,7 @@ function sanitize(value: unknown, depth: number, seen: WeakSet<object>, budget: 
       const items: JsonValue[] = [];
       for (const item of object.slice(0, MAX_ENTRIES)) {
         const clean = sanitize(item, depth + 1, seen, budget);
-        // Holes would shift indices, so keep a placeholder for dropped items.
+        // 稀疏空洞会让索引错位，被丢的条目保留占位符。
         items.push(clean === undefined ? null : clean);
         if (budget.remaining <= 0) break;
       }
@@ -138,7 +127,7 @@ function sanitize(value: unknown, depth: number, seen: WeakSet<object>, budget: 
 
     return sanitizeEntries(Object.entries(object as Record<string, unknown>), depth, seen, budget);
   } catch {
-    // Getters can throw; a broken details object must not break the transcript.
+    // getter 可能抛错；一个坏的 details 对象不能弄坏 transcript。
     return undefined;
   } finally {
     seen.delete(object);

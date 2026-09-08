@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require exact SemVer strings for direct runtime and development dependencies."""
+"""强制直接依赖（dependencies/devDependencies）使用精确的 SemVer 版本号。"""
 
 from __future__ import annotations
 

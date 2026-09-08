@@ -1,38 +1,28 @@
 /**
- * Scroll-driven reveal for the overlay scrollbars.
- *
- * A scrollbar answers "where am I in this", and that is only a question while
- * the content is actually moving. So the thumb is painted only while a
- * container is being scrolled, and fades back out once it goes quiet.
- *
- * This has to be script-driven because CSS has no "is scrolling" state. The
- * previous approach approximated it with `:hover` on the container, which was
- * wrong in both directions: resting the pointer over the transcript while
- * reading lit up a bar that reported nothing new, and scrolling with a wheel
- * from a position the pointer had since left showed nothing at all.
- *
- * One document-level capture listener rather than a listener per container:
- * `scroll` does not bubble, but it does capture, so this catches every scroller
- * in the view including ones created later (code blocks, tool cards, popups).
- * That also removes the need for the hand-maintained list of scroller selectors
- * this used to require -- a list that had already drifted, leaving every
- * horizontally scrolling code block with a permanently invisible thumb.
+ * 覆盖式滚动条的滚动驱动显隐。滑块只在容器滚动期间绘制、静置后淡出：
+ * 滚动条回答「我在这东西的哪里」，只在内容真的在动时才是问题。CSS 没有
+ * 「正在滚动」状态，只能靠脚本；旧做法用容器 `:hover` 近似，两个方向都
+ * 错——读字时停在 transcript 上会亮起一条没新东西的杠，指针离开后滚轮
+ * 滚过则什么都不显示。
+ * 用 document 级捕获监听而非每个容器一个：`scroll` 不冒泡但会捕获，一个
+ * 监听器覆盖视图内所有滚动容器（含后来创建的），也免去曾经手工维护的滚
+ * 动容器选择器清单——那份清单漂移过，横向滚动的代码块滑块曾因此永久
+ * 不可见。
  */
 
-/** How long the bar stays up after the last scroll event. */
+/** 最后一次滚动事件后滑块保留多久。 */
 const IDLE_MS = 900;
 
 const CLASS = "pi-scrolling";
 
-/** Pending fade-out per element; weak so detached nodes are collectable. */
+/** 每个元素的待执行淡出；用 WeakMap，脱离文档的节点可被回收。 */
 const timers = new WeakMap<Element, number>();
 
 export function initScrollbars(root: Document = document): () => void {
   const onScroll = (event: Event): void => {
     const target = event.target;
-    // Scrolling the page itself reports `document`, which has no class list.
-    // The view never scrolls at the document level, so there is nothing to
-    // show for it either.
+    // 页面自身滚动时 target 是 `document`，没有 class list；本视图从不
+    // 整页滚动，也没有可显示的。
     if (!(target instanceof Element)) return;
 
     target.classList.add(CLASS);
@@ -48,8 +38,8 @@ export function initScrollbars(root: Document = document): () => void {
     );
   };
 
-  // Passive: this never calls `preventDefault`, and saying so keeps it off the
-  // critical path of the scroll it is reacting to.
+  // passive：这里从不 `preventDefault`，声明出来可免占它所响应滚动的
+  // 关键路径。
   root.addEventListener("scroll", onScroll, { capture: true, passive: true });
   return () => root.removeEventListener("scroll", onScroll, { capture: true });
 }

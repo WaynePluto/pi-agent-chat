@@ -1,13 +1,11 @@
 /**
- * Minimal UI localization for the chat webview.
+ * 聊天 webview 的极简本地化。
  *
- * Follows the VS Code display language (`vscode.env.language`), passed in by
- * the extension through the `lang` attribute on <html>. Chinese locales get
- * Chinese UI text; everything else falls back to English. Model names and
- * thinking-level values are never translated.
+ * 跟随 VS Code 显示语言（`vscode.env.language`），由扩展写进 <html> 的
+ * `lang` 属性传入。中文环境用中文文案，其余回落英文；模型名与思考等级值
+ * 永不翻译。
  *
- * Strings that also appear in host-side dialogs live in `shared/messages.ts`
- * so both sides stay worded consistently.
+ * 宿主侧对话框也出现的文案放 `shared/messages.ts`，两边措辞保持一致。
  */
 
 import { isChinese, sharedMessages } from "../shared/messages.js";
@@ -52,7 +50,7 @@ const en = {
   entryLabelTitle: "Bookmark this message for later navigation",
   modelTitle: "Switch model",
   thinkingTitle: "Switch thinking level",
-  /* Composer quick menus. Wording shared with the host dialogs where both exist. */
+  /* composer 快捷菜单。宿主对话框也有同文案处，措辞共享。 */
   modelPickerTitle: sharedMessages.favoriteModels.en,
   modelPickerOther: sharedMessages.otherModels.en,
   modelPickerLoading: "Loading models...",
@@ -94,24 +92,24 @@ const en = {
   fileIgnoredBadge: "gitignored",
   fileSensitiveBadge: "sensitive",
   fileRemoveTitle: "Remove project reference",
-  /** Chip label for a pasted image that has no file name of its own. */
+  /** 粘贴图片自身没有文件名时的 chip 标签。 */
   imageAttachmentLabel: "image",
-  /** Placeholder chip while the host converts / downscales an attachment. */
+  /** 宿主转换 / 缩放附件期间的占位 chip。 */
   imageAttaching: "attaching…",
   resourceOpenTitle: "Open in editor",
   openDiff: "Open diff",
   openFile: "Open file",
-  /** Header of the generic tree drawn from a tool's own `details` payload. */
+  /** 由工具自身 `details` 数据画出的通用树的标题。 */
   toolDetails: "Details",
   toolDetailsTitle: "Structured data returned by this tool",
   running: "running",
   done: "done",
   errorLabel: "error",
-  /* Retry action on a "retry failed" notice: re-issues the same request. */
+  /* 「重试失败」通知上的重试动作：重新发出同一请求。 */
   noticeRetry: "Retry",
   noticeRetryTitle: "Send the failed request again, without adding a message to the conversation",
   noticeRetrying: "Retrying...",
-  /* Outcome of a retry, left on the spent button: the offer is used up. */
+  /* 重试结果，留在已消耗的按钮上：提议已用掉。 */
   noticeRetrySucceeded: "Retry succeeded",
   noticeRetryFailed: "Retry failed",
   expand: "Expand",
@@ -125,12 +123,12 @@ const en = {
   thinkingHeader: "thinking...",
   thinkingDone: "thinking finished",
   workHeader: "Work",
-  /* Counts only. What the block is doing right now is its own header field
-     after the failure count, so the tail is what truncates. */
+  /* 只放计数。块此刻在干什么是失败数之后自己的 header 字段，被截断的
+     是尾部。 */
   workInProgress: (thinking: number, tools: number) => `thinking ${thinking} · tools ${tools}`,
   workDone: (thinking: number, tools: number) => `done · thinking ${thinking} · tools ${tools}`,
-  /* Failures are a separate header field, not part of the summary above: that
-     one is ellipsis-truncated, and this is the part that must survive. */
+  /* 失败数是独立的 header 字段，不并入上面的摘要：摘要会被省略号截断，
+     而它必须留下。 */
   workFailed: (failed: number) => `${failed} failed`,
   compactionBoundary: "Context compacted",
   compactionTokens: (before: string, after: string) => `${before} → ~${after} tokens`,
@@ -155,9 +153,9 @@ const en = {
   emptySession: (systemPromptOverridden: boolean, subagent?: SubagentSetup, terminal?: ToolSetup) =>
     [
       "No messages in this session yet.",
-      // The docs hint describes what Pi's default prompt teaches the model. Once
-      // SYSTEM.md replaces that prompt the ability is gone, so the line is
-      // dropped: whoever wrote that file does not need to be told about it.
+      // 这行提示描述 Pi 默认 prompt 教会模型的能力。SYSTEM.md 一旦替换了
+      // 默认 prompt，能力就不在了，因此整行省略：写那个文件的人不需要
+      // 被告知这一点。
       ...(systemPromptOverridden
         ? []
         : ["Pi can explain its own features and look up its docs. Ask it how to use or extend Pi."]),
@@ -218,7 +216,7 @@ const en = {
   sessionPreviewing: "viewing",
   scrollDownTitle: "Jump to the latest message",
   resourcesLoaded: "Loaded resources",
-  /** Group headings inside a resource section, in place of a per-row tag. */
+  /** 资源 section 内的分组标题，代替每行的 scope 标签。 */
   resourceScopes: { builtin: "Built-in", global: "Global", project: "Project", package: "Package", other: "Other" },
   resourceInactiveTitle: "Configured, but not in effect in this session",
   toolUsedTitle: "Called in this session",
@@ -237,7 +235,7 @@ const en = {
   searchPrevTitle: "Previous match (Shift+Enter)",
   searchNextTitle: "Next match (Enter)",
   searchCloseTitle: "Close search (Esc)",
-  /** Wide-layout column divider; dragging it past the rail's minimum closes the rail. */
+  /** 宽屏分栏分隔线；拖过栏的最小宽度即关闭该栏。 */
   splitterTitle: "Drag to resize · drag past the minimum to close the rail · ← / → to adjust",
 };
 
@@ -446,7 +444,7 @@ const zh: Dict = {
   splitterTitle: "拖动调整宽度 · 拖过最小宽度即关闭该栏 · ← / → 微调",
 };
 
-/** Resolve the dictionary from the document language set by the extension. */
+/** 按扩展写入的文档语言解析字典。 */
 export function getDict(): Dict {
   return isChinese(document.documentElement.lang || "en") ? zh : en;
 }

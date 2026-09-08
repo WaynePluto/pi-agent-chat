@@ -2,9 +2,8 @@ import { getDict } from "./i18n.js";
 import { CHEVRON_ICON, CLOSE_ICON, DOWN_ICON, MORE_ICON, SEND_ICON, UP_ICON } from "./icons.js";
 
 /**
- * The static page skeleton and the element references every view module works
- * against. Building it here (rather than in the host's HTML) keeps the webview
- * layout in one place and the extension's CSP shell trivial.
+ * 静态页面骨架与各视图模块共同持有的元素引用。在这里构建（而非宿主的
+ * HTML 里）让 webview 布局集中一处，扩展侧的 CSP 外壳保持极简。
  */
 
 const t = getDict();

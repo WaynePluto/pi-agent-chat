@@ -1,10 +1,9 @@
 /**
- * How a session is titled in the UI.
+ * 会话在 UI 里的标题规则。
  *
- * The sessions list, the header and the rename input all have to agree: a
- * session that was never explicitly named still shows its first user message
- * as a title, so the rename box must start from that same text instead of
- * being empty.
+ * 会话列表、header 与重命名输入框必须一致：从未显式命名的会话也把
+ * 首条用户消息当标题展示，重命名框的预填就得从同一段文本起步，
+ * 而不是空白。
  */
 
 import type { SessionManager } from "@earendil-works/pi-coding-agent";
@@ -17,7 +16,7 @@ interface RoleContent {
   content?: unknown;
 }
 
-/** Message content is either a plain string or a content-part array. */
+/** 消息内容要么是纯字符串，要么是 content-part 数组。 */
 export function contentText(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -28,11 +27,10 @@ export function contentText(content: unknown): string {
 }
 
 /**
- * Image parts of a message, in order.
+ * 消息里的图片部分，按序返回。
  *
- * The SDK stores attachments as `ImageContent` inside the same content array,
- * so a replayed transcript can show what the user attached rather than the
- * markup that describes it.
+ * SDK 把附件作为 `ImageContent` 存在同一个 content 数组里，因此回放的
+ * transcript 能展示用户附了什么图，而不是描述它的标记文本。
  */
 export function contentImages(content: unknown): { mimeType: string; data: string }[] {
   if (!Array.isArray(content)) return [];
@@ -46,34 +44,32 @@ export function contentImages(content: unknown): { mimeType: string; data: strin
 }
 
 /**
- * The text of a user message as the transcript shows it, plus the skill it
- * invoked: skill invocations collapsed back to their command form, image
- * attachment markup dropped (the images themselves are rendered instead).
+ * 用户消息在 transcript 里呈现的文本，连同它调用的技能：技能调用折回
+ * 命令形式，图片附件标记剥掉（图本身另行渲染）。
  *
- * The single place this projection is defined. Every surface that shows a user
- * message — transcript, header title, sessions list, rename prefill, the tree
- * navigator — has to agree, and each one that grew its own copy has drifted
- * exactly once already: the image markup was added to the prompt text and the
- * copies that forgot to strip it started showing `<image name="…">` as a title.
+ * 该投影只在这里定义一次。所有展示用户消息的界面——transcript、header
+ * 标题、会话列表、重命名预填、树导航——必须一致；每处自留一份拷贝的
+ * 都已经分叉过一次：图片标记加进正文后，忘了剥的那几份开始把
+ * `<image name="…">` 当标题显示。
  */
 export function readUserDisplay(content: unknown): { text: string; skill?: string } {
   return readSkillInvocation(stripImageAttachmentMarkup(contentText(content)));
 }
 
-/** {@link readUserDisplay} when only the text is wanted. */
+/** 只需要文本时的 {@link readUserDisplay}。 */
 export function userDisplayText(content: unknown): string {
   return readUserDisplay(content).text;
 }
 
 /**
- * The same projection for sources that are already plain text, such as
- * `SessionInfo.firstMessage` from the session-list scan.
+ * 输入已是纯文本时的同一投影，如会话列表扫描来的
+ * `SessionInfo.firstMessage`。
  */
 export function userDisplayFromText(text: string): string {
   return readSkillInvocation(stripImageAttachmentMarkup(text)).text;
 }
 
-/** First line of the first user message, with `<skill>` blocks collapsed back to `/skill:name`. */
+/** 首条用户消息的首行，`<skill>` 块折回 `/skill:name`。 */
 export function firstUserLine(messages: Iterable<RoleContent>): string | undefined {
   for (const raw of messages) {
     if (raw.role !== "user") continue;
@@ -84,10 +80,9 @@ export function firstUserLine(messages: Iterable<RoleContent>): string | undefin
 }
 
 /**
- * Title of a session read straight off its manager: the user-set name, else
- * the first user message. Works for sessions that are not the active one
- * (`SessionManager.open()`) and for a brand-new one whose entries are still
- * only in memory, which is why it reads entries rather than the disk scan.
+ * 直接从 manager 读会话标题：用户命名优先，否则取首条用户消息。
+ * 既覆盖非活动会话（`SessionManager.open()`），也覆盖条目还只在内存里的
+ * 全新会话——所以读条目而不走磁盘扫描。
  */
 export function sessionTitle(manager: SessionManager): string | undefined {
   const name = manager.getSessionName();

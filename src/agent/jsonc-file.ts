@@ -1,33 +1,27 @@
 /**
- * Writing a single value into a shared JSONC config file.
+ * 向共享 JSONC 配置文件写入单个值。
  *
- * Both files this touches (`~/.pi/agent/models.json` and the two
- * `settings.json`) are hand-edited by users and read by the CLI, so a write has
- * to behave like a hand edit: comments and formatting survive, an editor that
- * already has the file open stays in sync, and the change lands through the
- * same save that a manual edit would (which is what triggers the reload
- * watchers). `jsonc-parser`'s `modify()` plus a whole-document `WorkspaceEdit`
- * is the only combination that does all three.
+ * 涉及的文件既被用户手改、又被 CLI 读取，写入必须表现得像一次手改：
+ * 注释与格式保留、已打开该文件的编辑器保持同步、落盘走与手改相同的
+ * save 路径（reload watcher 由此触发）。`jsonc-parser` 的 `modify()` +
+ * 整文档 `WorkspaceEdit` 是唯一三者兼备的组合。
  *
- * Deliberately narrow: this is a helper for the writes that already exist (one
- * provider entry, one settings key), not a general config editor. Adding
- * field-level writes on top of it is explicitly out of scope — see AGENTS.md.
+ * 故意收窄：只服务既有的两种写入，不做通用配置编辑器——见 AGENTS.md。
  */
 
 import * as vscode from "vscode";
 import { applyEdits, modify, type JSONPath } from "jsonc-parser";
 
 /**
- * `unchanged` means the file already says what was asked (removing a key that
- * was never there, for one). The two callers disagree about whether that is a
- * failure, so it is reported rather than folded into a boolean.
+ * `unchanged` 表示文件本来就是要写的内容（如删除从未存在的键）。两个
+ * 调用方对这算不算失败意见不一，故如实上报而不是折成布尔。
  */
 export type JsoncWriteResult = "written" | "unchanged" | "failed";
 
-/** Indentation for structural edits, matching the SDK's own writes. */
+/** 结构化编辑的缩进，与 SDK 自己的写入保持一致。 */
 const FORMATTING = { tabSize: 2, insertSpaces: true };
 
-/** Set (or, with `undefined`, remove) one value in a JSONC file and save it. */
+/** 在 JSONC 文件中设置（传 `undefined` 则删除）一个值并保存。 */
 export async function writeJsoncValue(path: string, jsonPath: JSONPath, value: unknown): Promise<JsoncWriteResult> {
   const uri = vscode.Uri.file(path);
   const document = await vscode.workspace.openTextDocument(uri);

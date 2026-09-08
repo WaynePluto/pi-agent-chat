@@ -8,15 +8,13 @@ import { cloneSession, navigateSessionTree, pickForkPoint, type SessionTreeUi } 
 import { sessionTitle } from "./session-title.js";
 
 /**
- * Slash commands for the sidebar.
+ * 侧边栏的斜杠命令。
  *
- * Names and descriptions follow the CLI's built-in command list so muscle
- * memory carries over. Commands that only make sense in a terminal TUI
- * (/hotkeys, /quit, /settings, ...) are intentionally not offered.
+ * 名称与描述对齐 CLI 的内置命令表，肌肉记忆可以直接带过来。只在终端
+ * TUI 里说得通的命令（/hotkeys、/quit、/settings……）刻意不提供。
  *
- * Prompt templates, extension commands and `/skill:<name>` are NOT handled
- * here: `AgentSession.prompt()` already expands and dispatches them. This
- * module only surfaces them for autocomplete.
+ * 提示词模板、扩展命令与 `/skill:<name>` 不在这里处理：
+ * `AgentSession.prompt()` 已负责展开与分发，本模块只把它们列进自动补全。
  */
 const BUILTIN_COMMANDS: Array<{ name: string; description: string; descriptionZh: string; argumentHint?: string }> = [
   { name: "help", description: "List built-in commands", descriptionZh: "查看内置命令列表" },
@@ -41,9 +39,8 @@ const BUILTIN_COMMANDS: Array<{ name: string; description: string; descriptionZh
 export const BUILTIN_COMMAND_NAMES = new Set(BUILTIN_COMMANDS.map((command) => command.name));
 
 /**
- * `/help` output: the built-in command directory as plain text, in the VS Code
- * display language. Note the `/` autocomplete list itself intentionally stays
- * English to align with the CLI; only this human-readable summary localizes.
+ * `/help` 输出：按 VS Code 界面语言渲染的内置命令目录纯文本。注意 `/`
+ * 自动补全列表本身刻意保持英文以对齐 CLI；只有这份给人读的摘要做本地化。
  */
 export function formatHelp(): string {
   const zh = isChinese(vscode.env.language);
@@ -55,7 +52,7 @@ export function formatHelp(): string {
   return rows.map((row) => `${row.usage.padEnd(width)}  ${row.description}`).join("\n");
 }
 
-/** Collect every command offered by autocomplete, mirroring the CLI's sources. */
+/** 收集自动补全提供的全部命令，来源对齐 CLI。 */
 export function collectSlashCommands(session: AgentSession): SlashCommand[] {
   const commands: SlashCommand[] = BUILTIN_COMMANDS.map(({ name, description, argumentHint }) => ({ name, description, argumentHint, kind: "builtin" }));
 
@@ -100,21 +97,21 @@ export interface BuiltinCommandActions extends SessionTreeUi {
   newSession(): Promise<void>;
   resumeSession(): Promise<void>;
   pickModel(argument: string): Promise<void>;
-  /** `/scoped-models`: maintain the frequently used model list. */
+  /** `/scoped-models`：维护常用模型列表。 */
   manageScopedModels(): Promise<void>;
   reload(): Promise<void>;
   login(): Promise<void>;
   logout(): Promise<void>;
-  /** Re-attach after the runtime replaced the active session (fork/clone/tree). */
+  /** runtime 替换活动会话（fork/clone/tree）后重新 attach。 */
   reattach(): Promise<void>;
   refresh(): void;
 }
 
 /**
- * Run a built-in command.
+ * 执行一条内置命令。
  *
- * Returns `false` when the text is not a built-in, in which case the caller
- * must forward it to `AgentSession.prompt()`.
+ * 文本不是内置命令时返回 `false`，调用方须把它转发给
+ * `AgentSession.prompt()`。
  */
 export async function runBuiltinCommand(
   runtime: PiRuntime,
@@ -147,13 +144,13 @@ export async function runBuiltinCommand(
     case "compact": {
       actions.status(t("compacting"));
       await session.compact(argument || undefined);
-      // compaction_end becomes a persistent boundary with the summary and
-      // token reduction; do not duplicate it with a transient command notice.
+      // compaction_end 会带着摘要与 token 缩减成为持久化边界；
+      // 不要再用一条转瞬即逝的命令提示重复它。
       break;
     }
     case "name": {
-      // Same prefill rule as the sessions list: start from the title the user
-      // already sees (name, else first user message) rather than an empty box.
+      // 与会话列表同一预填规则：从用户已看到的标题（名字，否则首条
+      // 用户消息）起步，而不是空白输入框。
       const value = argument || (await vscode.window.showInputBox({
         title: t("sessionNameTitle"),
         value: sessionTitle(session.sessionManager) ?? "",
@@ -225,8 +222,8 @@ async function importSession(runtime: PiRuntime, argument: string, actions: Buil
 }
 
 /**
- * `/export`: mirror the CLI — default to a styled HTML transcript, fall back
- * to raw JSONL only when the target path ends with `.jsonl`.
+ * `/export`：对齐 CLI——默认导出带样式的 HTML transcript，只有目标路径
+ * 以 `.jsonl` 结尾时才回退为原始 JSONL。
  */
 async function exportSession(runtime: PiRuntime, argument: string, actions: BuiltinCommandActions): Promise<void> {
   let target = argument;

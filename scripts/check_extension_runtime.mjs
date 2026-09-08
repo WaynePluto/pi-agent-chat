@@ -1,33 +1,12 @@
 /**
- * Verify that the unbundled packages shipped in a VSIX are self-sufficient.
- *
- * Why this needs its own check: pi extensions are loaded by the SDK through
- * jiti, which resolves `@earendil-works/pi-ai` & co. to the *copies on disk*
- * under `dist/node_modules/`, not to anything inside the bundle. Those copies
- * carry their own bare imports (`partial-json`, `yaml`, `chalk`, ...), so
- * every one of those has to ship too.
- *
- * The gap is invisible during development: run from the repository, Node walks
- * up from `dist/node_modules/` and finds this project's own `node_modules/`,
- * so everything resolves. It only surfaces after `vsce package` — which strips
- * the root-level `node_modules` — as "Cannot find module 'partial-json'" when
- * a user's extension touches the SDK.
- *
- * So this builds the shipping layout from `runtimePackages` in a sandbox
- * outside the repository, where no such fallback exists, and imports the entry
- * points an extension is allowed to import. It deliberately does not read
- * `dist/node_modules`: that directory is only populated by production builds,
- * and a stale copy would make this pass for the wrong reason.
- *
- * Entry-point imports alone are not enough: pi-ai hides every provider SDK
- * behind a `lazyApi(() => import("./<api>.js"))` facade, so `openai` & co. are
- * never resolved while loading the entries — only when something calls the
- * api through the on-disk copy, at which point the module's top-level
- * `import OpenAI from "openai"` fails with exactly the error users see in a
- * packaged VSIX ("Cannot find package 'openai' imported from
- * .../pi-ai/dist/api/openai-completions.js"). The probe therefore also imports
- * every provider module in `pi-ai/dist/api/`, executing those top-level
- * imports against the sandboxed layout.
+ * 校验 VSIX 里不打 bundle 的包是否自给自足。
+ * 必须单独校验：pi 扩展由 SDK 经 jiti 加载，`@earendil-works/pi-ai` 等解析到
+ * dist/node_modules/ 的磁盘副本而非 bundle，副本自带的裸 import（partial-json、
+ * yaml、chalk…）也得随包发行。缺口开发期不可见——Node 会向上找到仓库的
+ * node_modules 兜底，只有 vsce package 剥掉根 node_modules 后才爆
+ * "Cannot find module"，故要在仓库外沙箱重建发布布局再验（不读
+ * dist/node_modules，陈旧副本会让校验因错误的原因通过）。
+ * 入口 import 还不够：pi-ai 把 provider SDK 藏在 lazyApi(() => import(...)) 门面后，真正调用时顶层 import 才失败，故探针还要逐个 import pi-ai/dist/api/ 的全部 provider 模块。
  */
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -54,8 +33,8 @@ try {
   const missingEntries = extensionVisibleEntries.filter((entry) => !existsSync(join(target, entry)));
   if (missingEntries.length > 0) fail(`entry points missing from the shipped layout: ${missingEntries.join(", ")}`);
 
-  // A child process keeps Node from caching failed specifier resolutions, and
-  // keeps a broken SDK from taking this script down with it.
+  // 用子进程跑探针：Node 不会缓存失败的 specifier 解析，坏掉的 SDK 也
+  // 不会把本脚本一起带崩。
   const probe = join(sandbox, "probe.mjs");
   const providerModules = readdirSync(join(target, "@earendil-works", "pi-ai", "dist", "api"))
     .filter((name) => name.endsWith(".js"))

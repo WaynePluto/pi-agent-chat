@@ -1,15 +1,12 @@
 /**
- * A formal message bubble (user or assistant).
+ * 正式消息气泡（用户或 agent）。
  *
- * Two things separate it from the plain `div` it used to be:
- *
- *  - **Folding.** Long messages fold to a preview once they are no longer the
- *    newest of their role, so a transcript of essays stays navigable. Short
- *    messages never fold: a click that saves two lines is pure friction.
- *  - **A footer** carrying the fold toggle and a copy button for the raw
- *    Markdown, which is why the rendered content lives in its own element
- *    instead of directly under `.bubble` (the clamp must not swallow the
- *    footer, the badges or the hover action bar).
+ * 与曾经的普通 `div` 的两点差别：
+ * - **折叠**：不再是该角色最新一条的长消息折成预览，满篇长文的
+ *   transcript 仍可导航；短消息永不折叠——省两行却多点一次是纯负担。
+ * - **footer**：承载折叠开关与复制原始 Markdown 的按钮，因此渲染内容
+ *   单独放在一个元素里而不是直接挂在 `.bubble` 下（裁剪不得吞掉
+ *   footer、徽章与 hover 动作条）。
  */
 
 import { copyButton } from "./clipboard.js";
@@ -22,38 +19,35 @@ import { DEFAULT_FOLD_LINES } from "../shared/protocol.js";
 const t = getDict();
 
 /**
- * Fold threshold currently in effect, in lines
- * (`piAgentChat.transcript.foldLines`; 0 disables folding). Starts at the
- * documented default so a webview that has not heard from the host yet — the
- * smoke harness, or a `ready` message still in flight — renders exactly the
- * default behavior; the host pushes the configured value on `ready` and on
- * every change.
+ * 当前生效的折叠阈值，单位行（`piAgentChat.transcript.foldLines`；0 为
+ * 不折叠）。初值取文档默认值：尚未收到宿主消息的 webview（冒烟环境、
+ * `ready` 还在路上）渲染的就是默认行为；宿主在 `ready` 与每次变更时推送。
  */
 let foldMaxLines = DEFAULT_FOLD_LINES;
 
-/** Apply a new fold threshold. Followed by a history replay from the host. */
+/** 应用新的折叠阈值；宿主随后会跟一次 history 重放。 */
 export function setFoldMaxLines(lines: number): void {
   foldMaxLines = Number.isFinite(lines) ? Math.max(0, Math.round(lines)) : DEFAULT_FOLD_LINES;
 }
 
 export interface MessageBubble {
-  /** The `.bubble` element: badges, action bar and classes still go here. */
+  /** `.bubble` 元素：徽章、动作条与 class 仍然挂在这。 */
   readonly root: HTMLElement;
-  /** Raw Markdown currently rendered; what the copy button hands out. */
+  /** 当前渲染的原始 Markdown；复制按钮交出的就是它。 */
   readonly text: string;
-  /** Long enough to be worth folding. */
+  /** 长到值得折叠。 */
   readonly foldable: boolean;
   readonly folded: boolean;
   /**
-   * The user decided this bubble's state, so automatic folding leaves it
-   * alone — "if I expanded an old message, it stays expanded".
+   * 用户已对这个气泡做出决定，自动折叠不再动它——「我展开过的旧消息
+   * 就保持展开」。
    */
   readonly pinned: boolean;
-  /** Full re-render with syntax highlighting (used for final text). */
+  /** 带语法高亮的完整重渲染（用于最终文本）。 */
   setText(text: string): void;
   /**
-   * Incremental streaming render: only re-parses the tail after the last
-   * stable block boundary. No syntax highlighting (fences are incomplete).
+   * 增量流式渲染：只重解析最后一个稳定块边界之后的尾部；不做语法高亮
+   * （fence 尚未闭合）。
    */
   setStreamingText(text: string): void;
   setFolded(folded: boolean): void;
@@ -63,12 +57,12 @@ export interface MessageBubbleOptions {
   role: string;
   text: string;
   /**
-   * Extra content placed between the rendered Markdown and the footer, e.g.
-   * image attachments. Deliberately outside `.bubble-content`: folding clips
-   * that element, and an attachment is not part of the prose that folds away.
+   * 渲染出的 Markdown 与 footer 之间的附加内容，如图片附件。刻意放在
+   * `.bubble-content` 之外：折叠裁剪的是那个元素，而附件不属于会折走的
+   * 正文。
    */
   extra?: HTMLElement;
-  /** Remembered manual state from an earlier visit to this transcript. */
+  /** 上次浏览这份 transcript 时记住的手动开合状态。 */
   folded?: boolean;
   onToggle?(folded: boolean): void;
 }
@@ -102,9 +96,9 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
 
   const setText = (next: string) => {
     text = next;
-    // Full render with highlighting: used for final/complete messages.
+    // 带高亮的完整渲染：用于最终 / 完整的消息。
     content.replaceChildren(renderMarkdown(next));
-    // Reset incremental state since this is a full render.
+    // 完整渲染，重置增量状态。
     stablePrefix = "";
     stableNodes = 0;
     foldable = isLongMessage(next);
@@ -112,15 +106,11 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
   };
 
   /**
-   * Streaming-only text sanitizer: close inline markers left dangling because
-   * the stream has not delivered the closing delimiter yet. Without this the
-   * unstable tail re-parses differently on every frame — literal `*`s snap
-   * into bold spans, stray backticks flip between text and code, and every
-   * such flip shifts the whole layout below (the "streaming jitter" seen with
-   * lists and other blank-line-free constructs, whose tail is rebuilt every
-   * frame by design). Only paired markers are patched; fenced tails are left
-   * untouched since marker semantics inside a fence differ. Applied to a copy
-   * at render time only: neither `text` nor the final full render changes.
+   * 流式专用的文本清理：补上流尚未送达闭合标记而悬空的行内标记。不补
+   * 的话不稳定尾段每帧解析结果都不同——字面 `*` 变粗体、落单反引号在
+   * 代码与文本间翻转，每次翻转都挪动下方布局（无空行构造的流式抖动来
+   * 源，其尾段按设计每帧重建）。只补成对标记；fence 尾部不动（fence 内
+   * 标记语义不同）。仅在渲染时作用于副本：`text` 与最终完整渲染都不变。
    */
   const closeDanglingInline = (src: string): string => {
     if (src.includes("```")) return src;
@@ -131,28 +121,27 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
   };
 
   /**
-   * Incremental streaming: split at the last double-newline that ends a
-   * complete Markdown block (paragraph/fence/list). The stable prefix is
-   * rendered once; only the unstable tail is re-parsed on each frame.
-   * No syntax highlighting (streaming fences are usually incomplete).
+   * 增量流式渲染：在结束一个完整 Markdown 块（段落/fence/列表）的最后
+   * 一个双换行处切分。稳定前缀只渲染一次，每帧只重解析不稳定尾段；不做
+   * 语法高亮（流式 fence 通常不完整）。
    */
   let stablePrefix = "";
   let stableNodes = 0;
 
   const setStreamingText = (next: string) => {
     text = next;
-    // Find the last block boundary: double newline with a complete block before it.
-    // A code fence that is still open (odd number of ```) must not be split.
+    // 找最后一个块边界：双换行且其前是完整块。仍未闭合的 fence（奇数个
+    // ```）处不得切分。
     const boundary = findStableBoundary(next, stablePrefix.length);
     const prefix = next.slice(0, boundary);
     const tail = next.slice(boundary);
 
     if (prefix.length > stablePrefix.length) {
-      // New stable content: render it and append.
+      // 新的稳定内容：渲染并追加。
       const newStable = prefix.slice(stablePrefix.length);
       const fragment = renderMarkdownNoHighlight(newStable);
       const newNodeCount = fragment.childNodes.length;
-      // Remove the old tail nodes (everything after the previously stable ones)
+      // 移除旧尾段节点（此前稳定节点之后的所有内容）
       while (content.childNodes.length > stableNodes) {
         content.lastChild!.remove();
       }
@@ -160,13 +149,13 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
       stablePrefix = prefix;
       stableNodes += newNodeCount;
     } else {
-      // Same stable prefix: just replace the tail nodes.
+      // 稳定前缀未变：只替换尾段节点。
       while (content.childNodes.length > stableNodes) {
         content.lastChild!.remove();
       }
     }
 
-    // Render the unstable tail (cheap: usually just one paragraph).
+    // 渲染不稳定尾段（开销小：通常只有一个段落）。
     if (tail) {
       content.appendChild(renderMarkdownNoHighlight(closeDanglingInline(tail)));
     }
@@ -201,36 +190,31 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
 }
 
 /**
- * Find the last position in `text` where the prefix up to that point forms
- * complete Markdown blocks (safe to render independently). Returns 0 if no
- * safe split point exists yet.
- *
- * Rules:
- * - A double newline (`\n\n`) is a potential block boundary.
- * - But not if an odd number of triple-backtick fences precede it (we'd be
- *   inside a code block where `\n\n` is just content).
- * - We never split before `minOffset` (the previously committed prefix length)
- *   since going backwards would require discarding already-rendered stable DOM.
+ * 找出 `text` 中「到该位置为止的前缀构成完整 Markdown 块」的最后一个位
+ * 置（可独立渲染）；不存在安全切点时返回 0。规则：双换行（`\n\n`）是候
+ * 选块边界，但前面有奇数个三反引号 fence 时不算（那是在代码块里，
+ * `\n\n` 只是内容）；绝不在 `minOffset`（已提交的前缀长度）之前切分——
+ * 后退意味着丢弃已渲染的稳定 DOM。
  */
 function findStableBoundary(text: string, minOffset: number): number {
-  // Count open fences in the entire text up to each candidate position.
+  // 扫描整段文本，跟踪到每个候选位置为止 fence 是否开着。
   let boundary = 0;
   let fenceOpen = false;
   let i = 0;
   while (i < text.length) {
-    // Detect triple-backtick fences at line start (possibly indented).
+    // 识别行首（允许缩进）的三反引号 fence。
     if (i === 0 || text.charCodeAt(i - 1) === 10) {
       let j = i;
-      while (j < text.length && text.charCodeAt(j) === 32) j++; // skip indent
+      while (j < text.length && text.charCodeAt(j) === 32) j++; // 跳过缩进
       if (text.startsWith("```", j)) {
         fenceOpen = !fenceOpen;
         i = j + 3;
         continue;
       }
     }
-    // Double newline outside a fence = block boundary candidate.
+    // fence 之外的双换行 = 块边界候选。
     if (!fenceOpen && text.charCodeAt(i) === 10 && i + 1 < text.length && text.charCodeAt(i + 1) === 10) {
-      const pos = i + 2; // position right after the double newline
+      const pos = i + 2; // 双换行之后的位置
       if (pos > minOffset) {
         boundary = pos;
       }
@@ -239,23 +223,19 @@ function findStableBoundary(text: string, minOffset: number): number {
     }
     i++;
   }
-  // No candidate beyond the committed prefix means "nothing new became
-  // stable this frame" — the caller must keep its existing prefix and treat
-  // everything after it as tail. Returning 0 here (the pre-fix fallback) made
-  // `prefix` empty and `tail` the ENTIRE message, so every blank-line-free
-  // frame re-appended a full copy of the already-rendered text below it:
-  // violent duplicated-text flicker while streaming lists/tables/short lines,
-  // converging to a single copy only when a later boundary finally committed.
+  // 没有超出已提交前缀的候选，意思是「这一帧没有新的稳定内容」：调用方
+  // 保留现有前缀、其后全按尾段处理。此处若返回 0（修复前的兜底），prefix
+  // 变空、tail 变整条消息，无空行构造每帧都在已渲染文本下再追加一份完整
+  // 副本——列表/表格/短行流式时剧烈的重复文本闪烁。
   return Math.max(boundary, minOffset);
 }
 
 /**
- * Length is judged on the Markdown source, not on the rendered height: the
- * webview must produce the same DOM headless (where every element measures 0)
- * as it does on screen, and a measured decision would silently differ there.
+ * 长短按 Markdown 源文本判定而非渲染高度：webview 在无头环境（每个元素
+ * 测得 0）与真实屏幕上必须产出同一份 DOM，按测量判定会在两边悄悄分叉。
  */
 function isLongMessage(text: string): boolean {
-  // 0 is the setting's "never fold" value: no message qualifies.
+  // 0 是设置的「永不折叠」值：任何消息都不折叠。
   if (foldMaxLines === 0) return false;
   if (text.length > foldMaxLines * BUBBLE_FOLD_CHARS_PER_LINE) return true;
   let lines = 1;

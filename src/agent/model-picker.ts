@@ -4,58 +4,53 @@ import { t, tf } from "./i18n.js";
 import type { PiRuntime } from "./runtime.js";
 
 /**
- * Model selection, split over two surfaces.
+ * 模型选择，分两层界面。composer 的 chip 打开小 webview 菜单
+ * （`webview/picker.ts`）在常用模型间切换——原生 QuickPick 固定出现在
+ * 窗口顶部、离 chip 太远；菜单里的「其他模型」再打开完整原生选择器：
+ * 全部已认证模型、能力详情、⭐（常用）与 📌（启动默认）行内动作。
  *
- * - The composer chip opens a small webview menu (`webview/picker.ts`) that
- *   switches between the frequently used models. It is a quick switcher: a
- *   native QuickPick opens at the top of the window, far from the chip that
- *   was clicked, which is exactly what that menu avoids.
- * - "Other models" in that menu opens the full native picker below: every
- *   authenticated model with its capabilities, plus the ⭐ (frequently used)
- *   and 📌 (startup default) row actions.
- *
- * Both mirror the CLI: the frequently used ("scoped") models come first, and
- * `/scoped-models` batch-edits that list. Everything is stored in the shared
- * `enabledModels` setting in `~/.pi/agent/settings.json`, so the sidebar and
- * the terminal agree on what is frequently used.
+ * 两者都对齐 CLI：常用（scoped）模型在前，`/scoped-models` 批量编辑。
+ * 内容存进 `~/.pi/agent/settings.json` 的共享 `enabledModels`，侧边栏
+ * 与终端对「什么是常用」意见一致。
  */
 
 export interface ModelPickerUi {
-  /** Start the provider sign-in flow (offered when nothing is authenticated). */
+  /** 启动供应商登录流程（无任何认证时提供）。 */
   login(): Promise<void>;
-  /** Push a one-line notice into the transcript. */
+  /** 往 transcript 推一条单行提示。 */
   status(text: string): void;
 }
 
 type AvailableModel = Awaited<ReturnType<PiRuntime["getAvailableModels"]>>[number];
 
-/** Canonical `provider/modelId` reference, the format persisted by the CLI. */
+/** 规范的 `provider/modelId` 引用，即 CLI 持久化的格式。 */
 function modelRef(model: { provider: string; id: string }): string {
   return `${model.provider}/${model.id}`;
 }
 
 /**
- * Models for the composer's quick menu: exactly the frequently used
- * ("scoped") ones, in their configured order — which is also the CLI's Ctrl+P
- * cycling order. When nothing is scoped the menu stays empty on purpose: the
- * full catalogue belongs in the native picker, not in a small popup.
+ * composer 快捷菜单的模型：只有常用（scoped）的那些，按配置顺序——
+ * 那也是 CLI Ctrl+P 的轮换顺序。什么都没配时菜单刻意留空：完整目录
+ * 属于原生选择器，不属于一个小弹层。
  */
 export async function buildModelCatalog(runtime: PiRuntime): Promise<ModelCatalog> {
   return { items: runtime.scopedModels.map(({ model }) => ({ provider: model.provider, id: model.id })) };
 }
 
-/** QuickInputButton extension carrying which per-row action was clicked. */
+/** 携带「点了哪个行内动作」的 QuickInputButton 扩展。 */
 type ModelActionButton = vscode.QuickInputButton & { action?: "toggle-favorite" };
 
-/** Per-row button that pins a model as the startup default. Built lazily: the
- * headless smoke test loads this module without a real `vscode` runtime. */
+/**
+ * 把某模型钉成启动默认的行内按钮。惰性构建：无头冒烟测试加载本模块
+ * 时没有真的 `vscode` 运行时。
+ */
 let setDefaultButton: vscode.QuickInputButton | undefined;
 function getSetDefaultButton(): vscode.QuickInputButton {
   setDefaultButton ??= { iconPath: new vscode.ThemeIcon("pin"), tooltip: t("setDefaultModel") };
   return setDefaultButton;
 }
 
-/** Per-row button that adds or removes a model from the frequently used group. */
+/** 往常用组添加/移除模型的行内按钮。 */
 const favoriteButtons: Record<"add" | "remove", ModelActionButton | undefined> = {
   add: undefined,
   remove: undefined,
@@ -72,7 +67,7 @@ function getFavoriteButton(favorite: boolean): ModelActionButton {
 
 type ModelItem = vscode.QuickPickItem & { model?: AvailableModel };
 
-/** Build the picker rows: favorite group first, then all providers. */
+/** 构建选择器行：常用组在前，其后按供应商分组。 */
 function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelItem[] {
   const current = runtime.session.model as { id?: string; provider?: string } | undefined;
   const settings = runtime.settingsManager;
@@ -82,7 +77,7 @@ function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelIte
       : undefined;
   const scopedRefs = runtime.scopedModels.map((scoped) => modelRef(scoped.model));
   const scopedSet = new Set(scopedRefs);
-  // Subscription status is per provider; resolve each one once per render.
+  // 订阅状态按供应商区分；每次渲染各解析一次。
   const subscriptionByProvider = new Map<string, boolean>();
   const isSubscription = (provider: string): boolean => {
     let known = subscriptionByProvider.get(provider);
@@ -93,15 +88,15 @@ function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelIte
     return known;
   };
 
-  // Grouping is also the only way to add vertical breathing room: QuickPick row
-  // height is fixed, separators are the one spacing primitive.
+  // 分组也是加垂直呼吸感的唯一手段：QuickPick 行高固定，
+  // separator 是仅有的间距原语。
   const items: ModelItem[] = [];
   const row = (model: AvailableModel): ModelItem => {
     const isCurrent = model.id === current?.id && model.provider === current?.provider;
     const isDefault = modelRef(model) === defaultRef;
     const isFavorite = scopedSet.has(modelRef(model));
-    // Separators disappear while filtering, so each row carries its provider,
-    // plus the markers that tell the user how this model is paid for.
+    // 过滤时 separator 会消失，所以每行自带供应商名，外加告诉用户
+    // 该模型如何计费的标记。
     const description = [
       model.provider,
       isSubscription(model.provider) ? t("subscriptionLabel") : undefined,
@@ -113,8 +108,8 @@ function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelIte
       label: `${isCurrent ? "$(check) " : ""}${model.id}`,
       description,
       detail: describeModel(model),
-      // Show the favorite star even while the model is the default; hiding it
-      // would also remove the only direct way to unfavorite that model.
+      // 模型是默认值时也显示常用星标；藏掉它就没了直接取消
+      // 该模型常用的唯一入口。
       buttons: [getFavoriteButton(isFavorite), ...(isDefault ? [] : [getSetDefaultButton()])],
       model,
     };
@@ -122,7 +117,7 @@ function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelIte
 
   if (scopedSet.size > 0) {
     items.push({ label: t("favoriteModels"), kind: vscode.QuickPickItemKind.Separator });
-    // Keep the configured order: it is also the CLI's Ctrl+P cycling order.
+    // 保持配置顺序：它也是 CLI Ctrl+P 的轮换顺序。
     for (const reference of scopedRefs) {
       const model = models.find((candidate) => modelRef(candidate) === reference);
       if (model) items.push(row(model));
@@ -138,8 +133,8 @@ function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelIte
 }
 
 /**
- * Models grouped under their provider, in first-seen order — the shape both
- * QuickPicks list them in (a separator row per provider, then its models).
+ * 按供应商分组的模型，首次出现顺序——两个 QuickPick 共用的列表形状
+ * （每个供应商一行 separator，随后是它的模型）。
  */
 function groupByProvider(models: readonly AvailableModel[]): Map<string, AvailableModel[]> {
   const byProvider = new Map<string, AvailableModel[]>();
@@ -152,12 +147,10 @@ function groupByProvider(models: readonly AvailableModel[]): Map<string, Availab
 }
 
 /**
- * Show the full model picker and apply the choice.
+ * 打开完整模型选择器并应用选择。
  *
- * Returns `true` when the active model changed. Per-row actions stay inside
- * the picker: the star toggles the frequently used group, and the pin writes
- * the startup default without closing the picker, mirroring the CLI selector's
- * Ctrl+S.
+ * 活动模型变了返回 true。行内动作不出选择器：星标切换常用组，图钉写
+ * 启动默认而不关选择器，对齐 CLI 选择器的 Ctrl+S。
  */
 export async function pickModel(runtime: PiRuntime, ui: ModelPickerUi): Promise<boolean> {
   const models = await loadModels(runtime, ui);
@@ -181,7 +174,7 @@ export async function pickModel(runtime: PiRuntime, ui: ModelPickerUi): Promise<
         await runtime.setDefaultModel(model.provider, model.id);
         ui.status(tf("defaultModelSet", modelRef(model)));
       }
-      // Re-render so the star/default markers move to the new state.
+      // 重渲染，让星标/默认标记挪到新状态。
       quickPick.items = buildModelItems(runtime, models);
     });
     quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0]));
@@ -196,16 +189,15 @@ export async function pickModel(runtime: PiRuntime, ui: ModelPickerUi): Promise<
   return true;
 }
 
-/** Result of one direct frequently-used-model change. */
+/** 一次直接改常用模型的结果。 */
 type FavoriteUpdate = "added" | "removed" | "cleared";
 
 /**
- * Toggle one model in the shared frequently used list.
+ * 在共享的常用列表里切换一个模型。
  *
- * Like `/scoped-models`, this stores an explicit `provider/modelId` list. If a
- * user previously configured a wildcard, its currently resolved models become
- * explicit entries on the first star interaction. Selecting every model or no
- * model clears `enabledModels`, which is the CLI's no-filter representation.
+ * 与 `/scoped-models` 一样存显式的 `provider/modelId` 列表。用户此前若
+ * 手工配过通配符，第一次点星标时其当前解析出的模型会变成显式条目。
+ * 全选或全不选都会清空 `enabledModels`，那是 CLI 的「无过滤」表示。
  */
 async function toggleFavoriteModel(
   runtime: PiRuntime,
@@ -222,11 +214,10 @@ async function toggleFavoriteModel(
 }
 
 /**
- * `/scoped-models`: pick the frequently used models and persist them.
+ * `/scoped-models`：挑选常用模型并持久化。
  *
- * Like the CLI selector, the saved value is an explicit `provider/modelId`
- * list (any wildcard patterns previously written by hand are replaced), and
- * selecting all or none clears the setting.
+ * 与 CLI 选择器一致，保存的值是显式 `provider/modelId` 列表（此前手写
+ * 的任何通配符模式被替换），全选或全不选清空该设置。
  */
 export async function manageScopedModels(runtime: PiRuntime, ui: ModelPickerUi): Promise<void> {
   const models = await loadModels(runtime, ui);
@@ -258,13 +249,13 @@ export async function manageScopedModels(runtime: PiRuntime, ui: ModelPickerUi):
   if (!picked) return;
 
   const selected = picked.filter((item) => item.model).map((item) => modelRef(item.model!));
-  // "All" and "none" both mean "no scoping" — same rule as the CLI selector.
+  // 「全选」与「全不选」都表示「不做限定」——同 CLI 选择器的规则。
   const clears = selected.length === 0 || selected.length === models.length;
   await runtime.setEnabledModels(clears ? undefined : selected);
   ui.status(clears ? t("favoriteModelsCleared") : tf("favoriteModelsSaved", selected.length));
 }
 
-/** Authenticated models, or `undefined` after offering sign-in when there are none. */
+/** 已认证的模型；一个都没有时先提供登录，随后返回 `undefined`。 */
 async function loadModels(runtime: PiRuntime, ui: ModelPickerUi): Promise<AvailableModel[] | undefined> {
   const models = (await runtime.getAvailableModels()) as AvailableModel[];
   if (models.length > 0) return models;
@@ -275,8 +266,8 @@ async function loadModels(runtime: PiRuntime, ui: ModelPickerUi): Promise<Availa
 }
 
 /**
- * QuickPick detail line for one model: input modalities (text / image),
- * context window, max output tokens, plus a reasoning marker when supported.
+ * 一个模型的 QuickPick 详情行：输入模态（文本/图片）、上下文窗口、最大
+ * 输出 token，支持推理时再加推理标记。
  */
 function describeModel(model: {
   input?: readonly string[];
@@ -296,7 +287,7 @@ function describeModel(model: {
   return model.reasoning ? `${detail} · ${t("modelReasoning")}` : detail;
 }
 
-/** 200000 -> "200K", 1000000 -> "1M"; unknown values render as "?". */
+/** 200000 -> "200K"，1000000 -> "1M"；未知值渲染为 "?"。 */
 function formatTokens(value?: number): string {
   if (!value || !Number.isFinite(value) || value <= 0) return "?";
   if (value >= 1_000_000) return `${trimZero(value / 1_000_000)}M`;

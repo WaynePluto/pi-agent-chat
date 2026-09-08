@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-// Bundled builds must register OAuth flows statically: the SDK hides them behind
-// variable specifiers so bundlers cannot follow them (see esbuild.mjs).
+// 打包构建必须静态注册 OAuth flow：SDK 把它们藏在变量 specifier 后面，
+// bundler 跟踪不到（见 esbuild.mjs）。
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import {
   DIAGNOSTIC_SUITES,
@@ -14,12 +14,11 @@ import { runTerminalIntegrationSpike } from "./agent/terminal-spike.js";
 import { CHAT_PANEL_TYPE, CHAT_VIEW_ID, ChatSurfaceManager } from "./chat-surfaces.js";
 
 export function activate(context: vscode.ExtensionContext): void {
-  // SDK-MIRROR: dist/cli.js sets these on the way in, and rpc-entry.js repeats
-  // PI_CODING_AGENT — they are application-entry duties, not CLI decoration.
-  // Extensions and anything the `bash` tool runs read them to tell they are
-  // inside an agent (pagers, colour, prompts). The rest of cli.js is
-  // deliberately not mirrored: process.title and emitWarning belong to VS Code
-  // here, and the HTTP dispatcher is configured by agent/http.ts below.
+  // SDK-MIRROR: dist/cli.js 进入时设置这些，rpc-entry.js 重复 PI_CODING_AGENT
+  // ——应用入口职责，不是 CLI 装饰。扩展与 `bash` 工具跑的东西靠它们识别自己
+  // 在 agent 里（分页器、颜色、提示符）。cli.js 其余部分刻意不镜像：
+  // process.title 与 emitWarning 在这里归 VS Code，HTTP dispatcher 由下面的
+  // agent/http.ts 配置。
   process.env.PI_CODING_AGENT = "true";
   process.env.AI_AGENT = "pi";
   registerBunOAuthFlows();
@@ -97,8 +96,8 @@ export function activate(context: vscode.ExtensionContext): void {
 export function deactivate(): void {}
 
 /**
- * Re-exported for `scripts/smoke_load.mjs`, which runs the bundle in plain Node
- * with a stubbed `vscode` module. Not part of the extension's public surface.
+ * 为 `scripts/smoke_load.mjs` 重导出：该脚本在纯 Node（桩掉 `vscode` 模块）
+ * 里跑 bundle。不属于扩展的公开面。
  */
 export const __spike = {
   DIAGNOSTIC_SUITES,
@@ -107,7 +106,7 @@ export const __spike = {
   resolveWorkspaceCwd,
 };
 
-/** Multi-root workspaces fall back to the first folder (selector comes later). */
+/** multi-root 工作区回退到第一个文件夹（选择器以后再做）。 */
 function resolveWorkspaceCwd(): string {
   const folder = vscode.workspace.workspaceFolders?.[0];
   return folder?.uri.fsPath ?? process.cwd();

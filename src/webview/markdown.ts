@@ -8,11 +8,10 @@ import { getDict } from "./i18n.js";
 const t = getDict();
 
 /**
- * Markdown rendering for chat bubbles.
+ * 聊天气泡的 Markdown 渲染。
  *
- * The webview CSP already blocks scripts without the nonce, but model output is
- * untrusted input, so the generated HTML is additionally passed through a
- * DOM-level allowlist before it is inserted.
+ * webview CSP 已挡掉无 nonce 的脚本，但模型输出是不可信输入，因此生成的
+ * HTML 在插入前还要再过一遍 DOM 级白名单。
  */
 
 const ALLOWED_TAGS = new Set([
@@ -54,7 +53,7 @@ const SAFE_LINK = /^(https?:|mailto:)/i;
 
 marked.setOptions({ gfm: true, breaks: true });
 
-/** Render markdown into a sanitized fragment ready to be appended to the DOM. */
+/** 把 markdown 渲染成已净化、可直接挂进 DOM 的 fragment。 */
 export function renderMarkdown(text: string): DocumentFragment {
   const html = marked.parse(text, { async: false });
   const template = document.createElement("template");
@@ -65,10 +64,8 @@ export function renderMarkdown(text: string): DocumentFragment {
 }
 
 /**
- * Render markdown without syntax highlighting — used during streaming where the
- * text changes every frame and highlighting would be wasted work (fences are
- * usually incomplete anyway). Code blocks still get wrapped and get their copy
- * button, just no color.
+ * 渲染 markdown 但不做语法高亮——流式期间文本每帧都变，高亮是浪费（fence
+ * 反正常常不完整）。代码块仍会包框并带复制按钮，只是没颜色。
  */
 export function renderMarkdownNoHighlight(text: string): DocumentFragment {
   const html = marked.parse(text, { async: false });
@@ -80,14 +77,12 @@ export function renderMarkdownNoHighlight(text: string): DocumentFragment {
 }
 
 /**
- * Give every fenced code block its own copy button, and color it.
+ * 给每个 fence 代码块配复制按钮并上色。
  *
- * `marked` does neither: highlighting is delegated to a `highlight` option that
- * a caller has to supply, and no published extension adds a copy button on its
- * own. Both are done here on the rendered DOM instead — after `sanitize()`,
- * whose allowlist deliberately contains neither the wrapper, nor the button,
- * nor the token spans. That order is the point: the model's output is reduced
- * to text first, and everything added afterwards is ours.
+ * `marked` 两件都不做：高亮要调用方经 `highlight` 选项提供，复制按钮也没
+ * 有现成扩展会加。都在渲染出的 DOM 上做——在 `sanitize()` 之后，而白名单
+ * 刻意不含包裹元素、按钮与 token span。顺序就是重点：先把模型输出化简为
+ * 文本，之后加的一切都是我们自己的。
  */
 function decorateCodeBlocks(root: ParentNode): void {
   for (const pre of [...root.querySelectorAll("pre")]) {
@@ -98,7 +93,7 @@ function decorateCodeBlocks(root: ParentNode): void {
   }
 }
 
-/** Same as decorateCodeBlocks but skips highlighting (used during streaming). */
+/** 同 decorateCodeBlocks，但跳过高亮（流式期间用）。 */
 function decorateCodeBlocksNoHighlight(root: ParentNode): void {
   for (const pre of [...root.querySelectorAll("pre")]) {
     const wrapper = el("div", "code-block");
@@ -107,13 +102,13 @@ function decorateCodeBlocksNoHighlight(root: ParentNode): void {
   }
 }
 
-/** Language of a fenced block, as `marked` records it: `<code class="language-ts">`. */
+/** fence 块的语言，取 `marked` 记录的形式：`<code class="language-ts">`。 */
 function highlightBlock(pre: HTMLPreElement): void {
   const code = pre.querySelector("code");
   if (!code) return;
   const language = [...code.classList].find((name) => name.startsWith("language-"))?.slice("language-".length);
-  // `textContent` of a sanitized block is plain text, and highlight.js escapes
-  // it on the way out, so the result is safe to assign as markup.
+  // 净化后的块 `textContent` 是纯文本，highlight.js 输出时会转义，因此
+  // 结果可安全赋为 markup。
   const html = highlightCode(code.textContent ?? "", language);
   if (html === undefined) return;
   code.innerHTML = html;
@@ -130,7 +125,7 @@ function sanitize(root: ParentNode): void {
 
     const element = node as Element;
     if (!ALLOWED_TAGS.has(element.tagName)) {
-      // Keep the text of unknown elements, drop the element itself.
+      // 未知元素保留其文本，丢弃元素本身。
       const text = document.createTextNode(element.textContent ?? "");
       element.replaceWith(text);
       continue;

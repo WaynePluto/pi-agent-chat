@@ -4,57 +4,42 @@ import * as undici from "undici";
 import { getAgentDir, SettingsManager } from "@earendil-works/pi-coding-agent";
 
 /**
- * Proxy and HTTP dispatcher setup, kept behaviourally identical to the pi CLI.
+ * 代理与 HTTP dispatcher 配置，行为与 pi CLI 保持一致。
+ * SDK-MIRROR: `core/http-dispatcher.ts`（`applyHttpProxySettings` +
+ * `configureHttpDispatcher` 及默认值）——不在 SDK 公开导出面上，在此
+ * 镜像而非 deep import `dist/`；SDK 升级时需复查。
  *
- * SDK-MIRROR: `core/http-dispatcher.ts` (`applyHttpProxySettings` +
- * `configureHttpDispatcher`) and their defaults. The CLI runs them from
- * `main.ts`; neither is part of the SDK's public export map, so the logic is
- * mirrored here rather than deep-imported from `dist/`. Re-check on SDK
- * upgrades.
- *
- * Proxy precedence, highest first:
- *   1. `http_proxy` / `HTTP_PROXY` (and the https/no_proxy variants) — the
- *      environment the extension host inherited from the OS or shell.
- *   2. `httpProxy` in `~/.pi/agent/settings.json` — pi's own setting, shared
- *      with the terminal CLI.
- *   3. VS Code's `http.proxy` — sidebar-only fallback, so the plugin can still
- *      reach the network in a VS Code that is configured but has no env vars.
- *
- * 1 and 2 are exactly the CLI's order (`applyHttpProxySettings` only fills env
- * vars that are unset). 3 is additive: it can only fill a gap where the CLI
- * would have gone direct, so the plugin never disagrees with the CLI.
- *
- * Note the env vars are read by undici lowercase-first
- * (`http_proxy ?? HTTP_PROXY`), while the fallbacks above are written to the
- * uppercase names — same as the CLI.
+ * 代理优先级：环境变量（`http_proxy` 等）> pi 设置 `httpProxy` >
+ * VS Code `http.proxy`。前两级即 CLI 顺序，第三级只填 CLI 本会直连的
+ * 空位；undici 先读小写变量、兜底写大写名。
  */
 
-/** SDK-MIRROR: `DEFAULT_HTTP_IDLE_TIMEOUT_MS` in `core/http-dispatcher.ts`. */
+/** SDK-MIRROR: `core/http-dispatcher.ts` 的 `DEFAULT_HTTP_IDLE_TIMEOUT_MS`。 */
 const DEFAULT_HTTP_IDLE_TIMEOUT_MS = 300_000;
-/** Node's 250ms default can kill valid connection attempts on high-latency routes. */
+/** Node 默认的 250ms 会掐死高延迟链路上合法的连接尝试。 */
 const DEFAULT_AUTO_SELECT_FAMILY_ATTEMPT_TIMEOUT_MS = 2_000;
 
 const originalGlobalFetch = globalThis.fetch;
 let installedGlobalFetch: typeof globalThis.fetch | undefined;
 
 /**
- * Resolve the proxy configuration and install the global dispatcher.
+ * 解析代理配置并安装全局 dispatcher。
  *
- * Runs once at activation, before any SDK session exists.
+ * 激活时运行一次，先于任何 SDK 会话存在。
  */
 export function configureHttpProxy(cwd: string, log: (message: string) => void): void {
   const settings = readGlobalSettings(cwd, log);
-  // Which proxy variables the OS/shell already provided, before any fallback
-  // fills them in. Needed to attribute the effective value in the log below.
+  // OS/shell 已提供的代理变量（在任何兜底填充之前），
+  // 供下面日志正确归属生效值的来源。
   const fromEnvironment = {
     http: Boolean(process.env.http_proxy?.trim() ?? process.env.HTTP_PROXY?.trim()),
     https: Boolean(process.env.https_proxy?.trim() ?? process.env.HTTPS_PROXY?.trim()),
   };
 
-  // 2. pi's own setting (env vars set by the OS/shell already won).
+  // 2. pi 自己的设置（OS/shell 设的环境变量已胜出）。
   const piProxy = applyProxyEnv(settings?.httpProxy);
 
-  // 3. VS Code, last.
+  // 3. VS Code，最后。
   const httpConfig = vscode.workspace.getConfiguration("http");
   const vsCodeProxy = applyProxyEnv(httpConfig.get<string>("proxy"));
   if (httpConfig.get<boolean>("proxyStrictSSL") === false) {
@@ -70,8 +55,8 @@ export function configureHttpProxy(cwd: string, log: (message: string) => void):
     log(`http dispatcher installed (proxy: ${effective.http ?? "none"}, source: ${source(fromEnvironment.http)})`);
     return;
   }
-  // undici resolves http and https independently, so a partially configured
-  // environment can legitimately end up on two different proxies.
+  // undici 对 http 与 https 各自独立解析，只配了一半的环境合法地
+  // 落到两个不同代理上。
   log(
     `http dispatcher installed (http proxy: ${effective.http ?? "none"}, source: ${source(fromEnvironment.http)}; ` +
       `https proxy: ${effective.https ?? "none"}, source: ${source(fromEnvironment.https)})`,
@@ -80,18 +65,18 @@ export function configureHttpProxy(cwd: string, log: (message: string) => void):
 }
 
 /**
- * (Re)build the global undici dispatcher.
+ * （重新）构建全局 undici dispatcher。
  *
- * Called again whenever the effective `httpIdleTimeoutMs` changes, mirroring
- * how the CLI reconfigures it from its settings selector.
+ * 生效的 `httpIdleTimeoutMs` 变化时再次调用，对齐 CLI 在其设置选择器里
+ * 的重配方式。
  */
 export function configureHttpDispatcher(timeoutMs: number | undefined = DEFAULT_HTTP_IDLE_TIMEOUT_MS): void {
   const normalized = parseHttpIdleTimeoutMs(timeoutMs) ?? DEFAULT_HTTP_IDLE_TIMEOUT_MS;
   const dispatcher = withUndiciErrorListener(
     new undici.EnvHttpProxyAgent({
       allowH2: false,
-      // Keep HTTP origins on CONNECT tunnels as they were before Undici 8.7
-      // (SDK fix for proxied plain-HTTP requests hanging after a tool call).
+      // 保持 HTTP origin 在 CONNECT 隧道上的行为与 Undici 8.7 之前一致
+      // （SDK 修复：走代理的明文 HTTP 请求在一次工具调用后挂起）。
       proxyTunnel: true,
       bodyTimeout: normalized,
       connect: { autoSelectFamilyAttemptTimeout: DEFAULT_AUTO_SELECT_FAMILY_ATTEMPT_TIMEOUT_MS },
@@ -101,9 +86,8 @@ export function configureHttpDispatcher(timeoutMs: number | undefined = DEFAULT_
     }),
   );
   undici.setGlobalDispatcher(dispatcher);
-  // Keep fetch and the dispatcher on the same undici implementation: a mixed
-  // pair can consume compressed responses without decompressing them. If
-  // something replaced fetch after our last install, treat that as deliberate.
+  // 让 fetch 与 dispatcher 用同一份 undici 实现：混搭的一对会消费压缩
+  // 响应却不解压。上次安装后若有别的代码换过 fetch，视为有意为之。
   const shouldInstallGlobals =
     installedGlobalFetch === undefined ? globalThis.fetch === originalGlobalFetch : globalThis.fetch === installedGlobalFetch;
   if (shouldInstallGlobals) {
@@ -112,17 +96,17 @@ export function configureHttpDispatcher(timeoutMs: number | undefined = DEFAULT_
   }
 }
 
-/** The proxies undici will actually use, in undici's own lookup order. */
+/** undici 实际会用的代理，按 undici 自己的查找顺序。 */
 function effectiveProxies(): { http?: string; https?: string } {
   const http = (process.env.http_proxy ?? process.env.HTTP_PROXY)?.trim() || undefined;
   const https = (process.env.https_proxy ?? process.env.HTTPS_PROXY)?.trim() || undefined;
-  // undici falls back to the http agent when no https proxy is configured.
+  // 未配 https 代理时 undici 回落到 http agent。
   return { http, https: https ?? http };
 }
 
 /**
- * Fill the proxy env vars, mirroring the CLI's `applyHttpProxySettings()`.
- * Returns the normalized value this source offered, or undefined.
+ * 填充代理环境变量，镜像 CLI 的 `applyHttpProxySettings()`。
+ * 返回该来源提供的规范化值，没有则 undefined。
  */
 function applyProxyEnv(value: string | undefined): string | undefined {
   const proxy = value?.trim();
@@ -133,11 +117,10 @@ function applyProxyEnv(value: string | undefined): string | undefined {
 }
 
 /**
- * Global-scope `~/.pi/agent/settings.json`, read the way the CLI bootstraps it.
+ * 全局作用域的 `~/.pi/agent/settings.json`，按 CLI 引导时的读法。
  *
- * `projectTrusted: false` matches the CLI's bootstrap manager: project settings
- * must not influence networking before the trust prompt has been answered.
- * `httpProxy` is a global-only setting on both sides.
+ * `projectTrusted: false` 对齐 CLI 的引导 manager：信任提示未回答前，
+ * 项目设置不得影响网络。`httpProxy` 两边都是仅全局生效的设置。
  */
 function readGlobalSettings(cwd: string, log: (message: string) => void) {
   try {
@@ -148,7 +131,7 @@ function readGlobalSettings(cwd: string, log: (message: string) => void) {
   }
 }
 
-/** `"disabled"`/0 disables the timeout; invalid values fall back to the default. */
+/** `"disabled"`/0 表示禁用超时；非法值回落到默认。 */
 function parseHttpIdleTimeoutMs(value: number | string | undefined): number | undefined {
   if (typeof value === "string") {
     const trimmed = value.trim();
@@ -163,10 +146,9 @@ function parseHttpIdleTimeoutMs(value: number | string | undefined): number | un
 const ignoreUndiciDispatcherError = (): void => {};
 
 /**
- * undici can emit an internal Client "error" while tearing down a mid-stream
- * fetch body. The body stream still rejects through `reader.read()`; this
- * listener only stops EventEmitter's unhandled-"error" rule from crashing the
- * extension host.
+ * undici 在拆一个中途的 fetch body 时可能发出内部 Client "error"。
+ * body 流仍会经 `reader.read()` 拒绝；此监听只是阻止 EventEmitter 的
+ * 未处理 "error" 规则把扩展宿主打崩。
  */
 function withUndiciErrorListener<T>(dispatcher: T): T {
   if (dispatcher instanceof EventEmitter) {

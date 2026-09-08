@@ -1,15 +1,11 @@
 /**
- * Single source of truth for the packages that ship *unbundled* under
- * `dist/node_modules/`, plus the copying rules for them.
- *
- * They cannot be bundled: the SDK's extension loader hands jiti a set of
- * aliases anchored on the SDK entry's `import.meta.url`, so a pi extension's
- * `import "@earendil-works/pi-ai"` is resolved against the real file system,
- * not against anything esbuild produced. Whatever those on-disk copies import
- * in turn must therefore also exist on disk.
- *
- * Shared by `esbuild.mjs` (which copies them for production builds) and
- * `scripts/check_extension_runtime.mjs` (which proves the list is complete).
+ * 不打进 bundle、随 `dist/node_modules/` 发行的包及其拷贝规则的唯一事实源。
+ * 这些包没法 bundle：SDK 的扩展加载器交给 jiti 一组锚在 SDK 入口
+ * `import.meta.url` 上的 alias，pi 扩展的 `import "@earendil-works/pi-ai"`
+ * 因此解析到真实文件系统而非 esbuild 产物；磁盘副本反过来 import 的东西
+ * 也必须同样存在于磁盘。
+ * esbuild.mjs（生产构建时执行拷贝）与 scripts/check_extension_runtime.mjs
+ * （证明清单完整）共用本文件。
  */
 
 import { cp, mkdir, rm } from "node:fs/promises";
@@ -20,8 +16,8 @@ import { fileURLToPath } from "node:url";
 export const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
- * Entry points a pi extension is allowed to import (the SDK's jiti aliases).
- * These are what must resolve on disk for any extension to load at all.
+ * pi 扩展允许 import 的入口（SDK 的 jiti alias 指向它们）。
+ * 任何扩展要能加载，这些入口就必须先在磁盘上可解析。
  */
 export const extensionVisibleEntries = [
   "@earendil-works/pi-coding-agent/dist/index.js",
@@ -32,8 +28,8 @@ export const extensionVisibleEntries = [
 
 export const runtimePackages = [
   "@earendil-works/pi-coding-agent",
-  // Resolved from disk by the SDK's extension loader (jiti aliases anchored on
-  // the SDK entry's import.meta.url): extensions import these at runtime.
+  // 由 SDK 的扩展加载器从磁盘解析（jiti alias 锚在 SDK 入口的
+  // import.meta.url 上）：扩展在运行时 import 它们。
   "@earendil-works/pi-agent-core",
   "@earendil-works/pi-tui",
   "@earendil-works/pi-ai",
@@ -41,21 +37,20 @@ export const runtimePackages = [
   "jiti",
   "@silvia-odwyer/photon-node",
   "@mariozechner/clipboard",
-  // Provider SDKs: pi-ai wraps each of them in a `lazyApi(() => import(...))`
-  // facade, so they are NOT loaded by the entry-point probe below — but they
-  // ARE reached the moment anyone calls the api through this on-disk copy
-  // (e.g. an extension streaming a completion), and each module then imports
-  // its SDK at the top level. `openai` also backs azure-openai-responses,
-  // openai-responses, openrouter-images and every Mistral-compatible api.
+  // 供应商 SDK：pi-ai 把每个都包在 `lazyApi(() => import(...))` 门面后，所以
+  // 下面的入口探针加载不到它们——可一旦有人经这份磁盘副本调用 api（比如扩展
+  // 流式取补全），它们就会被触达，届时各模块在顶层 import 自己的 SDK。
+  // openai 还支撑 azure-openai-responses、openai-responses、openrouter-images
+  // 与所有 Mistral 兼容 api。
   "openai",
   "@anthropic-ai/sdk",
-  // Top-level require of the anthropic SDK's webhooks resource (pulled in
-  // whenever the provider module is imported); plus its two crypto helpers.
+  // anthropic SDK 的 webhooks 资源在顶层 require 它（provider 模块一被
+  // import 就带进来）；另加它的两个 crypto 辅助包。
   "standardwebhooks",
   "@stablelib/base64",
   "fast-sha256",
   "@google/genai",
-  // The hoisted closure of @google/genai (auth + websocket + protobuf).
+  // @google/genai 的提升闭包（auth + websocket + protobuf）。
   "google-auth-library",
   "base64-js",
   "buffer-equal-constant-time",
@@ -84,17 +79,16 @@ export const runtimePackages = [
   "long",
   "ws",
   "@aws-sdk/client-bedrock-runtime",
-  // Imported at the top level of bedrock-converse-stream.js.
+  // bedrock-converse-stream.js 在顶层 import 的包。
   "@smithy/node-http-handler",
   "http-proxy-agent",
   "https-proxy-agent",
   "debug",
   "ms",
   "agent-base",
-  // The hoisted closure of @aws-sdk/client-bedrock-runtime (loaded as soon
-  // as its module is imported). Completeness is enforced by the provider-module
-  // probe in scripts/check_extension_runtime.mjs — a version bump that adds a
-  // package fails `pnpm verify` with "add it to runtimePackages".
+  // @aws-sdk/client-bedrock-runtime 的提升闭包（其模块一被 import 就加载）。
+  // 完整性由 scripts/check_extension_runtime.mjs 的 provider 模块探针强制：
+  // 升级新引入的包会让 `pnpm verify` 报 "add it to runtimePackages"。
   "@aws-sdk/core",
   "@aws-sdk/credential-provider-env",
   "@aws-sdk/credential-provider-http",
@@ -127,15 +121,13 @@ export const runtimePackages = [
   "@smithy/util-buffer-from",
   "@smithy/util-utf8",
   "tslib",
-  // Transitive dependencies of the SDK packages above. Bundling does not cover
-  // them: an extension's `import "@earendil-works/pi-ai"` goes through jiti to
-  // the *on-disk* copy, whose own `import "partial-json"` then resolves
-  // against `dist/node_modules` with nothing to fall back on. Without these,
-  // any extension touching the SDK dies with "Cannot find module".
-  // Runtime dependency of the SDK's harness layer (agent-core re-exports its
-  // context helpers at the top level). Only `chord/context` and the main entry
-  // are reached from the SDK's entry closure; the esbuild-backed `chord/node`
-  // bundler is not, so esbuild itself does not need to ship.
+  // 上面各 SDK 包的传递依赖。bundle 覆盖不到它们：扩展的
+  // `import "@earendil-works/pi-ai"` 经 jiti 落到磁盘副本，副本自己的
+  // `import "partial-json"` 只能对 dist/node_modules 解析、没有兜底可退。
+  // 缺了它们，任何碰到 SDK 的扩展都死于 "Cannot find module"。
+  // SDK harness 层的运行时依赖（agent-core 在顶层再导出其 context 辅助）。
+  // SDK 的入口闭包只触达 `chord/context` 与主入口，esbuild 版 `chord/node`
+  // 打包器触达不到，故 esbuild 本身无需随包发行。
   "@earendil-works/chord",
   "@earendil-works/pi-telemetry",
   "balanced-match",
@@ -168,25 +160,20 @@ export const runtimePackages = [
 ];
 
 /**
- * Where to copy a runtime package from.
- *
- * This list exists for the *on-disk SDK copy*, so each package has to be taken
- * the way that copy resolves it. Under the hoisted pnpm layout a plugin's own
- * direct dependency wins the root slot and pushes the SDK's version into a
- * nested `node_modules`, so the root is not always the right source.
- *
- * `highlight.js` is the live example: the webview bundles 11.x for syntax
- * colouring, the SDK needs 10.x, and 11.x no longer exports the
- * `./lib/index.js` deep import the SDK uses — copying the root version makes
- * the on-disk SDK unloadable. The plugin's own copy is bundled and never read
- * from disk, so the SDK's version is the one that has to ship.
+ * 运行时包从哪里拷。
+ * 这份清单服务的是磁盘上的 SDK 副本，每个包都得按那份副本的解析方式取。
+ * hoisted 的 pnpm 布局下，插件自己的直接依赖占住根位置，把 SDK 要的版本挤进
+ * 嵌套 node_modules，故根位置不总是正确的来源。
+ * highlight.js 是活例：webview 打 11.x 做语法高亮，SDK 需要 10.x，而 11.x 已
+ * 不再导出 SDK 所用的 ./lib/index.js 深导入——拷根版本会让磁盘 SDK 加载不了。
+ * 插件自己那份进了 bundle、永不从磁盘读，所以必须发行 SDK 的版本。
  */
 function runtimePackageSource(name) {
   const nested = resolve(repoRoot, "node_modules", "@earendil-works", "pi-coding-agent", "node_modules", name);
   return existsSync(nested) ? nested : resolve(repoRoot, "node_modules", name);
 }
 
-/** Native clipboard bindings live in platform-specific sibling packages. */
+/** 原生剪贴板绑定装在按平台划分的兄弟包里。 */
 export function platformClipboardPackages() {
   const manifest = resolve(repoRoot, "node_modules", "@mariozechner", "clipboard", "package.json");
   try {
@@ -197,11 +184,9 @@ export function platformClipboardPackages() {
 }
 
 /**
- * Copy the runtime packages into `target`.
- *
- * Nested `node_modules` are dropped on purpose: keeping them would let a
- * package satisfy its own dependency locally and hide a missing entry in
- * `runtimePackages`, which is exactly the failure this layout has to rule out.
+ * 把运行时包拷入 `target`。
+ * 嵌套 node_modules 是故意丢弃的：保留会让包在本地满足自己的依赖，把
+ * runtimePackages 里缺失的条目藏起来——那正是这套布局要排除的失败。
  */
 export async function copyRuntimePackages(target, { log = () => {} } = {}) {
   await rm(target, { recursive: true, force: true });
@@ -212,12 +197,12 @@ export async function copyRuntimePackages(target, { log = () => {} } = {}) {
       await mkdir(dirname(join(target, name)), { recursive: true });
       await cp(source, join(target, name), {
         recursive: true,
-        // Type declarations and maps are dead weight at runtime.
+        // 类型声明与 sourcemap 在运行时是死重。
         filter: (path) => {
           const rel = path.slice(source.length);
           if (/[\\/]node_modules[\\/]|\.map$|\.d\.ts$|\.d\.mts$|\.d\.cts$|\.md$/.test(rel)) return false;
-          // The clipboard npm wrapper ships Rust sources and build files that
-          // are never needed at runtime; keep only the JS loader and manifest.
+          // clipboard 的 npm 壳带 Rust 源码与构建文件，运行时永远用不上；
+          // 只保留 JS loader 与清单。
           if (source === resolve(repoRoot, "node_modules", "@mariozechner", "clipboard")) {
             if (/[\\/]src[\\/]|Cargo\.toml$|build\.rs$|exp\.ts$|\.yarnrc\.yml$/.test(rel)) return false;
           }
@@ -233,7 +218,7 @@ export async function copyRuntimePackages(target, { log = () => {} } = {}) {
     try {
       await cp(resolve(repoRoot, "node_modules", name), join(target, name), { recursive: true });
     } catch {
-      // Optional dependency for other platforms; ignore when absent.
+      // 其他平台对应的可选依赖；不存在时忽略。
     }
   }
   return { skipped };

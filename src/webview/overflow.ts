@@ -1,47 +1,40 @@
 import { el } from "./dom.js";
 
 /**
- * Toolbar overflow: when a button row no longer fits the panel width, its
- * secondary buttons move into a "..." popup instead of wrapping onto a second
- * line or being clipped.
- *
- * The buttons themselves are moved, not copied, so their listeners, `disabled`
- * state and `hidden` class keep working unchanged in either place. Each item
- * leaves a hidden slot behind, which is how it finds its way back.
- *
- * Fit is measured, not guessed with a breakpoint: the same row is much wider in
- * English than in Chinese, so any hard-coded `max-width` media query would
- * collapse too early in one language and too late in the other.
+ * 工具栏溢出：按钮行放不下时，次要按钮收进「...」弹层，而不是换行到第
+ * 二行或被裁掉。按钮是移动而非复制，监听器、`disabled` 状态与 `hidden`
+ * class 在两个位置都照常工作；每个条目留下一个隐藏占位，收回时靠它找到
+ * 回程。合不合适靠测量而不是断点：同一行英文比中文宽得多，硬编码的
+ * `max-width` 媒体查询会在一种语言里收得太早、另一种里收得太晚。
  */
 
 export interface OverflowGroup {
-  /** Re-measure and collapse/expand accordingly. Cheap and idempotent. */
+  /** 重新测量并相应收拢 / 展开。开销小且幂等。 */
   update(): void;
-  /** Close the popup, e.g. when navigating away. */
+  /** 关闭弹层，例如离开页面时。 */
   close(): void;
 }
 
 export interface OverflowGroupOptions {
-  /** The flex row that must stay on one line. */
+  /** 必须保持单行的 flex 行。 */
   row: HTMLElement;
-  /** Buttons to move out, in display order. */
+  /** 待移出的按钮，按显示顺序。 */
   items: HTMLElement[];
-  /** The "..." button; already placed inside `row` by the caller. */
+  /** 「...」按钮；调用方已把它放进 `row`。 */
   toggle: HTMLButtonElement;
-  /** Empty popup container; positioned by CSS relative to `row`. */
+  /** 空的弹层容器；由 CSS 相对 `row` 定位。 */
   menu: HTMLElement;
   /**
-   * Width the row may occupy on one line.
+   * 该行单行可占用的宽度。
    *
-   * The row's own width is not usable for this: as a flex item it grows and
-   * shrinks with its content, and it is the surrounding layout (the header's
-   * title, the composer's padding) that decides what is actually free.
+   * 行自身的宽度不可用：它是 flex item，随内容伸缩，真正决定可用空间的
+   * 是外层布局（header 的标题、composer 的内边距）。
    */
   available: () => number;
 }
 
 export function createOverflowGroup({ row, items, toggle, menu, available }: OverflowGroupOptions): OverflowGroup {
-  // A placeholder per item marks where it belongs when the row is wide again.
+  // 每个条目一个占位符，标记行恢复宽度时它的归属位置。
   const slots = items.map((item) => {
     const slot = el("span", "overflow-slot");
     item.before(slot);
@@ -71,7 +64,7 @@ export function createOverflowGroup({ row, items, toggle, menu, available }: Ove
     const open = menu.classList.toggle("hidden") === false;
     toggle.setAttribute("aria-expanded", String(open));
   });
-  // Any choice inside the popup completes the interaction.
+  // 弹层内的任何选择都终结这次交互。
   menu.addEventListener("click", (event) => {
     if ((event.target as HTMLElement).closest("button")) close();
   });
@@ -84,13 +77,10 @@ export function createOverflowGroup({ row, items, toggle, menu, available }: Ove
 
   return {
     update(): void {
-      // Hidden panels report zero size; measuring them would collapse the row
-      // for no reason and the result would be wrong anyway.
+      // 隐藏的面板测得 0 尺寸；此时测量只会无端收拢该行，结果也不对。
       if (row.offsetParent === null) return;
-      // Always measure the expanded row, so the outcome depends only on the
-      // available width and growing/shrinking cannot oscillate. The row may
-      // overflow for the duration of this function; it is corrected before the
-      // frame is painted.
+      // 总是对展开态测量，结果只取决于可用宽度，放大 / 收拢不会振荡。函数
+      // 执行期间行可能溢出，但会在本帧绘制前纠正。
       expand();
       toggle.classList.add("hidden");
       if (neededWidth(row) <= available()) {
@@ -105,13 +95,11 @@ export function createOverflowGroup({ row, items, toggle, menu, available }: Ove
 }
 
 /**
- * Width the row's contents want on a single line.
+ * 行内内容单行排开想要的宽度。
  *
- * Items are summed individually rather than read off the row, because the row
- * is told to shrink by its parent while the items are not (`flex: 0 0 auto`),
- * so only the items report their true size. Hidden items (`steer`/`follow-up`
- * outside a run) contribute nothing, which is exactly right: they are not
- * competing for space.
+ * 逐项求和而不是读整行：父布局要求行收缩而行内条目不受缩（`flex: 0 0
+ * auto`），只有条目报得出真实尺寸。隐藏条目（非运行中的 steer/follow-up）
+ * 计 0，恰如其分——它们本来就不参与抢空间。
  */
 function neededWidth(row: HTMLElement): number {
   const style = getComputedStyle(row);
@@ -120,8 +108,8 @@ function neededWidth(row: HTMLElement): number {
   let counted = 0;
   for (const child of row.children) {
     const element = child as HTMLElement;
-    // Skip what is not laid out in the row: hidden items, the popup (absolute)
-    // and the flexible spacer, whose width is whatever is left over.
+    // 跳过不参与行内布局的：隐藏条目、弹层（绝对定位）与弹性 spacer
+    // ——它的宽度是剩下的部分。
     if (element.offsetParent === null) continue;
     const childStyle = getComputedStyle(element);
     if (childStyle.position === "absolute" || parseFloat(childStyle.flexGrow) > 0) continue;

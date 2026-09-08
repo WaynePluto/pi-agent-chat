@@ -3,14 +3,12 @@ import { CHEVRON_ICON } from "./icons.js";
 import { getDict } from "./i18n.js";
 
 /**
- * The one collapsible "header + lazy body" widget used by the transcript cards,
- * the work block, the resource panel and its sections.
+ * 唯一的「标题 + 懒加载体」折叠控件，供 transcript 卡片、执行过程块、
+ * 资源面板及其 section 共用。
  *
- * These four used to be hand-rolled separately and had already drifted apart
- * (only the work block exposed `aria-expanded`, only the cards rendered their
- * body lazily). The class names still differ per context — they carry genuinely
- * different styling — so they are passed in rather than hard-coded, which also
- * documents all four naming schemes in one place.
+ * 这四处曾各自手写、已经漂移（只有执行过程块有 `aria-expanded`、只有卡
+ * 片懒渲染 body）。class 名仍随上下文不同——那是真实的样式差异——因此
+ * 作为参数传入而非硬编码，顺带把四套命名集中记在一处。
  */
 
 const t = getDict();
@@ -21,7 +19,7 @@ export interface CollapsibleClasses {
   status: string;
   chevron: string;
   body: string;
-  /** Activity dot; omitted where the context has no running state. */
+  /** 活动指示点；上下文没有运行态时省略。 */
   pulse?: string;
 }
 
@@ -61,15 +59,15 @@ export const RESOURCE_SECTION_CLASSES: CollapsibleClasses = {
 
 export interface CollapsibleOptions {
   classes: CollapsibleClasses;
-  /** Class of the outer element, e.g. `tool-card` or `work-block running`. */
+  /** 外层元素的 class，如 `tool-card` 或 `work-block running`。 */
   rootClass: string;
   tag?: "div" | "section";
   label: string;
   status?: string;
   expanded?: boolean;
-  /** Attachment point; a detached fragment during history replay. */
+  /** 挂载点；历史重放期间是未挂接的 fragment。 */
   parent?: HTMLElement | DocumentFragment;
-  /** Builds the body on first expansion; omit for eagerly filled bodies. */
+  /** 首次展开时构建 body；立即填充的 body 可省略。 */
   render?: (body: HTMLElement) => void;
   onToggle?: (expanded: boolean) => void;
 }
@@ -81,9 +79,9 @@ export interface Collapsible {
   readonly body: HTMLElement;
   readonly expanded: boolean;
   setExpanded(expanded: boolean): void;
-  /** Mark the rendered body stale without rebuilding it yet. */
+  /** 把已渲染的 body 标脏，但暂不重建。 */
   invalidate(): void;
-  /** Rebuild the body if it is stale and currently visible. */
+  /** body 已标脏且当前可见时重建它。 */
   refresh(): void;
 }
 

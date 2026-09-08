@@ -4,19 +4,13 @@ import { el } from "./dom.js";
 import { widgetsAboveEl, widgetsBelowEl } from "./shell.js";
 
 /**
- * Extension widgets: the plain-text blocks a pi extension publishes through
- * `ctx.ui.setWidget(key, lines)`.
- *
- * This is generic SDK surface, not support for any particular extension — the
- * sidebar never interprets `key` or the lines, it only places them where the
- * CLI would. `aboveEditor` lands between the transcript and the composer,
- * `belowEditor` between the composer and the status line, which is the same
- * spatial relationship the terminal UI gives them.
- *
- * Each block is collapsible and starts expanded: a widget is meant to be seen,
- * but a long one must not be able to squeeze the transcript with no way out.
- * Collapse state is keyed by the extension's own key so it survives re-renders,
- * which arrive on every republish (the host always sends the full set).
+ * 扩展 widget：pi 扩展经 `ctx.ui.setWidget(key, lines)` 发布的纯文本块。
+ * 这是通用 SDK 界面而非对某个扩展的支持——侧栏不解释 `key` 与行内容，
+ * 只把它们放到 CLI 会放的位置：`aboveEditor` 在 transcript 与 composer
+ * 之间，`belowEditor` 在 composer 与状态行之间。
+ * 每块可折叠且默认展开：widget 是给人看的，但长块不能把 transcript 挤到
+ * 无处可退；折叠状态按扩展自己的 key 记忆，重渲染（宿主每次发全集）后
+ * 仍然有效。
  */
 
 const WIDGET_CLASSES: CollapsibleClasses = {
@@ -27,9 +21,9 @@ const WIDGET_CLASSES: CollapsibleClasses = {
   body: "widget-body",
 };
 
-/** Keys the user collapsed; everything absent renders expanded. */
+/** 用户折叠过的 key；不在集合里的都展开渲染。 */
 const collapsed = new Set<string>();
-/** Last full set, so a collapse toggle can repaint both containers. */
+/** 最近一次全集；切换折叠时据此重绘两个容器。 */
 let lastItems: ExtensionWidget[] = [];
 
 export function renderExtensionWidgets(items: ExtensionWidget[]): void {
@@ -46,7 +40,7 @@ function paint(container: HTMLElement, items: ExtensionWidget[]): void {
       classes: WIDGET_CLASSES,
       rootClass: "widget",
       label: item.key,
-      // Collapsed widgets still say how much they are hiding.
+      // 折叠的 widget 仍标注它藏了多少行。
       status: collapsed.has(item.key) ? String(item.lines.length) : "",
       expanded: !collapsed.has(item.key),
       parent: container,
@@ -56,8 +50,7 @@ function paint(container: HTMLElement, items: ExtensionWidget[]): void {
         renderExtensionWidgets(lastItems);
       },
     });
-    // Eagerly filled: the body is a handful of lines and is visible by default,
-    // so lazy rendering would only add a stale-state path.
+    // 立即填充：body 就几行且默认可见，懒渲染只会多出一条状态过期路径。
     for (const line of item.lines) block.body.appendChild(el("div", "widget-line", line));
   }
 }

@@ -1,12 +1,11 @@
 import type { ChatState } from "../shared/protocol.js";
 
 /**
- * The last state snapshot pushed by the host.
+ * 宿主推送的最新状态快照。
  *
- * Host messages are complete snapshots, so the state is replaced rather than
- * merged: that is what clears optional fields such as a finished delegation.
- * Exported as a live binding — modules read `state.*` directly and only
- * `setState()` writes.
+ * 宿主消息是完整快照，状态整体替换而非合并：这样可选字段（如已结束的
+ * delegation）才会被清掉。以 live binding 导出——各模块直接读 `state.*`，
+ * 只有 `setState()` 写。
  */
 export let state: ChatState = { ready: false, isStreaming: false, isCompacting: false };
 
@@ -15,22 +14,22 @@ export function setState(next: ChatState): void {
 }
 
 /**
- * Whether subagents are running right now.
+ * 此刻是否有子代理在跑。
  *
- * `state.delegation` outlives the run — the lane card keeps its final tally and
- * a lane the user opened stays readable — so its mere presence must never be
- * read as "busy". Everything that gates on activity asks this instead.
+ * `state.delegation` 比运行活得久——lane 卡片保留最终计数、用户打开过的
+ * lane 仍可读——因此它的存在绝不能读作「忙」。一切以活动为门槛的判断都
+ * 问这里。
  */
 export function isDelegating(): boolean {
   return Boolean(state.delegation?.running);
 }
 
-/** Whether the displayed transcript is a subagent's (running or finished). */
+/** 当前显示的 transcript 是否属于某个子代理（运行中或已结束）。 */
 export function isInLane(): boolean {
   return state.delegation?.role === "child";
 }
 
-/** The lane currently on screen, if any. */
+/** 当前屏幕上的 lane，无则 undefined。 */
 export function currentLane() {
   const delegation = state.delegation;
   if (delegation?.role !== "child") return undefined;

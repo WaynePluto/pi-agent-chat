@@ -3,35 +3,23 @@ import { getPersisted, setPersisted } from "./host.js";
 import { resourcesSplitterEl, rootEl, sessionsSplitterEl } from "./shell.js";
 
 /**
- * The two draggable dividers of the wide three-column layout.
- *
- * Geometry lives in one place — here — and reaches the stylesheet through four
- * custom properties on `#root` (`--rail-sessions`, `--split-sessions` and the
- * resources pair). `src/styles/_wide.scss` only declares which track reads
- * which property; it makes no sizing decisions of its own.
- *
- * Three rules define the interaction, and they are all clamps rather than
- * modes:
- *
- * - A rail may not grow past {@link RAIL_MAX_WIDTH}. Unlike the chat column's
- *   cap this is not about readability: a rail holds single-line labels, which
- *   are bounded by truncation rather than by line length, so past the width at
- *   which nothing is clipped any more the extra pixels only pad every label.
- * - A rail dragged below {@link RAIL_MIN_WIDTH} **closes**. There is no state
- *   between "open at the minimum" and "closed", which is what makes dragging a
- *   way to close a rail rather than a way to make it useless.
- * - The chat column may not be squeezed below {@link CENTER_MIN_WIDTH}. Dragging
- *   simply stops there; it never closes anything, because the chat column is
- *   the one thing this surface exists to show.
+ * 宽屏三栏布局的两条可拖拽分隔线。几何只在此处决定，经 `#root` 上四个
+ * 自定义属性（`--rail-sessions`、`--split-sessions` 及 resources 一对）
+ * 落到样式表；`_wide.scss` 只声明哪条轨道读哪个属性，不做尺寸决定。
+ * 三条规则全是 clamp 而非模式：侧栏不超过 RAIL_MAX_WIDTH（约束是单行
+ * 标签的截断而非行长，再宽只是给每个标签堆空白）；拖到低于
+ * RAIL_MIN_WIDTH 即**关闭**，「最小宽度开着」与「关闭」之间没有中间态，
+ * 拖拽因此可用作关闭手段；中栏不得低于 CENTER_MIN_WIDTH，拖到那里就
+ * 停住、绝不关闭任何东西。
  */
 
-/** Width of a divider's grid track, mirrored in `_wide.scss`'s chrome budget. */
+/** 分隔线 grid 轨道的宽度，与 `_wide.scss` 的 chrome 预算互为镜像。 */
 const SPLITTER_WIDTH = 12;
-/** Step for the ← / → keys on a focused divider. */
+/** 分隔线聚焦时 ← / → 键的步进。 */
 const KEYBOARD_STEP = 16;
 
 export interface RailGeometry {
-  /** User-chosen width, kept while the rail is closed so reopening restores it. */
+  /** 用户选的宽度；栏关闭期间保留，重开时恢复。 */
   sessions: number;
   resources: number;
 }
@@ -39,7 +27,7 @@ export interface RailGeometry {
 interface RailBinding {
   readonly key: keyof RailGeometry;
   readonly splitter: HTMLElement;
-  /** Which way the pointer moves to make this rail wider. */
+  /** 指针往哪个方向移动会让该栏变宽。 */
   readonly sign: 1 | -1;
   readonly cssRail: string;
   readonly cssSplitter: string;
@@ -51,9 +39,8 @@ const BINDINGS: readonly RailBinding[] = [
 ];
 
 /**
- * Restored before the first layout for the same reason as the content width:
- * a controller swap reassigns `webview.html`, and a fresh webview that fell
- * back to the defaults would resize the user's columns behind their back.
+ * 与正文列宽同理，首次布局前恢复：控制器交换会重赋 `webview.html`，新
+ * webview 若回落默认值，会在用户背后改变他的栏宽。
  */
 function restoreWidths(): RailGeometry {
   const saved = getPersisted<Partial<RailGeometry>>("railWidths");
@@ -70,36 +57,31 @@ function clampRail(value: unknown): number {
 
 const widths = restoreWidths();
 let openState: Record<keyof RailGeometry, boolean> = { sessions: false, resources: false };
-/** Set by `initSplitters`; lets a drag that closes a rail update the header toggle. */
+/** 由 `initSplitters` 注入；拖拽关闭某栏时借此同步 header 开关。 */
 let onRailClosed: (rail: keyof RailGeometry) => void = () => {};
 /**
- * Width the columns have to share, fed in by the shell's ResizeObserver.
+ * 各栏共享的可用宽度，由外壳的 ResizeObserver 喂进来。
  *
- * Deliberately *not* measured from the DOM. A measurement is only meaningful
- * once the surface has been laid out at its new size, and every caller here
- * runs at a moment when that is not guaranteed — the wide/narrow flip has just
- * rewritten the grid, and a headless environment never lays out at all. A
- * measurement taken then reads 0, every rail looks impossible to fit, and both
- * would be closed as if the user had dragged them shut. The observer already
- * knows the width; taking it from there removes the failure mode instead of
- * timing around it.
+ * 刻意**不从 DOM 测量**。测量只在「表面已按新尺寸布局完」后有意义，而
+ * 这里的调用点都不满足——宽窄切换刚重写 grid、无头环境根本不布局。那
+ * 时测得 0，每条栏都「摆不下」而被当作用户拖关。观察者本来就知道宽度，
+ * 直接拿它消除了这个失败模式。
  */
 let availableWidth = 0;
 
-/** Called by the shell whenever the viewport width changes. */
+/** 视口宽度变化时由外壳调用。 */
 export function setAvailableWidth(width: number): void {
   availableWidth = Number.isFinite(width) ? Math.round(width) : 0;
 }
 
-/** Current width of a rail as the grid sees it: 0 while it is closed. */
+/** grid 眼中该栏的当前宽度：关闭时为 0。 */
 function effectiveWidth(key: keyof RailGeometry): number {
   return openState[key] ? widths[key] : 0;
 }
 
 /**
- * Push the geometry into the stylesheet. A closed rail collapses both its own
- * track and its divider's, so no chrome is left behind where a rail used to be
- * — which is what lets the chat column take over the space.
+ * 把几何推入样式表。关闭的栏同时收起自己的轨道与分隔线轨道，不留任何
+ * 残余 chrome——聊天列才能接管那块空间。
  */
 function applyGeometry(): void {
   for (const binding of BINDINGS) {
@@ -114,9 +96,8 @@ function applyGeometry(): void {
 }
 
 /**
- * How wide this rail may become before the chat column would drop below its
- * minimum. Computed against the *other* rail's current width, so the two
- * dividers constrain each other exactly as the grid does.
+ * 该栏在不把中栏挤过最小宽度前提下能到的最大宽度。按**另一条**栏的当前
+ * 宽度计算，两条分隔线因此像 grid 一样互相约束。
  */
 function maxWidthFor(key: keyof RailGeometry): number {
   const other = key === "sessions" ? "resources" : "sessions";
@@ -126,11 +107,8 @@ function maxWidthFor(key: keyof RailGeometry): number {
 }
 
 /**
- * Resolve a proposed width into the resulting state.
- *
- * Below the minimum the rail closes rather than shrinking further; the width
- * it had is kept so that reopening it restores the user's choice instead of
- * snapping back to the default.
+ * 把提议宽度落成结果状态。低于最小宽度时关闭该栏而不是继续收窄；宽度
+ * 保留下来，重开时恢复用户的选择而非弹回默认值。
  */
 function resolve(key: keyof RailGeometry, proposed: number): void {
   const ceiling = maxWidthFor(key);
@@ -141,7 +119,7 @@ function resolve(key: keyof RailGeometry, proposed: number): void {
     onRailClosed(key);
     return;
   }
-  // A viewport too narrow to honour the minimum cannot be dragged into one.
+  // 视口窄到装不下最小宽度时，拖拽也造不出能装下的视口。
   widths[key] = Math.max(RAIL_MIN_WIDTH, Math.min(Math.round(proposed), Math.max(RAIL_MIN_WIDTH, ceiling)));
   setPersisted("railWidths", { ...widths });
   applyGeometry();
@@ -171,8 +149,8 @@ function beginDrag(binding: RailBinding, event: PointerEvent): void {
 }
 
 /**
- * Wire the dividers. `onClosed` lets the shell keep its header toggle in step
- * when a drag — rather than a click — is what closed a rail.
+ * 接线各分隔线。`onClosed` 让外壳在拖拽（而非点击开关）关掉某栏时，
+ * 保持 header 开关与之一致。
  */
 export function initSplitters(onClosed: (rail: keyof RailGeometry) => void): void {
   onRailClosed = onClosed;
@@ -184,19 +162,18 @@ export function initSplitters(onClosed: (rail: keyof RailGeometry) => void): voi
       const direction = event.key === "ArrowRight" ? 1 : -1;
       resolve(binding.key, widths[binding.key] + direction * binding.sign * KEYBOARD_STEP);
     });
-    // Double-clicking a seam is the familiar "reset this column" gesture, and
-    // what it resets to is the default width, not the floor.
+    // 双击分隔线是熟悉的「重置此栏」手势；重置到默认宽度而不是下限。
     binding.splitter.addEventListener("dblclick", () => resolve(binding.key, RAIL_DEFAULT_WIDTH));
   }
   applyGeometry();
 }
 
-/** Open or close a rail from the header toggle. */
+/** 由 header 开关打开 / 关闭某栏。 */
 export function setRailOpen(rail: keyof RailGeometry, open: boolean): void {
   if (openState[rail] === open) return;
   openState[rail] = open;
-  // Reopening into a viewport that shrank meanwhile must not push the chat
-  // column below its minimum, so the stored width is re-clamped on the way in.
+  // 重开进一个已变窄的视口时不得把中栏挤过最小宽度，因此存下的宽度在
+  // 进入时重新夹取。
   if (open) {
     const ceiling = maxWidthFor(rail);
     if (ceiling >= RAIL_MIN_WIDTH) widths[rail] = Math.min(widths[rail], ceiling);
@@ -205,14 +182,12 @@ export function setRailOpen(rail: keyof RailGeometry, open: boolean): void {
 }
 
 /**
- * Re-clamp after the webview itself changed size, so a shrinking window walks
- * the rails back instead of squeezing the chat column past its minimum. A rail
- * that can no longer meet its own minimum closes, exactly as a drag would.
+ * webview 自身尺寸变化后重新夹取：窗口收窄时逐步收回落栏，而不是把中栏
+ * 挤过最小值；再也满足不了自身最小值的栏关闭，与拖拽同一结果。
  */
 export function reflowRails(): void {
-  // Nothing has been laid out yet: no width is known, so no rail can be judged
-  // impossible. Staying put is the only safe answer — closing here would
-  // silently discard the user's choice on the way into wide mode.
+  // 尚未布局：宽度未知，无从判定某栏摆不下。原地不动是唯一安全答案
+  // ——这时关闭会在进入宽屏的路上悄悄丢掉用户的选择。
   if (availableWidth <= 0) return;
   for (const binding of BINDINGS) {
     if (!openState[binding.key]) continue;

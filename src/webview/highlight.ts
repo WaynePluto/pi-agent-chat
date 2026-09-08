@@ -1,19 +1,10 @@
 /**
- * Syntax highlighting for fenced code blocks.
- *
- * Three decisions worth keeping:
- *
- *  - **highlight.js, not shiki.** Shiki reproduces VS Code's own grammars, but
- *    it ships TextMate grammars plus a WASM regex engine (megabytes, loaded
- *    asynchronously) and it still could not reproduce the user's editor colors,
- *    because a webview has no access to the active theme's token colors. The
- *    remaining difference is not worth that weight in a sidebar.
- *  - **A hand-picked language set**, registered against `highlight.js/lib/core`.
- *    The full bundle carries 190+ grammars for a chat panel that mostly shows
- *    code from this project's own stack.
- *  - **Only what the fence declares.** An unknown or missing language is left
- *    as plain text instead of running auto-detection, which guesses badly on
- *    the short snippets a chat produces \u2014 wrong colors read as wrong code.
+ * fence 代码块的语法高亮，三个值得留下的决定：用 highlight.js 而非
+ * shiki——shiki 复现 VS Code 语法，但要带 TextMate 语法包与 WASM 引擎
+ * （MB 级、异步加载），而 webview 反正拿不到主题 token 颜色，差异不值
+ * 这个体积；手选语言子集注册进 `highlight.js/lib/core`，全量包要为聊天
+ * 面板背上 190+ 语法；只高亮 fence 声明的语言，未知或缺失就保持纯文本
+ * ——自动检测在聊天的短片段上猜得很差，错的颜色会被读成错的代码。
  */
 
 import hljs from "highlight.js/lib/core";
@@ -46,7 +37,7 @@ import yaml from "highlight.js/lib/languages/yaml";
 
 import { MAX_HIGHLIGHT_CHARS } from "./format.js";
 
-/* Aliases (`ts`, `sh`, `yml`, `html`, ...) come with each grammar. */
+/* 别名（`ts`、`sh`、`yml`、`html`…）随各语法包自带。 */
 const LANGUAGES: Record<string, Parameters<typeof hljs.registerLanguage>[1]> = {
   bash,
   c,
@@ -79,19 +70,18 @@ const LANGUAGES: Record<string, Parameters<typeof hljs.registerLanguage>[1]> = {
 for (const [name, definition] of Object.entries(LANGUAGES)) hljs.registerLanguage(name, definition);
 
 /**
- * Highlighting the same code twice is common: a streaming answer re-renders its
- * whole Markdown on every frame, and only the last block is actually changing.
+ * 同一段代码高亮两次很常见：流式回答每帧重渲染整段 Markdown，而真正在
+ * 变的只有最后一个块。
  */
 const cache = new Map<string, string>();
 const MAX_CACHED_BLOCKS = 64;
 
 /**
- * Highlighted HTML for a fenced block, or `undefined` to leave it as plain text
- * (unknown language, or a block too large to be worth the work on every frame).
+ * fence 块的高亮 HTML；返回 `undefined` 表示保持纯文本（未知语言，或块
+ * 大到不值得每帧做一遍）。
  *
- * The returned markup is produced by highlight.js from a plain-text input and
- * is HTML-escaped by it, which is what makes it safe to assign as `innerHTML`
- * after the sanitizer has already reduced the block to text.
+ * 返回的 markup 由 highlight.js 从纯文本生成、经它转义，这正是净化器已把
+ * 块还原为文本后仍可安全赋给 `innerHTML` 的原因。
  */
 export function highlightCode(code: string, language: string | undefined): string | undefined {
   if (!language || code.length > MAX_HIGHLIGHT_CHARS) return undefined;
@@ -104,9 +94,8 @@ export function highlightCode(code: string, language: string | undefined): strin
 
   let html: string;
   try {
-    // A block that is still streaming is usually syntactically incomplete;
-    // `ignoreIllegals` keeps it colored instead of dropping back to plain text
-    // for every intermediate frame.
+    // 流式中的块常在语法上不完整；`ignoreIllegals` 让它保持上色，而不是
+    // 每个中间帧都退回纯文本。
     html = hljs.highlight(code, { language, ignoreIllegals: true }).value;
   } catch {
     return undefined;

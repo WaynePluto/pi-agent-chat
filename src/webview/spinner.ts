@@ -1,10 +1,10 @@
 import { el } from "./dom.js";
 
 /**
- * The braille "working" spinner, using the same frames as the pi CLI.
+ * 盲文「工作中」spinner，帧序列与 pi CLI 相同。
  *
- * A single interval drives every spinner on the page (the working row and the
- * sessions-list badges), so they stay in phase and only one timer exists.
+ * 单个 interval 驱动页面上所有 spinner（工作行与会话列表徽章），保持同相
+ * 且只有一个定时器。
  */
 
 const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -15,9 +15,8 @@ let index = 0;
 let timer: number | undefined;
 
 /**
- * A spinner element showing the current frame; joins the shared animation.
- * The timer is self-managing: creating a spinner starts it, and it stops on
- * the first tick that finds no spinner left in the document.
+ * 显示当前帧的 spinner 元素，加入共享动画。定时器自管理：创建 spinner 即
+ * 启动它，某个 tick 发现文档里一个 spinner 都没有时就停止。
  */
 export function spinner(): HTMLSpanElement {
   const element = el("span", SPINNER_CLASS, FRAMES[index]!);
@@ -26,13 +25,12 @@ export function spinner(): HTMLSpanElement {
 }
 
 /**
- * Restart the shared timer if it stopped.
+ * 定时器已停时重新启动。
  *
- * The timer commits suicide on the first tick that finds no spinner in the
- * document, and creating an element is otherwise the only thing that revives
- * it. A caller that **detaches and later re-attaches the same spinner element**
- * therefore ends up with a live element and a dead timer — a spinner frozen on
- * one frame, forever. Any such caller must announce the re-attachment here.
+ * 定时器在首个发现文档里没有 spinner 的 tick 上自尽，而创建元素是唯一能
+ * 复活它的常规路径。**先脱离文档、稍后重新挂回同一个 spinner 元素**的调
+ * 用方因此会落得「元素活着、定时器死了」——帧永远停在某一格。任何这类
+ * 调用方都必须在这里报告重新挂回。
  */
 export function ensureSpinnerRunning(): void {
   timer ??= window.setInterval(tick, FRAME_INTERVAL_MS);

@@ -1,28 +1,20 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 
 /**
- * Attributes a user message to the `/` command that produced it, so the
- * resources panel can light up the prompt template or the extension behind it.
+ * 把用户消息归因到产出它的 `/` 命令，供资源面板点亮背后的提示词模板
+ * 或扩展——`skills.ts` 归因工作的非技能半边。SDK 不发「用了提示词
+ * 模板」「跑了扩展命令」事件，且两者落盘前就被改写：`session.prompt()`
+ * 把 `/<模板> 参数` 替换成展开正文（`core/prompt-templates.ts`），不留
+ * 标记；扩展命令被直接消费，不进会话文件。
  *
- * This is the non-skill half of the attribution done in `skills.ts`: the SDK
- * emits no "prompt template used" or "extension command ran" event, and both
- * are rewritten before anything is persisted:
- *
- * - `session.prompt()` replaces `/<template> args` with the template's expanded
- *   body (`core/prompt-templates.ts`), leaving no marker behind.
- * - An extension command is executed and never reaches the session file at all.
- *
- * Live submissions still carry the text the user typed, so that is where both
- * are resolved. On replay a prompt template can only be recovered when its body
- * contains no `$` placeholder, in which case the stored text is the body
- * verbatim; templates with arguments, and extension commands, simply go
- * unattributed (the panel shows "not seen used", never "switched off").
+ * 实时提交还带着用户敲的原文，归属就在那里解析；回放时只有不含 `$`
+ * 占位符的模板能找回（存的就是逐字正文），其余不归因（显示「未见过使用」）。
  */
 
-/** One prompt template, with its body kept only when replay can match it. */
+/** 一条提示词模板；body 仅在回放能精确匹配时保留。 */
 interface PromptEntry {
   name: string;
-  /** Trimmed template body, or undefined when `$` placeholders make it unstable. */
+  /** 裁剪后的模板正文；含 `$` 占位符导致不稳定时为 undefined。 */
   body?: string;
 }
 
@@ -30,13 +22,13 @@ export type PromptIndex = readonly PromptEntry[];
 
 export const EMPTY_PROMPT_INDEX: PromptIndex = [];
 
-/** Snapshot the loaded prompt templates; rebuild after a session swap or `/reload`. */
+/** 给已加载的提示词模板拍快照；会话替换或 `/reload` 后重建。 */
 export function buildPromptIndex(session: AgentSession): PromptIndex {
   try {
     return session.promptTemplates.map((template) => ({
       name: template.name,
-      // `$1`, `$ARGUMENTS`, `${@:2}`, ... are substituted at expansion time, so
-      // only placeholder-free bodies survive as an exact-match key.
+      // `$1`、`$ARGUMENTS`、`${@:2}` 等在展开时被替换，只有不含
+      // 占位符的正文才能当精确匹配的键存活下来。
       ...(template.content.includes("$") ? {} : { body: template.content.trim() }),
     }));
   } catch {
@@ -44,25 +36,24 @@ export function buildPromptIndex(session: AgentSession): PromptIndex {
   }
 }
 
-/** What a submitted `/` command invokes, resolved before the session rewrites it. */
+/** 一次 `/` 命令提交实际调用了什么，在会话改写它之前解析。 */
 export interface CommandInvocation {
-  /** Prompt template name, without the leading slash. */
+  /** 提示词模板名，不含前导斜杠。 */
   prompt?: string;
-  /** Absolute path of the extension providing the invoked command. */
+  /** 提供该命令的扩展的绝对路径。 */
   extension?: string;
   /**
-   * True when an extension command handles the text. Such a command runs
-   * immediately and sends no prompt, so the caller must not treat it as a
-   * queued/steering submission.
+   * 为真表示这是一条扩展命令。它立即执行、不发 prompt，
+   * 调用方不得把它当排队/steering 提交处理。
    */
   isExtensionCommand: boolean;
 }
 
 /**
- * Resolve a live submission against the session's own catalogues.
+ * 用会话自己的目录解析一次实时提交。
  *
- * Extension commands win over prompt templates, mirroring the order in
- * `AgentSession.prompt()` (commands are dispatched before templates expand).
+ * 扩展命令优先于提示词模板，与 `AgentSession.prompt()` 的顺序一致
+ * （命令先分发、模板后展开）。
  */
 export function resolveInvocation(session: AgentSession, text: string): CommandInvocation {
   if (!text.startsWith("/")) return { isExtensionCommand: false };
@@ -77,20 +68,20 @@ export function resolveInvocation(session: AgentSession, text: string): CommandI
       return { isExtensionCommand: true, ...(path ? { extension: path } : {}) };
     }
   } catch {
-    // Fall through: an unavailable runner just means no attribution.
+    // 落到下面：runner 不可用只是意味着不归因。
   }
 
   try {
     if (session.promptTemplates.some((template) => template.name === name)) return { prompt: name, isExtensionCommand: false };
   } catch {
-    // Same: attribution is best-effort.
+    // 同上：归因是尽力而为。
   }
   return { isExtensionCommand: false };
 }
 
 /**
- * Recover the template behind a stored user message, for the placeholder-free
- * bodies that are persisted verbatim. Returns undefined for everything else.
+ * 为已存盘的用户消息找回其模板，仅限逐字保留的无占位符正文；
+ * 其余一律返回 undefined。
  */
 export function expandedPrompt(index: PromptIndex, text: string): string | undefined {
   if (index.length === 0) return undefined;

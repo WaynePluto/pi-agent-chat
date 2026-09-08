@@ -19,7 +19,7 @@ const SENSITIVE_NAMES = new Set([
   ".env", ".env.local", ".npmrc", ".pypirc", "auth.json", "credentials.json", "id_dsa", "id_ed25519", "id_rsa",
 ]);
 
-/** Bulk vendor/build directories that are never searchable or referenceable. */
+/** 批量 vendor/构建目录：永不进入搜索与引用。 */
 const EXCLUDED_DIRS = new Set([
   ".git", "node_modules", "bower_components", "vendor", ".venv", "venv", "__pycache__",
   ".pnpm-store", ".yarn", ".gradle", ".tox", ".mypy_cache", ".pytest_cache", "target",
@@ -43,7 +43,7 @@ export interface ValidatedProjectFiles {
   sensitive: string[];
 }
 
-/** Project file and directory discovery for the webview's @ picker. */
+/** 为 webview 的 @ 选择器做项目文件与目录发现。 */
 export class ProjectFileIndex {
   private readonly cache = new Map<string, FileIndex>();
 
@@ -52,8 +52,8 @@ export class ProjectFileIndex {
   async search(cwd: string, query: string, includeIgnored: boolean, maxResults = 100): Promise<ProjectFileItem[]> {
     const index = await this.load(cwd);
     const regularPaths = new Set(index.regular.map((item) => item.path));
-    // Bulk directories (node_modules etc.) are never searchable, regardless of
-    // the "show ignored" toggle; git-tracked paths are already filtered too.
+    // 批量目录（node_modules 等）无论「显示忽略文件」开关如何都不可搜索；
+    // git 跟踪的路径也已过滤。
     const selected = includeIgnored
       ? [...index.regular, ...index.ignored.filter((item) => !regularPaths.has(item.path))]
       : index.regular;
@@ -67,7 +67,7 @@ export class ProjectFileIndex {
       .map(({ score: _score, ...item }) => item);
   }
 
-  /** Validate untrusted webview paths immediately before they enter the prompt. */
+  /** 在不可信的 webview 路径进 prompt 之前立刻校验。 */
   async validate(cwd: string, requested: readonly string[]): Promise<ValidatedProjectFiles> {
     const unique = [...new Set(requested.map(normalizeRelativePath).filter(Boolean))];
     if (unique.length > MAX_FILE_REFERENCES) {
@@ -109,9 +109,8 @@ export class ProjectFileIndex {
       const [regularFiles, ignoredFiles, deleted] = await Promise.all([
         gitFiles(cwd, ["ls-files", "--cached", "--others", "--exclude-standard", "-z"]),
         gitFiles(cwd, ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"]),
-        // An index entry can remain after its working-tree file was deleted or
-        // moved but before the user stages the change. Do not expose that stale
-        // path in the @ picker.
+        // 索引条目会在工作树文件被删除/移动之后、用户 stage 之前残留；
+        // 那个陈旧路径不得出现在 @ 选择器里。
         gitFiles(cwd, ["ls-files", "--deleted", "-z"]),
       ]);
       const deletedSet = new Set(deleted);
@@ -158,7 +157,7 @@ function addParentDirectories(items: Map<string, ProjectFileItem>, path: string)
   }
 }
 
-/** Non-git fallback: shallow recursive walk skipping the same excluded directories. */
+/** 非 git 兜底：浅层递归遍历，跳过同一批排除目录。 */
 async function walkProjectPaths(cwd: string): Promise<ProjectFileItem[]> {
   const results: ProjectFileItem[] = [];
   const queue: string[] = [""];
@@ -195,14 +194,14 @@ async function gitFiles(cwd: string, args: string[]): Promise<string[]> {
   return String(stdout)
     .split("\0")
     .map(normalizeRelativePath)
-    // Drop bulk vendor/build directories before truncating, so real project
-    // paths (e.g. a gitignored todo.md at the root) are never crowded out.
+    // 先丢批量 vendor/构建目录再截断，真实项目路径（如根下被
+    // gitignore 的 todo.md）才不会被挤掉。
     .filter((path) => Boolean(path) && !isExcludedPath(path))
     .slice(0, MAX_INDEX_ITEMS);
 }
 
 function normalizeRelativePath(path: string): string {
-  return path.trim().replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "");
+  return path.trim().replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "");  // 统一斜杠并剥掉 ./ 前缀与尾斜杠
 }
 
 function isSafeRelativePath(cwd: string, path: string): boolean {
@@ -236,7 +235,7 @@ function scorePath(path: string, query: string): number {
   if (candidate.startsWith(needle)) return 50;
   if (candidate.includes(needle)) return 30;
 
-  // Lightweight ordered-character fuzzy match for queries such as "sarm".
+  // 轻量保序字符模糊匹配，服务 "sarm" 这类查询。
   let position = 0;
   for (const char of needle) {
     position = candidate.indexOf(char, position);

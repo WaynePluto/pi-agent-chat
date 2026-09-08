@@ -1,55 +1,38 @@
 /**
- * Minimal VT replay: obey the cursor operations instead of deleting them.
+ * 迷你 VT 重放：遵从光标指令而不是剥离它们。范围刻意是「行编辑与简单
+ * 重绘」：shell 行编辑在退格、粘贴、方向键与历史回溯时重定位光标并
+ * 覆写字符，进度条靠回车重绘；全屏程序（vim、htop）需要真模拟器。
  *
- * Scope is deliberately "line editing and simple redraws", not a terminal
- * emulator. That is the noise a command-running tool actually meets: the
- * shell's line editor repositions the cursor and overwrites characters on
- * every backspace, paste, arrow key and history recall, and progress bars
- * redraw with carriage returns. Full-screen programs (vim, htop) are out of
- * scope — they need a real emulator with an alternate screen buffer, scroll
- * regions and a known width, and they are not what a transcript-centred tool
- * is for.
- *
- * Stripping escape sequences instead — the obvious alternative — is not an
- * option for text handed to a model: it *discards* the instructions that told
- * the terminal to overwrite characters, so whatever was overwritten survives
- * as phantom text. The spike measured exactly that (a single backspace turned
- * `pi-typed-qf8j0ggg` into `pi-typed-qf8j0ggg  ^V   g`), which is why this
- * module exists and why `scripts/check_terminal_replay.mjs` pins it: it is the
- * only part of the terminal tool with real logic, and it regresses silently.
+ * 剥离转义序列对交给模型的文本不可行：它丢弃了告诉终端覆写哪些字符的
+ * 指令，被覆写的内容以幻影文本幸存（spike 实测：一次退格就让
+ * `pi-typed-qf8j0ggg` 多出 `  ^V   g`），本模块因此存在并被
+ * `scripts/check_terminal_replay.mjs` 钉住。
  */
 
-/** A replayed screen: what the terminal would be showing, plus where the cursor is. */
+/** 一次重放出的屏幕：终端此刻会显示什么，以及光标在哪。 */
 export interface TerminalScreen {
-  /**
-   * Rendered rows, trailing whitespace removed, with leading and trailing
-   * blank rows dropped.
-   */
+  /** 渲染出的行，去尾随空白，首尾空行丢弃。 */
   lines: string[];
   /**
-   * Index into {@link lines} of the row the cursor ended on, or `lines.length`
-   * when it ended past the last rendered row.
+   * 光标最终停在 {@link lines} 中的行下标；停在最后一个渲染行之后时
+   * 为 `lines.length`。
    *
-   * This is the boundary incremental reads use. Rows *before* it are settled;
-   * the cursor row itself is still being drawn (a progress bar rewrites it on
-   * every update), so a reader must re-send that row each time rather than
-   * treat it as new content — otherwise a single `npm install` produces a
-   * fresh "line" per repaint, and detecting the repaint by "the line count
-   * shrank" would re-send the whole screen instead.
+   * 这是增量续读的边界。它之前的行已定；光标行本身仍在被画
+   * （进度条每次更新都重写它），读取方必须每次重发该行而不是当成新
+   * 内容——否则一次 `npm install` 每次重绘都产出一个新「行」，而靠
+   * 「行数变短了」识别重绘又会把整屏重发一遍。
    */
   cursorLine: number;
-  /** `lines.join("\n")`. */
+  /** 合并文本：`lines.join("\n")`。 */
   text: string;
 }
 
 /**
- * Replay `data` onto a sparse screen and return what it would show.
+ * 把 `data` 重放到稀疏屏幕上，返回它会显示的内容。
  *
- * The screen is a map of rows rather than a rectangle, so no terminal width
- * has to be assumed. The absolute origin is unknown because capture starts
- * mid-screen, so it is learned from the first absolute cursor move: line
- * editors emit one to the position they are already at, which makes that first
- * move a reliable anchor.
+ * 屏幕是行映射而非矩形，因此无需假设终端宽度。绝对原点未知（采集从
+ * 屏幕中途开始），由第一个绝对光标移动学得：行编辑器总会发一个到
+ * 自己已在位置的光标移动，那让它成为可靠的锚点。
  */
 export function replayTerminal(data: string): TerminalScreen {
   const rows = new Map<number, string[]>();
@@ -139,8 +122,8 @@ export function replayTerminal(data: string): TerminalScreen {
         break;
       }
       default:
-        // SGR (`m`), device status reports (`n`), mode changes and everything
-        // else alter no cell contents for our purposes.
+        // SGR（`m`）、设备状态回报（`n`）、模式变更等其余序列，
+        // 对我们的目的不改动任何单元格内容。
         break;
     }
   };
@@ -162,8 +145,8 @@ export function replayTerminal(data: string): TerminalScreen {
         continue;
       }
       if (next === "]") {
-        // OSC runs until BEL or String Terminator. This is also how VS Code's
-        // own shell integration markers (OSC 633) leave the transcript.
+        // OSC 直到 BEL 或 String Terminator 才结束。VS Code 自己的
+        // shell integration 标记（OSC 633）也是这样离开 transcript 的。
         let end = index + 2;
         while (end < data.length && data[end] !== "\u0007" && !(data[end] === "\u001B" && data[end + 1] === "\\")) {
           end += 1;
@@ -181,7 +164,7 @@ export function replayTerminal(data: string): TerminalScreen {
     else if (char === "\b") col = Math.max(0, col - 1);
     else if (char === "\t") col += 8 - (col % 8);
     else if (char >= " ") write(char);
-    // Remaining C0 controls (BEL and friends) move nothing and print nothing.
+    // 其余 C0 控制符（BEL 等）既不移动也不打印。
   }
 
   const keys = [...rows.keys()].sort((a, b) => a - b);
@@ -191,9 +174,8 @@ export function replayTerminal(data: string): TerminalScreen {
       .join("")
       .replace(/\s+$/, ""),
   );
-  // Where the cursor sits among the rendered rows: the number of rows above it.
-  // Rows are sparse, so a cursor on a row nothing was ever written to lands on
-  // the insertion point, which is the same answer.
+  // 光标落在渲染行中的位置：它上方的行数。行是稀疏的，光标停在一个
+  // 从未写过的行上时落在插入点，那是同一个答案。
   let cursorLine = keys.filter((key) => key < row).length;
 
   let leading = 0;
@@ -206,23 +188,22 @@ export function replayTerminal(data: string): TerminalScreen {
   return { lines, cursorLine, text: lines.join("\n") };
 }
 
-/** One replay expectation, checked by the spike and by `pnpm verify`. */
+/** 一条重放期望，由 spike 与 `pnpm verify` 检查。 */
 export interface ReplayCase {
   name: string;
   raw: string;
   expected: string;
-  /** Expected cursor row, where a case pins the incremental-read boundary. */
+  /** 期望的光标行，钉住增量续读边界的用例才填。 */
   expectedCursorLine?: number;
 }
 
 /**
- * Replay cases, checked with no terminal and no human so they still report
- * when everything else is skipped for want of shell integration.
+ * 重放用例：无终端、无人参与也照常检查，因此缺 shell integration
+ * 而跳过其余项目时它们仍在报告。
  *
- * The first is a real capture from a spike run in which the user pasted — so
- * the terminal echoed `^V`, erased it, and redrew the line. It records what
- * the problem actually looked like; the rest cover the other ways a terminal
- * overwrites what it already printed.
+ * 第一条是 spike 一次真实采集，用户在当中粘贴过——终端回显了 `^V`、
+ * 擦掉、再重画整行。它记录问题实际的样子；其余覆盖终端覆写既有输出
+ * 的其他方式。
  */
 export const REPLAY_CASES: readonly ReplayCase[] = [
   {
@@ -234,7 +215,7 @@ export const REPLAY_CASES: readonly ReplayCase[] = [
       "\u001b[14;47Hpi-typed-mtzuen\u001b[14;62H\u001b[14;62H\r\n" +
       "\u001b[6n\u001b[15;1HPIGOT:[pi-typed-mtzuen]\r\n",
     expected: "SPIKE: type pi-typed-mtzuen then press Enter: pi-typed-mtzuen\nPIGOT:[pi-typed-mtzuen]",
-    // Both rows are finished: the cursor ended on the row after the last one.
+    // 两行都已结束：光标停在最后一行的下一行。
     expectedCursorLine: 2,
   },
   { name: "backspace", raw: "abcX\b \bd", expected: "abcd", expectedCursorLine: 0 },
@@ -242,8 +223,8 @@ export const REPLAY_CASES: readonly ReplayCase[] = [
     name: "carriage-return progress bar",
     raw: "10%\r50%\r100% done",
     expected: "100% done",
-    // The redrawn row is where the cursor is, so an incremental reader keeps
-    // re-sending it instead of reporting each repaint as a new line.
+    // 被重绘的行就是光标所在行，增量读取因此不断重发它，
+    // 而不是把每次重绘当成新行上报。
     expectedCursorLine: 0,
   },
   { name: "erase in line", raw: "hello world\u001b[6D\u001b[K", expected: "hello" },
@@ -254,12 +235,12 @@ export const REPLAY_CASES: readonly ReplayCase[] = [
     name: "settled rows precede the cursor",
     raw: "first\r\nsecond\r\nthir",
     expected: "first\nsecond\nthir",
-    // Two settled rows, and a third still being typed into.
+    // 两行已定，第三行仍在输入中。
     expectedCursorLine: 2,
   },
 ];
 
-/** Run every case; returns the ones whose replay does not match. */
+/** 跑全部用例；返回重放不匹配的那些。 */
 export function findReplayFailures(): { testCase: ReplayCase; actual: TerminalScreen }[] {
   const failures: { testCase: ReplayCase; actual: TerminalScreen }[] = [];
   for (const testCase of REPLAY_CASES) {

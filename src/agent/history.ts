@@ -1,14 +1,12 @@
 /**
- * Persisted transcript → `ChatEvent`.
+ * 持久化 transcript → `ChatEvent`。
  *
- * A replay has to produce exactly the shapes the live stream produces, so the
- * webview keeps a single rendering path. Pure functions over session entries:
- * no VS Code API and no bridge state, which is what lets the diagnostics drive
- * them straight off a session file.
+ * 回放必须产出与实时流完全相同的形状，webview 才能只有一条渲染路径。
+ * 全是对会话条目的纯函数：无 VS Code API、无 bridge 状态，诊断命令因此
+ * 能直接拿会话文件驱动它们。
  *
- * `bubbleEntryIds` lives here on purpose — it must mirror the projection below
- * entry for entry (AGENTS.md red line), and the cheapest way to keep two
- * things in lockstep is to keep them in one file.
+ * `bubbleEntryIds` 刻意与投影同居一文件——它必须与下面的投影逐条对应
+ * （AGENTS.md 红线），让两件事保持同步最便宜的办法就是放在一起。
  */
 
 import { isAbsolute, resolve as resolvePath } from "node:path";
@@ -20,7 +18,7 @@ import { EMPTY_SKILL_INDEX, matchSkill, type SkillIndex } from "./skills.js";
 import { contentImages, contentText, readUserDisplay, userDisplayText } from "./session-title.js";
 import { sanitizeToolDetails } from "./tool-details.js";
 
-/** Extract plain text from an `AgentToolResult`-shaped value. */
+/** 从 `AgentToolResult` 形状的值中提取纯文本。 */
 export function resultText(result: unknown): string {
   const content = (result as { content?: Array<{ type?: string; text?: string }> } | undefined)?.content;
   if (!Array.isArray(content)) return "";
@@ -31,10 +29,9 @@ export function resultText(result: unknown): string {
 }
 
 /**
- * Replay the complete active branch rather than the compaction-aware model
- * context. Compaction entries become visible boundaries; their retainedTail is
- * deliberately not expanded because those messages already exist earlier in a
- * regular Pi session and would otherwise be duplicated.
+ * 回放完整活动分支而非压缩感知的模型上下文。压缩条目变成可见边界；
+ * 其 retainedTail 刻意不展开——那些消息在常规 Pi 会话里本来就在更早的
+ * 位置，展开只会重复一遍。
  */
 export function buildHistoryEntryEvents(
   entries: readonly SessionEntry[],
@@ -82,11 +79,10 @@ function appendHistoryMessage(
   if (message.role === "user") {
     const { text, skill } = readUserDisplay(message.content);
     const images = contentImages(message.content);
-    // Prompt templates leave no marker once expanded, so only placeholder-free
-    // bodies can be traced back to their `/command` here.
-    // An attachment-only message has no text left after the markup is stripped,
-    // but it is still a bubble the user sent: `bubbleEntryIds` applies the same
-    // rule, and the two projections must agree entry for entry.
+    // 提示词模板展开后不留标记，这里只有无占位符的正文能追回它的
+    // `/命令`。
+    // 只有附件的消息在剥掉标记后没有文本，但它仍是用户发出的一条气泡：
+    // `bubbleEntryIds` 用同一条规则，两个投影必须逐条对应。
     if (text.trim() || images.length > 0) {
       events.push({
         kind: "user_message",
@@ -135,9 +131,9 @@ function appendHistoryMessage(
 }
 
 /**
- * The text parts of an assistant message, exactly as the transcript bubble
- * shows them. Shared with `bubbleEntryIds` so the k-th id belongs to the k-th
- * bubble even when a message carries only thinking or only tool calls.
+ * assistant 消息的文本部分，与 transcript 气泡展示的完全一致。与
+ * `bubbleEntryIds` 共用，保证第 k 个 id 属于第 k 个气泡——即使某条消息
+ * 只带 thinking 或只有工具调用。
  */
 function assistantMessageText(content: unknown): string {
   const parts = Array.isArray(content) ? (content as Array<Record<string, unknown>>) : [];
@@ -148,14 +144,13 @@ function assistantMessageText(content: unknown): string {
 }
 
 /**
- * Session-entry ids of the message bubbles a transcript shows, per role and in
- * the same order.
+ * transcript 所示各角色消息气泡对应的 session-entry id，按角色分组、
+ * 保持原序。
  *
- * Mirrors the `role === "user"` / `role === "assistant"` branches of
- * `buildHistoryEntryEvents` (same projection and "skip empty text" rule) so the
- * k-th id belongs to the k-th bubble of that role. Compaction entries are
- * boundaries, not sources of retainedTail bubbles, and must therefore be
- * skipped here too. Exported for diagnostics.
+ * 与 `buildHistoryEntryEvents` 的 `role === "user"` / `role === "assistant"`
+ * 分支镜像（同一投影、同一「空文本跳过」规则），使第 k 个 id 属于该角色
+ * 的第 k 个气泡。压缩条目是边界、不是 retainedTail 气泡的来源，这里
+ * 同样要跳过。导出供诊断使用。
  */
 export function bubbleEntryIds(entries: readonly SessionEntry[]): { user: string[]; assistant: string[] } {
   const user: string[] = [];
@@ -166,9 +161,8 @@ export function bubbleEntryIds(entries: readonly SessionEntry[]): { user: string
       const message = raw as { role?: string; content?: unknown };
       if (message.role === "user") {
         const text = userDisplayText(message.content);
-        // Same "is there a bubble here?" rule as `appendHistoryMessage`: an
-        // image-only message shows a bubble with no text, and dropping it here
-        // would shift every later id by one.
+        // 与 `appendHistoryMessage` 同一条「这里有没有气泡」的规则：
+        // 纯图片消息显示无文本的气泡，这里漏掉会让之后所有 id 错一位。
         if (text.trim() || contentImages(message.content).length > 0) user.push(entry.id);
       } else if (message.role === "assistant") {
         if (assistantMessageText(message.content).trim()) assistant.push(entry.id);
@@ -178,7 +172,7 @@ export function bubbleEntryIds(entries: readonly SessionEntry[]): { user: string
   return { user, assistant };
 }
 
-/** The edit/write tools name their target file through the `path` argument. */
+/** edit/write 工具经 `path` 参数指名目标文件。 */
 export function toolFilePath(args: unknown, cwd: string): string | undefined {
   const path = (args as { path?: unknown } | undefined)?.path;
   if (typeof path !== "string" || !path.trim()) return undefined;

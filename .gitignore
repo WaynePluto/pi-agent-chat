@@ -12,7 +12,13 @@ npm-shrinkwrap.json
 .DS_Store
 *.log
 .pi-plan.md
+.agent-plan.md
 todo.md
+
+# refactor-review 过程产物：基线快照与交付报告不进版本库。
+baseline.json
+refactor-review-report.md
+__pycache__/
 
 # Throwaway workspace: screenshots, one-off probe extensions and their
 # user-data dirs. Nothing here is an input to the build or the docs.

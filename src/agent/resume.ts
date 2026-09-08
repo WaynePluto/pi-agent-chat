@@ -1,38 +1,17 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 
 /**
- * Re-run the request an interrupted turn died on, without putting words in the
- * user's mouth.
+ * 重发被打断的那一轮请求，不替用户编造任何话。自动重试放弃后
+ * transcript 停在一条从未到达的响应上；继续的办法曾是打一句「继续」
+ * ——那条消息与任务无关却进了上下文。resume 原样重发同一请求。
  *
- * When automatic retry gives up ("retry failed: Connection error."), the turn
- * is over but the work is not: the transcript ends on a response that never
- * arrived. The only way to carry on used to be typing "continue", which leaves
- * a user message in the transcript *and* in the model context that says nothing
- * about the task. Resuming re-issues the same request instead: no new message
- * is appended, so the conversation reads exactly as if the connection had held.
- *
- * SDK-MIRROR: `core/agent-session.ts`. The SDK has no public "resume" entry
- * point, so this reproduces the two steps its own auto-retry takes between two
- * attempts (`_prepareRetry` + the `_runAgentPrompt` loop):
- *
- * 1. Drop the failed response from *agent state* (it stays in the session file,
- *    exactly as the SDK leaves it). Providers reject a transcript that ends on
- *    an empty assistant message, and `agent.continue()` refuses it outright.
- * 2. Run the agent loop through the session's own prompt path with an empty
- *    message batch, which is a continuation from the current transcript.
- *
- * Step 2 deliberately goes through `_runAgentPrompt` rather than the public
- * `session.agent.continue()`: the loop around it is what marks the session as
- * streaming, applies automatic retry and compaction to this attempt, and emits
- * `agent_settled`. Calling the agent directly would run the request but leave
- * the UI waiting for a settle event that never comes.
- *
- * Because that entry point is private, its presence is feature-detected: if a
- * future SDK renames it, `supportsResume()` returns false, the retry action is
- * never offered, and nothing else changes.
+ * SDK-MIRROR: `core/agent-session.ts`，复刻自动重试的两步：只从 agent
+ * state 丢失败响应（会话文件保留——供应商拒绝空 assistant 结尾）；
+ * 以空批走私有 `_runAgentPrompt`——外层循环管 streaming、重试、压缩与
+ * settle，直调 agent 则 UI 永远等不到 settle。
  */
 
-/** The private prompt path described above. */
+/** 上述私有 prompt 路径的形状。 */
 interface SessionRunner {
   _runAgentPrompt(messages: unknown[]): Promise<void>;
 }
@@ -42,23 +21,19 @@ function runner(session: AgentSession): SessionRunner["_runAgentPrompt"] | undef
   return typeof candidate === "function" ? candidate : undefined;
 }
 
-/** Whether this host can resume a failed turn at all (SDK mechanism present). */
+/** 本宿主能否 resume 一轮失败的会话（SDK 机制是否存在）。 */
 export function supportsResume(session: AgentSession): boolean {
   return runner(session) !== undefined;
 }
 
 /**
- * Whether the active branch ends on a turn that was sent but never completed.
+ * 活动分支是否停在「已发出但从未完成」的一轮上。
  *
- * The persisted active branch is the fact the user sees. It deliberately does
- * not always equal `agent.state.messages`: Pi removes an assistant error from
- * agent state before an automatic retry but keeps it in the session history,
- * and a request that throws before producing an assistant response can leave a
- * user/tool-result as the branch tail while the host reports the exception as
- * an error card. Both are resumable with the same empty-batch prompt path.
- *
- * A completed/aborted assistant response is never a candidate: re-running it
- * would silently discard an answer (or undo the user's explicit stop).
+ * 持久化分支刻意不总等于 `agent.state.messages`：Pi 自动重试前会把
+ * assistant 错误从 agent state 移除但留在会话历史；请求在产出 assistant
+ * 响应前抛错时，分支尾巴可能是 user/toolResult。两者都能用同一空批
+ * prompt 路径 resume。正常结束或被中止的响应绝不做候选——重发它会
+ * 悄悄丢掉答案（或撤销用户明确的停止）。
  */
 export function isResumable(session: AgentSession): boolean {
   if (session.isStreaming || session.isCompacting) return false;
@@ -73,17 +48,16 @@ export function isResumable(session: AgentSession): boolean {
 }
 
 /**
- * Re-issue the interrupted turn. Resolves when the resumed run has settled;
- * returns false when the session has meanwhile moved past the failure.
+ * 重发被打断的那一轮。等 resume 的运行 settle 后 resolve；
+ * 会话若已越过那次失败则返回 false。
  */
 export async function resumeAfterError(session: AgentSession): Promise<boolean> {
   const run = runner(session);
   if (!run || !isResumable(session)) return false;
   const messages = session.agent.state.messages;
   const last = messages[messages.length - 1];
-  // The provider cannot continue from an empty failed assistant response. Pi's
-  // automatic retry may already have removed it, or a thrown request may have
-  // produced none; only drop it when it is actually the agent-state tail.
+  // 供应商无法从空的失败 assistant 响应继续。Pi 的自动重试可能已经把它
+  // 移除，或抛错的请求根本没产出；只有它确实是 agent state 尾巴时才丢。
   if (last?.role === "assistant" && last.stopReason === "error") {
     session.agent.state.messages = messages.slice(0, -1);
   }

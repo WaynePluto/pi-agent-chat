@@ -6,7 +6,7 @@ import { configuredProviderIds, deleteConfiguredProvider, openModelsConfig } fro
 import { t, tf } from "./i18n.js";
 import type { PiRuntime } from "./runtime.js";
 
-/** Thrown when the user dismisses a login dialog; callers treat it as a no-op. */
+/** 用户取消登录对话框时抛出；调用方按无操作处理。 */
 class LoginCancelledError extends Error {
   constructor() {
     super("login cancelled");
@@ -17,35 +17,35 @@ interface LoginOption {
   id: string;
   name: string;
   authType: AuthType;
-  /** False for ambient-only api-key providers (env vars / config files). */
+  /** 仅环境凭据型（环境变量/配置文件）的 api-key 供应商为 false。 */
   hasLogin: boolean;
   loginLabel?: string;
-  /** Human label when auth is already configured ("OAuth", "ANTHROPIC_API_KEY"...). */
+  /** 已配置认证时的人类可读标签（"OAuth"、"ANTHROPIC_API_KEY"……）。 */
   configured?: string;
-  /** Whether the configured auth is covered by a paid subscription plan. */
+  /** 已配置的认证是否被付费订阅计划覆盖。 */
   subscription?: boolean;
 }
 
 /**
- * Port of the CLI's `/login` flow onto native VS Code dialogs.
+ * CLI `/login` 流程到原生 VS Code 对话框的移植。
  *
- * One QuickPick lists every provider/auth-type combination (OAuth and API
- * key as separate rows, like `OAuthSelectorComponent`), then the SDK's
- * `ModelRuntime.login()` drives the interaction through `AuthInteraction`.
+ * 一个 QuickPick 列出全部供应商/认证类型组合（OAuth 与 API key 各占
+ * 一行，同 `OAuthSelectorComponent`），再由 SDK 的
+ * `ModelRuntime.login()` 经 `AuthInteraction` 驱动交互。
  *
- * Returns true when a credential was stored.
+ * 存下了凭据返回 true。
  */
 export async function loginFlow(runtime: PiRuntime, log: (message: string) => void): Promise<boolean> {
   const modelRuntime = runtime.modelRuntime;
-  // Make sure availability/status labels are fresh before listing.
+  // 列出前先刷新可用性与状态标签。
   await modelRuntime.getAvailable(undefined, { signal: runtime.signal });
 
   const options: LoginOption[] = [];
   for (const provider of modelRuntime.getProviders()) {
     const status = modelRuntime.getProviderAuthStatus(provider.id);
     const configured = status.configured ? (status.label ?? status.source ?? "configured") : undefined;
-    // Only meaningful once the provider is authenticated: it describes how the
-    // *stored* credential is billed, not what a future login would grant.
+    // 只在已认证时有意义：它描述的是*已存储*凭据如何计费，
+    // 不是未来登录会得到什么。
     const subscription = Boolean(configured) && runtime.isSubscriptionProvider(provider.id);
     if (provider.auth.oauth) {
       options.push({
@@ -76,9 +76,9 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
   }
 
   type ProviderItem = vscode.QuickPickItem & { option?: LoginOption; custom?: boolean };
-  // Providers pi does not know about are configured in models.json, not by
-  // logging in. This row is the only pointer users have to that file, so it
-  // leads the list instead of trailing a long provider catalogue.
+  // pi 不认识的供应商在 models.json 里配置，而不是靠登录。这一行是用户
+  // 指向该文件的唯一线索，因此排在列表最前，而不是缀在长长的供应商
+  // 目录后面。
   const fromModelsConfig = await configuredProviderIds();
   const items: ProviderItem[] = [
     { label: t("customProviderLabel"), detail: t("customProviderDetail"), custom: true },
@@ -89,8 +89,8 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
       detail: option.configured
         ? tf("configuredDetail", option.subscription ? `${option.configured} · ${t("subscriptionLabel")}` : option.configured)
         : undefined,
-      // Only entries models.json defines can be removed from it, and the row
-      // action sits where that provider is listed — like the model picker's.
+      // 只有 models.json 定义的条目才能从它删除，行内按钮就放在该供应
+      // 商被列出的地方——与模型选择器一致。
       buttons: fromModelsConfig.has(option.id) ? [getDeleteProviderButton()] : undefined,
       option,
     })),
@@ -106,8 +106,8 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
   const picked = await new Promise<ProviderItem | undefined>((resolve) => {
     quickPick.onDidTriggerItemButton((event) => {
       deleteTarget = event.item.option?.id;
-      // Close first: the confirmation is modal and would dismiss the picker
-      // anyway, which would leave the flow guessing whether it was cancelled.
+      // 先关掉：确认框是模态的、反正会把 picker 顶掉，不先关的话
+      // 流程分不清它是被取消还是被确认。
       quickPick.hide();
     });
     quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0]));
@@ -119,7 +119,7 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
   if (!picked) return false;
   if (picked.custom) {
     await openModelsConfig();
-    // No credential was stored; the file watcher reloads models.json on save.
+    // 没有存凭据；保存时文件监听会重载 models.json。
     return false;
   }
   const option = picked.option;
@@ -138,8 +138,8 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
     return true;
   } catch (error) {
     if (error instanceof LoginCancelledError) return false;
-    // The credential was stored; only the local snapshot refresh failed. Treat
-    // it as a partial success so the UI still re-reads the model list.
+    // 凭据已存下，只是本地快照刷新失败。按部分成功处理，
+    // UI 仍会重读模型列表。
     if (error instanceof CredentialSynchronizationError) {
       log(`login stored but snapshot sync failed: ${describe(error)}`);
       vscode.window.showWarningMessage(tf("credentialSyncFailed", option.name, describe(error)));
@@ -153,8 +153,8 @@ export async function loginFlow(runtime: PiRuntime, log: (message: string) => vo
 }
 
 /**
- * Row action that removes a provider from models.json. Built lazily: the
- * headless smoke test loads this module without a real `vscode` runtime.
+ * 从 models.json 删除供应商的行内按钮。惰性构建：无头冒烟测试加载本
+ * 模块时没有真的 `vscode` 运行时。
  */
 let deleteProviderButton: vscode.QuickInputButton | undefined;
 function getDeleteProviderButton(): vscode.QuickInputButton {
@@ -163,11 +163,10 @@ function getDeleteProviderButton(): vscode.QuickInputButton {
 }
 
 /**
- * Confirm and remove one models.json provider entry.
+ * 确认并删除一条 models.json 供应商条目。
  *
- * Returns true when the file changed. Saving it also makes the bridge reload
- * the configuration; the caller's refresh keeps the composer in sync without
- * waiting for that round trip.
+ * 文件有变时返回 true。保存同时会让 bridge 重载配置；调用方的 refresh
+ * 让 composer 不等那一圈往返就同步。
  */
 async function confirmDeleteProvider(providerId: string, log: (message: string) => void): Promise<boolean> {
   const confirm = t("deleteCustomProviderAction");
@@ -191,8 +190,8 @@ async function confirmDeleteProvider(providerId: string, log: (message: string) 
 }
 
 /**
- * Port of the CLI's `/logout`: remove one credential stored by `/login`.
- * Environment variables and models.json config are unaffected.
+ * CLI `/logout` 的移植：删除一条 `/login` 存下的凭据。环境变量与
+ * models.json 配置不受影响。
  */
 export async function logoutFlow(runtime: PiRuntime, log: (message: string) => void): Promise<boolean> {
   const modelRuntime = runtime.modelRuntime;
@@ -217,7 +216,7 @@ export async function logoutFlow(runtime: PiRuntime, log: (message: string) => v
     await modelRuntime.logout(picked.providerId, { signal: runtime.signal });
     reportRefreshErrors(await modelRuntime.refresh(), runtime, log);
   } catch (error) {
-    // Same partial success as login: the credential itself is already gone.
+    // 与登录同样的部分成功：凭据本身已经删掉了。
     if (!(error instanceof CredentialSynchronizationError)) throw error;
     log(`logout applied but snapshot sync failed: ${describe(error)}`);
     vscode.window.showWarningMessage(tf("credentialSyncFailed", picked.label, describe(error)));
@@ -229,10 +228,10 @@ export async function logoutFlow(runtime: PiRuntime, log: (message: string) => v
 }
 
 /**
- * Surface per-provider catalogue refresh failures.
+ * 呈报按供应商的目录刷新失败。
  *
- * `refresh()` resolves even when individual providers fail, so without this a
- * login or logout would silently leave the model list stale.
+ * 单个供应商失败时 `refresh()` 照样 resolve，不处理的话一次登录/登出会
+ * 静默留下过期的模型列表。
  */
 function reportRefreshErrors(result: ModelsRefreshResult, runtime: PiRuntime, log: (message: string) => void): void {
   if (result.aborted || result.errors.size === 0) return;
@@ -243,12 +242,11 @@ function reportRefreshErrors(result: ModelsRefreshResult, runtime: PiRuntime, lo
 }
 
 /**
- * Maps `AuthInteraction` onto VS Code dialogs.
+ * 把 `AuthInteraction` 映射到 VS Code 对话框。
  *
- * `createInputBox`/`createQuickPick` are used instead of the `show*`
- * one-shots so a prompt can be cancelled programmatically via
- * `AuthPrompt.signal` (e.g. a manual-code prompt raced against the OAuth
- * callback server).
+ * 用 `createInputBox`/`createQuickPick` 而非一次性的 `show*`，prompt 才能经
+ * `AuthPrompt.signal` 被程序化取消（如手工输码的 prompt 与 OAuth 回调
+ * 服务器赛跑）。
  */
 function createAuthInteraction(): AuthInteraction {
   return {
@@ -264,9 +262,8 @@ function createAuthInteraction(): AuthInteraction {
           break;
         case "device_code": {
           void vscode.env.clipboard.writeText(event.userCode);
-          // Must stay visible while the user completes the flow in the browser:
-          // toasts auto-dismiss, so use a modal dialog. Login polling continues
-          // in the background because this promise is not awaited.
+          // 必须在用户于浏览器完成流程期间保持可见：toast 会自动消失，
+          // 故用模态对话框。登录轮询在后台继续，本 promise 未被等待。
           const open = t("deviceOpenPage");
           const copy = t("deviceCopyOnly");
           void vscode.window
@@ -283,7 +280,7 @@ function createAuthInteraction(): AuthInteraction {
               void vscode.env.clipboard.writeText(event.userCode);
               if (answer === open) void vscode.env.openExternal(vscode.Uri.parse(event.verificationUri));
             });
-          // Also keep the code visible in the status bar as a fallback.
+          // 状态栏再留一份代码作为兜底。
           vscode.window.setStatusBarMessage(tf("deviceCodeStatusBar", event.userCode), 300_000);
           break;
         }

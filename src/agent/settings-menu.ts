@@ -9,30 +9,30 @@ import { pluginSettingId } from "./config.js";
 import { t, tf } from "./i18n.js";
 
 /**
- * The header "Settings" menu: a QuickPick over Pi settings that make sense in
- * the sidebar. Everything writes through the SDK's SettingsManager into
- * `~/.pi/agent/settings.json`, so changes are shared with the pi CLI.
+ * header 的「设置」菜单：把在侧边栏说得通的 Pi 设置放进一个 QuickPick。
+ * 一切都经 SDK 的 SettingsManager 写入 `~/.pi/agent/settings.json`，
+ * 修改与 pi CLI 共享。
  *
- * Terminal-only display settings (theme, image rendering, paddings, cursor,
- * startup verbosity) are deliberately not offered here.
+ * 终端专属的显示设置（主题、图片渲染、边距、光标、启动啰嗦度）刻意
+ * 不在这里提供。
  */
 
 export interface SettingsMenuUi {
   login(): Promise<void>;
   status(text: string): void;
-  /** Rejections and validation failures, in the transcript like `status`. */
+  /** 拒绝与校验失败，同 `status` 一样进 transcript。 */
   error(text: string): void;
-  /** Show the built-in command directory (the /help text). */
+  /** 展示内置命令目录（/help 文本）。 */
   help(): void;
-  /** Maintain the frequently used model list (`/scoped-models`). */
+  /** 维护常用模型列表（`/scoped-models`）。 */
   manageScopedModels(): Promise<void>;
-  /** Re-fetch every provider's model catalogue from the network. */
+  /** 从网络重新拉取每个供应商的模型目录。 */
   refreshModels(): Promise<void>;
-  /** The slash command catalogue changed (e.g. skill commands toggled). */
+  /** 斜杠命令目录变了（如技能命令开关切换）。 */
   commandsChanged?(): void;
 }
 
-/** One selectable value of an enum-ish setting. */
+/** 枚举型设置的一个可选值。 */
 interface SettingChoice {
   value: string;
   label: string;
@@ -40,8 +40,8 @@ interface SettingChoice {
 }
 
 /**
- * A settings entry backed by a `SettingsManager` getter/setter pair.
- * Booleans are modelled as two-choice enums so one submenu serves all.
+ * 由 `SettingsManager` getter/setter 对支撑的设置项。布尔也建成
+ * 二选一枚举，一个子菜单就够全部设置用。
  */
 interface SettingDescriptor {
   id: string;
@@ -50,9 +50,9 @@ interface SettingDescriptor {
   choices: SettingChoice[];
   get(runtime: PiRuntime): string;
   set(runtime: PiRuntime, value: string): void;
-  /** Slash command autocomplete must be re-posted after this changes. */
+  /** 此项变更后需重发斜杠命令自动补全。 */
   affectsCommands?: boolean;
-  /** Side effect to run once the new value has been persisted. */
+  /** 新值持久化后要跑一次的副作用。 */
   apply?(runtime: PiRuntime): void;
 }
 
@@ -68,7 +68,7 @@ const QUEUE_MODES: SettingChoice[] = [
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
-/** SDK-MIRROR: `HTTP_IDLE_TIMEOUT_CHOICES` in `core/http-dispatcher.ts`. */
+/** SDK-MIRROR: `core/http-dispatcher.ts` 的 `HTTP_IDLE_TIMEOUT_CHOICES`。 */
 const HTTP_IDLE_TIMEOUTS: SettingChoice[] = [
   { value: "30000", label: "30 sec" },
   { value: "60000", label: "1 min" },
@@ -78,8 +78,7 @@ const HTTP_IDLE_TIMEOUTS: SettingChoice[] = [
 ];
 
 /**
- * The offered settings. Labels/details resolve through `t()` lazily so the
- * table itself stays declarative.
+ * 提供的设置项。标签/详情经 `t()` 惰性解析，表本身保持声明式。
  */
 function settingDescriptors(): SettingDescriptor[] {
   const bool = (get: (r: PiRuntime) => boolean, set: (r: PiRuntime, v: boolean) => void) => ({
@@ -94,7 +93,7 @@ function settingDescriptors(): SettingDescriptor[] {
       detail: t("settingAutoCompactDetail"),
       ...bool(
         (r) => r.settingsManager.getCompactionEnabled(),
-        // Persists through the session so the running agent also picks it up.
+        // 经会话持久化，运行中的 agent 也能拿到。
         (r, v) => r.session.setAutoCompactionEnabled(v),
       ),
     },
@@ -168,8 +167,8 @@ function settingDescriptors(): SettingDescriptor[] {
       choices: HTTP_IDLE_TIMEOUTS,
       get: (r) => String(r.settingsManager.getHttpIdleTimeoutMs()),
       set: (r, v) => r.settingsManager.setHttpIdleTimeoutMs(Number(v)),
-      // The dispatcher captures the timeout at construction, so rebuild it
-      // the way the CLI's settings selector does.
+      // dispatcher 在构造时捕获超时值，因此按 CLI 设置选择器的方式
+      // 重建它。
       apply: (r) => configureHttpDispatcher(r.settingsManager.getHttpIdleTimeoutMs()),
     },
     {
@@ -208,7 +207,7 @@ function choiceLabel(descriptor: SettingDescriptor, value: string): string {
 
 export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): Promise<void> {
   type Item = vscode.QuickPickItem & { id: string; descriptor?: SettingDescriptor };
-  // Loop so several settings can be changed in one visit, like the CLI list.
+  // 循环，一次进菜单能连改几项，同 CLI 的列表。
   for (;;) {
     const descriptors = settingDescriptors();
     const items: Item[] = [
@@ -241,12 +240,10 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
     if (picked.id === "scopedModels") return void (await ui.manageScopedModels());
     if (picked.id === "defaultTools") return void (await manageDefaultTools(runtime, ui));
     if (picked.id === "shellPath") return void (await pickShellPath(runtime, ui));
-    // Plugin-only switches (subagent, transcript folding, …) are this host's
-    // own VS Code settings, so the Settings editor is where they belong: it
-    // already renders their descriptions, the workspace/user tabs and the
-    // "modified elsewhere" markers that a QuickPick form can only re-implement
-    // badly. Return rather than redraw — this menu would cover what the user
-    // just asked to see.
+    // 插件专属开关（子代理、transcript 折叠……）是本宿主自己的
+    // VS Code 设置，归属地是设置界面：它本来就渲染描述、用户/工作区
+    // 页签和「在别处已修改」标记，QuickPick 表单只能拙劣地复刻。
+    // 返回而不是重画——这个菜单会盖住用户刚要看的东西。
     if (picked.id === "pluginSettings") {
       await vscode.commands.executeCommand("workbench.action.openSettings", pluginSettingId());
       return;
@@ -257,7 +254,7 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
   }
 }
 
-/** Submenu for one setting: pick a value, persist it, report to transcript. */
+/** 单个设置的子菜单：选值、持久化、向 transcript 汇报。 */
 async function editSetting(runtime: PiRuntime, ui: SettingsMenuUi, descriptor: SettingDescriptor): Promise<void> {
   const current = descriptor.get(runtime);
   const picked = await vscode.window.showQuickPick(
@@ -277,9 +274,9 @@ async function editSetting(runtime: PiRuntime, ui: SettingsMenuUi, descriptor: S
 }
 
 /**
- * The built-in tools a fresh session starts with — the SDK's fixed set
- * (`defaultActiveToolNames` in `core/sdk.ts`). Extension and SDK custom tools
- * are not listed: `defaultTools` never gates them.
+ * 新会话起步时的内置工具——SDK 的固定集合（`core/sdk.ts` 的
+ * `defaultActiveToolNames`）。扩展与 SDK 自定义工具不在列：
+ * `defaultTools` 从不门控它们。
  */
 const BUILTIN_TOOLS = ["read", "bash", "edit", "write"] as const;
 
@@ -291,15 +288,15 @@ const TOOL_DESCRIPTIONS: Record<(typeof BUILTIN_TOOLS)[number], keyof typeof imp
 };
 
 /**
- * Menu-row summary of the effective `defaultTools`, marking a workspace
- * override (the marker is what tells the two scopes apart at a glance).
+ * 生效 `defaultTools` 的菜单行摘要，标出工作区覆盖（这个标记让人一眼
+ * 分清两个作用域）。
  */
 function defaultToolsSummary(runtime: PiRuntime): string {
   const summary = toolSetSummary(runtime.settingsManager.getDefaultTools());
   return runtime.settingsManager.getProjectSettings().defaultTools ? `${summary} (${t("defaultToolsWorkspace")})` : summary;
 }
 
-/** One-line summary of one scope's explicit value (`undefined` = all, default). */
+/** 某作用域显式值的单行摘要（`undefined` = 全部，即默认）。 */
 function toolSetSummary(tools: string[] | undefined): string {
   if (tools === undefined) return t("defaultToolsAll");
   if (tools.length === 0) return t("defaultToolsNone");
@@ -307,29 +304,14 @@ function toolSetSummary(tools: string[] | undefined): string {
 }
 
 /**
- * `defaultTools` multi-select, in the spirit of `/scoped-models`.
+ * `defaultTools` 多选，精神同 `/scoped-models`。两个作用域：用户写
+ * `~/.pi/agent/settings.json`，工作区写 `<cwd>/.pi/settings.json` 并覆盖
+ * 前者——SDK 把项目深合并到全局之上，CLI 读同样的两个文件，不漂移。
  *
- * The setting is shared with the pi CLI and has two scopes: the user scope
- * writes `~/.pi/agent/settings.json`, the workspace scope writes
- * `<cwd>/.pi/settings.json` and overrides it there — the SDK's
- * SettingsManager deep-merges project over global, and the CLI reads the same
- * two files, so neither host drifts.
- *
- * The SDK reads the setting when a session is constructed but offers no
- * setter (the CLI leaves it to hand edits of settings.json), so the picked
- * value is written the same way a hand edit would be — jsonc `modify()` +
- * WorkspaceEdit keeps comments and an open editor in sync — followed by
- * `settingsManager.reload()` so the running host agrees with the file.
- * Running sessions keep the tools they were built with; the new set takes
- * effect on the next session construction.
- *
- * Scope-specific save semantics:
- * - User: checking all four restores the default, so the key is removed;
- *   checking none is a real configuration (no built-in tools) and writes `[]`.
- * - Workspace: the explicit list is always written — even all four, so a
- *   workspace can pin its tools against later user-scope changes. Removing
- *   the override is its own "reset" entry: the key is deleted and the
- *   workspace follows the user setting again.
+ * SDK 只在会话构造时读它、没有 setter，选中值按手改路径写入（jsonc
+ * `modify()` + WorkspaceEdit，保注释与已打开编辑器）再 `reload()`；
+ * 运行中的会话保留原工具集。用户勾满四个删键恢复默认、一个不勾写
+ * `[]`；工作区始终写显式列表以便钉住，撤销覆盖走「重置」项。
  */
 async function manageDefaultTools(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "status">): Promise<void> {
   const settings = runtime.settingsManager;
@@ -386,8 +368,8 @@ async function manageDefaultTools(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "
       new Set(projectTools ?? inherited),
     );
     if (!selected) return;
-    // With no existing override, picking exactly the inherited set would
-    // create an override that changes nothing — skip the write.
+    // 尚无覆盖时，选出的恰是继承集合会创建一个什么也不改的覆盖——
+    // 跳过写入。
     if (!projectTools && selected.length === inherited.size && selected.every((tool) => inherited.has(tool))) {
       ui.status(tf("defaultToolsSaved", defaultToolsSummary(runtime)));
       return;
@@ -403,7 +385,7 @@ async function manageDefaultTools(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "
   );
 }
 
-/** The `defaultTools` checkbox multi-select shared by both scopes. */
+/** 两个作用域共用的 `defaultTools` 复选框多选。 */
 async function pickToolSet(
   title: string,
   placeHolder: string,
@@ -423,39 +405,38 @@ async function pickToolSet(
 }
 
 /**
- * Write `defaultTools` into a settings.json (`undefined` removes the key).
- * Returns false when the file cannot be edited — e.g. it is broken JSON, in
- * which case the "Open settings file" menu entry is the fix.
+ * 把 `defaultTools` 写进某个 settings.json（`undefined` 删键）。文件改
+ * 不了时返回 false——比如它是坏 JSON，那时「打开设置文件」菜单项才是
+ * 正解。
  */
 async function persistDefaultTools(path: string, tools: string[] | undefined): Promise<boolean> {
   try {
     await fs.access(path);
   } catch {
-    // First write to this file: seed an empty object the way the CLI creates
-    // its settings files lazily. The workspace variant may still lack its
-    // `<cwd>/.pi` directory.
+    // 首次写该文件：按 CLI 惰性创建其设置文件的方式种一个空对象。
+    // 工作区那份可能连 `<cwd>/.pi` 目录都还没有。
     await fs.mkdir(dirname(path), { recursive: true }).catch(() => {});
     await fs.writeFile(path, "{}\n", { flag: "wx" }).catch(() => {});
   }
-  // "unchanged" counts as success: the file already says what was picked (e.g.
-  // removing a key that was never set) — nothing to persist, nothing failed.
+  // "unchanged" 算成功：文件已经是要选的内容（如删除从未设过的键）——
+  // 没有要持久化的，也没有失败。
   return (await writeJsoncValue(path, ["defaultTools"], tools)) !== "failed";
 }
 
-/** Open the shared `~/.pi/agent/settings.json` in an editor tab. */
+/** 在编辑器标签页打开共享的 `~/.pi/agent/settings.json`。 */
 async function openSettingsFile(): Promise<void> {
   const path = join(getAgentDir(), "settings.json");
   try {
     await fs.access(path);
   } catch {
-    // First run: the CLI creates the file lazily; create an empty object so
-    // the editor does not open a phantom untitled file.
+    // 首次运行：CLI 惰性创建该文件；这里先建一个空对象，编辑器就不会
+    // 打开幽灵未命名文件。
     await fs.writeFile(path, "{}\n", { flag: "wx" }).catch(() => {});
   }
   await vscode.window.showTextDocument(vscode.Uri.file(path));
 }
 
-/** Candidate shells probed on this machine; only existing ones are offered. */
+/** 本机上探测的候选 shell；只提供确实存在的那些。 */
 const WINDOWS_SHELLS: Array<{ label: string; paths: string[] }> = [
   {
     label: "PowerShell 7 (pwsh)",
@@ -489,15 +470,15 @@ async function firstExisting(paths: string[]): Promise<string | undefined> {
       await fs.access(candidate);
       return candidate;
     } catch {
-      /* keep looking */
+      /* 继续找 */
     }
   }
   return undefined;
 }
 
 /**
- * Configure `shellPath`: a QuickPick listing detected shells plus manual entry
- * and reset-to-default. Reached from the settings menu.
+ * 配置 `shellPath`：一个 QuickPick，列出探测到的 shell，外加手动输入与
+ * 恢复默认。从设置菜单进入。
  */
 async function pickShellPath(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "status" | "error">): Promise<void> {
   const settings = runtime.session.settingsManager;

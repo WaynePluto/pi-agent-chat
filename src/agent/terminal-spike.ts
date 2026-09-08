@@ -3,27 +3,14 @@ import type { DiagnosticResult } from "./diagnostics.js";
 import { findReplayFailures, replayTerminal, REPLAY_CASES } from "./terminal-replay.js";
 
 /**
- * Spike for the proposed `terminal` tool (VS Code integrated terminal as a
- * command-execution surface the user can type into).
+ * 提案中 `terminal` 工具的真机探针（VS Code 集成终端作为用户可键入的
+ * 命令执行表面）。刻意不进 `runSpikeDiagnostics()`：那套无头对着桩掉的
+ * `vscode` 模块跑，而这里需要真窗口、真 shell、键盘前的真人。
  *
- * This is deliberately *not* part of `runSpikeDiagnostics()`: that set runs
- * headless in `scripts/smoke_load.mjs` against a stubbed `vscode` module, and
- * everything here needs a real window, a real shell, and — for the probe that
- * actually decides the design — a human at the keyboard.
- *
- * Three questions decide whether the tool is buildable at all:
- *
- *   1. Does `Terminal.shellIntegration` activate, and how long does it take?
- *      Without it there is no way to read output back, and a tool that runs
- *      commands but returns nothing reproduces exactly the failure mode the
- *      extension-side `subagent` is shadowed for (exit 0 + empty output).
- *   2. Does `TerminalShellExecution.read()` include text the *user* typed?
- *      The whole premise is "user answers the prompt directly"; if their
- *      keystrokes never reach the stream, the agent cannot know what happened.
- *   3. Is `exitCode` actually reported?
- *
- * Everything else measured here (stream noise, streaming latency) feeds the
- * cost side of the decision rather than the go/no-go.
+ * 三个 go/no-go 问题：① `shellIntegration` 会不会激活、要多久——没有
+ * 它就读不回输出，只会重现扩展式 `subagent` 的 exit 0 + 空输出；
+ * ② `read()` 会不会包含用户敲的字——击键不进流，agent 就无从知道发生
+ * 了什么；③ `exitCode` 到底报不报。其余测量项供决策的成本侧。
  */
 
 const ACTIVATION_TIMEOUT_MS = 10_000;
@@ -32,17 +19,16 @@ const COMMAND_TIMEOUT_MS = 15_000;
 const INTERACTIVE_TIMEOUT_MS = 90_000;
 
 /**
- * Command syntax families. Kept coarser than `TerminalState.shell` because the
- * only thing the probes need is which dialect to emit — but `unsupported` is a
- * distinct outcome from `unknown`: the former is a definitive "do not run
- * anything here", the latter is "guess and report low confidence".
+ * 命令语法的家族。比 `TerminalState.shell` 更粗，探针只需要知道该说
+ * 哪种方言；但 `unsupported` 与 `unknown` 是不同结果：前者是明确的
+ * 「这里什么都别跑」，后者是「猜一个并如实报告低置信度」。
  */
 type ShellFamily = "pwsh" | "posix" | "fish" | "unsupported" | "unknown";
 
-/** The subset that has a command dialect the probes can emit. */
+/** 有探针可发出的命令方言的子集。 */
 type Dialect = "pwsh" | "posix" | "fish";
 
-/** Values `TerminalState.shell` is documented to produce, mapped to a dialect. */
+/** 文档列出的 `TerminalState.shell` 取值，映射到方言。 */
 const SHELL_FAMILIES: Record<string, ShellFamily> = {
   bash: "posix",
   gitbash: "posix",
@@ -52,8 +38,8 @@ const SHELL_FAMILIES: Record<string, ShellFamily> = {
   sh: "posix",
   fish: "fish",
   pwsh: "pwsh",
-  // cmd never gets shell integration; csh has no `read -p`; the rest are REPLs
-  // that happen to be running inside a terminal, not shells to run commands in.
+  // cmd 永远没有 shell integration；csh 没有 `read -p`；其余是恰好
+  // 跑在终端里的 REPL，不是拿来跑命令的 shell。
   cmd: "unsupported",
   csh: "unsupported",
   nu: "unsupported",
@@ -68,13 +54,12 @@ export async function runTerminalIntegrationSpike(
 ): Promise<DiagnosticResult[]> {
   const results: DiagnosticResult[] = [];
   results.push(describeEnvironment());
-  // Deterministic and terminal-free, so it still reports when everything below
-  // is skipped for want of shell integration.
+  // 确定性且无需终端，下面全因缺 shell integration 被跳过时它仍在报告。
   results.push(probeReplayFixture());
   const terminal = vscode.window.createTerminal({
     name: "pi spike",
     cwd,
-    // Keep it out of the user's terminal history once disposed.
+    // 终端销毁后不留进用户的终端历史。
     isTransient: true,
   });
 
@@ -182,19 +167,18 @@ interface CaptureResult {
   exitCode: number | undefined;
   exitCodeReported: boolean;
   firstChunkMs: number | undefined;
-  /** ms at which each watched marker first appeared in the stream. */
+  /** 各观察标记首次出现在流中的毫秒时刻。 */
   markerMs: Map<string, number>;
   totalMs: number;
   timedOut: boolean;
 }
 
 /**
- * Run one command and capture everything the host will let us see.
+ * 跑一条命令并捕获宿主肯让我们看到的一切。
  *
- * `read()` is only valid for the lifetime of the execution, so it is started in
- * the same tick as `executeCommand()`. The end event is subscribed *before* the
- * command is issued because `executeCommand()` returns synchronously and the
- * event can, in principle, arrive before the next microtask.
+ * `read()` 只在 execution 的生命周期内有效，因此与 `executeCommand()`
+ * 同一个 tick 启动。结束事件在发命令*之前*订阅：`executeCommand()` 同步
+ * 返回，事件原则上可能在下一个微任务之前就到。
  */
 async function runCaptured(
   shellIntegration: vscode.TerminalShellIntegration,
@@ -266,9 +250,9 @@ function withTimeout(promise: Promise<unknown>, timeoutMs: number): Promise<bool
 }
 
 /**
- * `TerminalState.shell` is populated asynchronously and is still `undefined`
- * at the moment shell integration activates, so it has to be waited for
- * separately via `onDidChangeTerminalState` rather than read once.
+ * `TerminalState.shell` 是异步填充的，shell integration 激活那一刻仍是
+ * `undefined`，所以得经 `onDidChangeTerminalState` 另等，不能读一次
+ * 了事。
  */
 function waitForShellType(terminal: vscode.Terminal, timeoutMs: number): Promise<string | undefined> {
   if (terminal.state.shell) return Promise.resolve(terminal.state.shell);
@@ -286,14 +270,13 @@ function waitForShellType(terminal: vscode.Terminal, timeoutMs: number): Promise
 }
 
 /**
- * Prefer `TerminalState.shell` (1.99+): it reports a shell *type* from a known
- * set, which distinguishes fish and nu from bash — a distinction the fallback
- * probe below cannot make, and getting it wrong would emit `read -p` into a
- * fish shell and produce a false negative on the probe that decides the design.
+ * 优先用 `TerminalState.shell`（1.99+）：它报已知集合里的 shell *类型*，
+ * 能区分 fish 与 nu 跟 bash——下面的兜底探针做不出这个区分，分错了会
+ * 往 fish 里发 `read -p`，让决定设计的探针产出假阴性。
  *
- * It can still be `undefined` ("no clear signal"), hence the fallback:
- * `$PSVersionTable` interpolates inside double quotes in PowerShell and expands
- * to nothing in POSIX shells.
+ * 它仍可能是 `undefined`（「没有明确信号」），故有兜底：
+ * `$PSVersionTable` 在 PowerShell 的双引号里插值，在 POSIX shell 里
+ * 展开为空。
  */
 async function detectShellFamily(
   terminal: vscode.Terminal,
@@ -344,14 +327,12 @@ async function probeCapture(
 }
 
 /**
- * How long from `executeCommand()` to the first byte, over several trivial
- * commands in a row.
+ * 从 `executeCommand()` 到首个字节的耗时，连跑几条琐碎命令。
  *
- * The streaming probe first showed ~3.7s before any output while the capture
- * probe completed in 47ms, and those two differ in two ways at once: position in
- * the sequence, and whether the command sleeps. Measuring a series separates a
- * per-command cost (which would dominate every tool call) from a one-off warm-up
- * (which only matters if a terminal is created per call).
+ * 流式探针先测出任何输出前约 3.7s，而捕获探针 47ms 就完成，两者同时
+ * 差在两点：序列里的位置、命令是否睡眠。测一串才能把「每条命令的
+ * 固定开销」（会主导每次工具调用）与「一次性预热」（只在每次调用都
+ * 新建终端时才要紧）分开。
  */
 async function probeDispatch(
   shellIntegration: vscode.TerminalShellIntegration,
@@ -367,8 +348,8 @@ async function probeDispatch(
   }
   log(`[dispatch] first-byte latencies: ${samples.join(", ")}`);
 
-  // What matters is the steady state: a slow first sample is paid once per
-  // terminal, and a tool that keeps one terminal alive pays it once per window.
+  // 要紧的是稳态：首个样本慢只是每终端付一次，保活终端的工具每个
+  // 窗口付一次。
   const steady = samples.slice(1);
   const worstSteady = steady.length > 0 ? Math.max(...steady) : Number.POSITIVE_INFINITY;
   const warmup = samples[0] ?? 0;
@@ -387,11 +368,10 @@ async function probeDispatch(
 }
 
 /**
- * The tool card needs live progress, which requires chunks before the end event.
+ * 工具卡片需要实时进展，也就是结束事件之前就要有分块。
  *
- * Marker timestamps rather than just first-chunk timing: a uniform shift of the
- * whole stream (dispatch or flush latency) and a genuinely batched delivery look
- * identical from first-chunk alone, and they have opposite implications.
+ * 用标记时间戳而非只测首块：整条流的均匀平移（派发或 flush 延迟）与
+ * 真正攒批送达，只看首块完全同貌，而两者的含义相反。
  */
 async function probeStreaming(
   shellIntegration: vscode.TerminalShellIntegration,
@@ -416,8 +396,8 @@ async function probeStreaming(
     return { name: "terminal output streaming", ok: false, detail: `markers missing - ${timeline}` };
   }
 
-  // The command sleeps 2s between the two writes. Seeing that gap in the stream
-  // is what proves delivery is incremental; `atA` on its own is dispatch cost.
+  // 命令在两次输出间睡 2s。流里看得到那个间隔才证明交付是增量的；
+  // `atA` 自己只是派发成本。
   const gap = atB - atA;
   const streamed = gap > 1000;
   return {
@@ -431,22 +411,21 @@ async function probeStreaming(
 }
 
 /**
- * PowerShell can only ever report 0 or 1.
+ * PowerShell 最多只能报出 0 或 1。
  *
- * VS Code's own `shellIntegration.ps1` computes the value it puts in the
- * `OSC 633 ; D ; <code>` sequence as `$FakeCode = [int]!$global:?` — the name
- * is theirs. `shellIntegration-bash.sh` uses `$__vsc_status` (the real `$?`),
- * so POSIX shells do report the true code. A terminal tool must therefore treat
- * the exit code as a boolean on PowerShell hosts and say so in its result text,
- * rather than pass a fabricated `1` to the model as if it were the real code.
+ * VS Code 自带的 `shellIntegration.ps1` 放进 `OSC 633 ; D ; <code>` 的
+ * 值是 `$FakeCode = [int]!$global:?`——这名字是它起的。
+ * `shellIntegration-bash.sh` 用的是 `$__vsc_status`（真 `$?`），所以
+ * POSIX shell 报真码。终端工具因此必须把 PowerShell 宿主的退出码当
+ * 布尔用、并在结果文本里说明，而不是把编造的 `1` 当真码交给模型。
  */
 async function probeExitCode(
   shellIntegration: vscode.TerminalShellIntegration,
   dialect: Dialect,
   log: (message: string) => void,
 ): Promise<DiagnosticResult> {
-  // Exiting at top level would close the user's shell, so both branches exit a
-  // child. `sh -c` rather than `(exit 3)` because fish has no such subshell form.
+  // 顶层 exit 会关掉用户的 shell，两个分支都退子进程。用 `sh -c` 而非
+  // `(exit 3)`，因为 fish 没有后一种子 shell 形式。
   const command = dialect === "pwsh" ? "cmd /c exit 3" : 'sh -c "exit 3"';
   const capture = await runCaptured(shellIntegration, command, COMMAND_TIMEOUT_MS);
   log(`[exit code] reported=${capture.exitCodeReported} value=${String(capture.exitCode)}`);
@@ -476,12 +455,11 @@ async function probeExitCode(
 }
 
 /**
- * The probe the design hinges on: the user types into the terminal and we check
- * whether their keystrokes come back through `read()`.
+ * 设计系于此的探针：用户往终端里打字，我们检查击键是否经 `read()`
+ * 回来。
  *
- * The instruction lives in the shell prompt itself rather than a modal dialog —
- * a modal would take focus away from the terminal and make it impossible to
- * type, which is also a constraint on the real tool's UI.
+ * 指令放在 shell prompt 本身而非模态对话框——模态会把焦点从终端拿走、
+ * 让人没法打字，这也是对真工具 UI 的约束。
  */
 async function probeUserInput(
   terminal: vscode.Terminal,
@@ -517,17 +495,15 @@ async function probeUserInput(
     ];
   }
 
-  // Ground truth is what the shell itself printed back, not the token we asked
-  // for: a typo while testing line editing must not read as "capture broken".
-  // Read it from the replayed text, which is the candidate for what a real tool
-  // would hand the model.
+  // 真值是 shell 自己回显的内容，不是我们请求的 token：测试行编辑时
+  // 打错字不该读成「捕获坏了」。从重放文本里读——那正是真工具会交给
+  // 模型的候选。
   const shellSaw = /PIGOT:\[([^\]]*)\]/.exec(replayed)?.[1];
   const promptVisible = replayed.includes("SPIKE: type");
 
-  // Both renderings of the echo line, compared against the value the shell
-  // actually received. Stripping discards the cursor instructions that told the
-  // terminal to overwrite characters, so whatever was overwritten survives;
-  // replaying obeys them. Measuring both is the whole point of this probe.
+  // 回显行的两种渲染，与 shell 实际收到的值比对。剥离丢弃了告诉终端
+  // 覆写哪些字符的光标指令，被覆写的字符因此幸存；重放则遵从它们。
+  // 两个都量，正是本探针的全部意义。
   const echoOf = (text: string): string => {
     const line = text.split("\n").find((candidate) => candidate.includes("Enter:") && !candidate.includes("PIGOT:"));
     if (!line) return "";
@@ -570,13 +546,11 @@ async function probeUserInput(
 }
 
 /**
- * Strip the two families of noise that make raw terminal output unusable as a
- * tool result: CSI/OSC escape sequences (colour, cursor moves) and the OSC 633
- * markers VS Code's own shell integration injects.
+ * 剥掉让原始终端输出没法当工具结果的两大族噪声：CSI/OSC 转义序列
+ * （颜色、光标移动）与 VS Code 自己注入的 OSC 633 标记。
  *
- * Kept alongside `replayTerminal()` so the spike can report both and show the
- * difference: stripping *discards* cursor instructions instead of obeying them,
- * so any text those instructions overwrote survives as phantom characters.
+ * 与 `replayTerminal()` 放在一起，spike 才能两个都报、摆出差别：剥离
+ * *丢弃*光标指令而不是遵从它，被指令覆写的文本就以幻影字符幸存。
  */
 function stripSequences(text: string): string {
   return text
@@ -592,12 +566,11 @@ function truncate(text: string, limit: number): string {
 
 
 /**
- * Report the shared replay fixtures (`agent/terminal-replay.ts`).
+ * 报告共享的重放用例（`agent/terminal-replay.ts`）。
  *
- * Deterministic and terminal-free, so it still reports when every probe below
- * is skipped for want of shell integration. The cases live with the
- * implementation and are also run by `pnpm verify`, so the spike and the
- * shipped tool can never drift apart.
+ * 确定性且无需终端，下面每个探针都因缺 shell integration 被跳过时它
+ * 仍在报告。用例与实现同居、也由 `pnpm verify` 跑，spike 与线上工具
+ * 因此永不漂移。
  */
 function probeReplayFixture(): DiagnosticResult {
   const failures = findReplayFailures();

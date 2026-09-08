@@ -56,22 +56,19 @@ import { currentLane, isDelegating, isInLane, setState, state } from "./store.js
 import { applyEvent, applyHistory, assignEntryIds, clearMessages, hasPendingBubbles, removePendingBubbles, setEntryActionsLocked, setShowThinking, showNewSession, updateWorkingIndicator } from "./transcript.js";
 
 /**
- * Application shell: wires the view modules together, owns page layout
- * (chat / sessions / auth gate) and routes host messages.
+ * 应用外壳：把各视图模块接线到一起，负责页面布局（聊天 / 会话 / 认证门）
+ * 并路由宿主消息。
  *
- * Everything else lives in a dedicated module; this file should stay small
- * enough to read in one screen-and-a-bit.
+ * 其余一切都归各自的模块；本文件应保持在一屏多一点就能读完的体量。
  */
 
 const t = getDict();
 
 /**
- * Max width of the centered chat column, `piAgentChat.layout.contentMaxWidth`.
- * Restored from the webview's persisted state before the first layout: a
- * controller swap reassigns `webview.html`, and the fresh webview would
- * otherwise re-classify the viewport with the documented default until the
- * `ready` round trip delivers the configured value — wide/narrow must not
- * hinge on message timing. The default covers a genuinely first load.
+ * 居中聊天列的最大宽度（`piAgentChat.layout.contentMaxWidth`）。首次布局
+ * 前从 webview 持久化状态恢复：控制器交换会重赋 `webview.html`，新
+ * webview 若等 `ready` 往返才拿到配置值，会先用文档默认值做一次宽窄
+ * 判定——宽窄不得依赖消息时序。首次加载走默认值。
  */
 function initialContentMaxWidth(): number {
   const saved = getPersisted<number>("contentMaxWidth");
@@ -79,7 +76,7 @@ function initialContentMaxWidth(): number {
   return Math.max(CONTENT_WIDTH_MIN, Math.round(saved));
 }
 
-/** Same restore-before-first-layout rule as the column width. */
+/** 与列宽同一条规则：首次布局前先恢复。 */
 function initialWideThreshold(): number {
   const saved = getPersisted<number>("wideMinWidth");
   if (saved === undefined || !Number.isFinite(saved)) return Math.max(WIDE_THRESHOLD_MIN, DEFAULT_WIDE_THRESHOLD);
@@ -88,20 +85,17 @@ function initialWideThreshold(): number {
 
 let contentMaxWidth = initialContentMaxWidth();
 let wideMinWidth = initialWideThreshold();
-// Inline styles do not survive a webview reload, so the restored value must be
-// re-applied to the custom property before first paint — otherwise the layout
-// classifies the viewport with the configured width but *sizes* the columns
-// with the stylesheet default until the `ready` round trip catches up.
+// webview 重载后行内样式不保，恢复值必须在首帧绘制前写回自定义属性——
+// 否则布局一边按配置宽度做宽窄判定、一边按样式表默认值排列宽，直到
+// `ready` 往返赶上为止。
 document.documentElement.style.setProperty("--content-max-width", `${contentMaxWidth}px`);
 
 /**
- * Persist which session this webview is showing, so the tab can reopen it after
- * a window reload.
+ * 记住本 webview 正在显示哪个会话，窗口重载后 tab 据此恢复。
  *
- * The host cannot keep this for us: VS Code restores every retained panel
- * separately and hands each one back only its own webview state, so N chat tabs
- * need N memories. Only the live parent session counts — a lane or a replay is
- * a view of someone else's transcript, not this tab's session.
+ * 宿主代存不了：VS Code 对每个保留的 panel 各调一次反序列化、只交还它
+ * 自己的 webview state，N 个聊天 tab 就需要 N 份记忆。只有 live 主会话
+ * 才计入——lane / replay 显示的是别人的 transcript，不是本 tab 的会话。
  */
 function rememberSessionForRestore(next: ChatState): void {
   if (next.inputDisabled) return;
@@ -109,19 +103,14 @@ function rememberSessionForRestore(next: ChatState): void {
 }
 
 /**
- * Wide mode becomes available once the webview reaches the configured
- * threshold (`piAgentChat.layout.wideModeMinWidth`, clamped host-side to a
- * width the three columns can actually satisfy).
+ * webview 达到配置阈值（`piAgentChat.layout.wideModeMinWidth`，宿主已夹到
+ * 三栏确实摆得下的宽度）后宽屏可用。跨过阈值**什么都不打开**：只改变
+ * header 会话/资源开关的含义（窄屏整页/浮层 ↔ 宽屏停靠栏）并让分隔线
+ * 可拖，阈值因此不是界面在用户背后自行重排的点，而是侧栏「成为可能」
+ * 的点。
  *
- * Crossing it **opens nothing**. It only changes what the header's sessions and
- * resources toggles mean — a full-page listing and an overlay panel below the
- * threshold, a docked rail above it — and makes the dividers draggable. The
- * threshold is therefore not a point at which the surface rearranges itself
- * behind the user's back; it is the point at which a rail becomes possible.
- *
- * It used to be derived from the column width, which tied "how wide may the
- * transcript get" to "when do the rails appear": widening the transcript also
- * pushed the rails further away, for no reason the user could see.
+ * 旧版由列宽推导阈值，把「正文能多宽」与「侧栏何时出现」绑成一件事：
+ * 正文调宽会把侧栏无端推远，故拆开。
  */
 function applyLayoutGeometry(maxWidth: number, minWide: number): void {
   const width = Number.isFinite(maxWidth) ? Math.max(CONTENT_WIDTH_MIN, Math.round(maxWidth)) : DEFAULT_CONTENT_MAX_WIDTH;
@@ -141,13 +130,11 @@ function applyLayoutGeometry(maxWidth: number, minWide: number): void {
 let wideLayout = false;
 let sessionsPageOpen = false;
 /**
- * Whether each wide rail is docked open.
+ * 宽屏两条侧栏各自是否停靠打开。
  *
- * Both start closed and are restored from this webview's own persisted state.
- * Entering wide mode must not open a panel the user never asked for, but
- * reopening a window — or resizing out to narrow and back — must not discard a
- * choice they did make. Those are different things, and only the first one is
- * "automatic".
+ * 起始均为关闭，并从本 webview 自己的持久化状态恢复。进入宽屏不得打开
+ * 用户没要过的栏；但重开窗口、或窄宽往返，不能丢掉用户做过的选择——
+ * 两件事不同，只有前者才算「自动打开」。
  */
 const wideRailsOpen = {
   sessions: getPersisted<boolean>("wideSessionsOpen") === true,
@@ -155,17 +142,17 @@ const wideRailsOpen = {
 };
 
 /* ---------------------------------------------------------------- */
-/* Page layout                                                       */
+/* 页面布局 */
 /* ---------------------------------------------------------------- */
 
-/** Keep the host subscribed exactly while the narrow page or wide rail is visible. */
+/** 恰好在窄屏整页或宽屏侧栏可见期间让宿主保持订阅。 */
 function setSessionListVisible(visible: boolean): void {
   const changed = visible !== isSessionsVisible();
   setSessionsVisible(visible);
   if (changed) post({ type: "sessionsVisible", visible });
 }
 
-/** On narrow surfaces the sessions page replaces the chat. */
+/** 窄表面上会话页替换聊天区。 */
 function openSessions(): void {
   if (wideLayout) return;
   closePicker();
@@ -191,38 +178,35 @@ function closeSessions(): void {
 }
 
 /**
- * Header buttons stay visible at all times; states that previously hid them
- * now disable them (with a not-allowed cursor) instead.
+ * header 按钮始终可见；原先隐藏它们的状态改为禁用（配 not-allowed 光标）。
  */
 function updateHeaderButtons(): void {
   const emptySession = (state.messageCount ?? 0) === 0;
   const busy = state.isStreaming || state.isCompacting || isDelegating() || Boolean(state.inputDisabled);
   const gated = state.ready && Boolean(state.needsAuth);
-  // "New" is pointless on an already-empty chat page, but on the sessions
-  // page it doubles as "back to a fresh session", so keep it clickable there.
-  // A running session does not disable it: the host detaches that controller
-  // to finish in the background and gives this same surface a fresh one.
+  // 空聊天页上「新会话」没有意义，但在会话页上它兼任「回到全新会话」，
+  // 因此那里保持可点。运行中的会话不禁用它：宿主会让原 controller 转
+  // 后台跑完，再把新的会话交给同一表面。
   newBtn.disabled = (emptySession && !sessionsPageOpen) || Boolean(state.inputDisabled);
   treeBtn.disabled = emptySession || busy || gated;
-  // Sessions is a toggle in both layouts: a narrow page and a wide left rail.
+  // 会话在两种布局下都是开关：窄屏整页与宽屏左栏。
   sessionsBtn.disabled = gated;
   const sessionsShown = wideLayout ? wideRailsOpen.sessions : sessionsPageOpen;
   sessionsBtn.setAttribute("aria-pressed", String(sessionsShown));
   sessionsBtn.classList.toggle("active", sessionsShown);
-  // Each layout mode owns its resources toggle; see `setResourcesLayout`.
+  // 每种布局模式有自己的资源开关状态；见 `setResourcesLayout`。
   resourcesBtn.disabled = !hasResources() || sessionsPageOpen;
-  // Search is meaningful only once the current session has a transcript. On a
-  // narrow sessions page, invoking it first returns to that transcript.
+  // 搜索只对已有 transcript 的当前会话有意义；在窄屏会话页上触发时先
+  // 回到那个 transcript。
   searchBtn.disabled = emptySession || gated;
 }
 
 /**
- * The resources panel is shown only when the header toggle asks for it and
- * there is a listing to show, and never over the sessions or auth pages.
+ * 资源面板只在 header 开关要求展示、且有清单可显示时出现，绝不盖在
+ * 会话页或认证页上。
  *
- * In wide mode the panel is a docked rail, so its visibility also has to reach
- * the grid: a closed rail must collapse its track and its divider, which is
- * what lets the chat column take the space over.
+ * 宽屏下面板是停靠栏，可见性必须传到 grid：关闭的栏要收起自己的轨道
+ * 与分隔线，聊天列才能接管那块空间。
  */
 function applyResourcesVisibility(): void {
   const shown = isResourcesShown();
@@ -240,18 +224,16 @@ function showChat(): void {
   composerEl.classList.remove("hidden");
   applyResourcesVisibility();
   delegationBarEl.classList.toggle("hidden", !isInLane());
-  // The composer was unmeasurable while hidden; settle its layout now.
+  // composer 隐藏期间测不到尺寸；现在补一次布局判定。
   updateResponsiveLayout();
 }
 
 /**
- * When no provider is authenticated the chat is replaced by a setup page:
- * you cannot start a session without a model.
+ * 未认证任何供应商时，聊天区换成设置页：没有模型就无法开始会话。
  */
 function applyAuthGate(): void {
   const gated = state.ready && Boolean(state.needsAuth);
-  // Match the previous narrow-page contract: authentication setup supersedes
-  // an open sessions page. The wide rail is independent and stays visible.
+  // 沿用旧的窄屏契约：认证设置优先于打开的会话页；宽屏侧栏独立、保持可见。
   if (gated && sessionsPageOpen && !wideLayout) {
     sessionsPageOpen = false;
     setSessionListVisible(false);
@@ -274,9 +256,8 @@ function applyAuthGate(): void {
 }
 
 /**
- * Banner above a subagent transcript, including a historical lane replay.
- * Not shown on the parent during a run: the lane card in the transcript already
- * says everything, and duplicating it here would push the conversation down.
+ * 子代理 transcript 上方的横幅，含历史 lane 回放。运行期间不显示在父
+ * 会话上：transcript 里的 lane 卡片已说完一切，这里再重复只会把对话顶下去。
  */
 function renderDelegationBar(): void {
   const delegation = state.delegation;
@@ -287,15 +268,13 @@ function renderDelegationBar(): void {
   delegationBarEl.classList.remove("hidden");
   const lane = currentLane();
   delegationLabelEl.textContent = t.subagentRunning(lane?.title ?? "");
-  // The parent is never switched to automatically — that would yank the user
-  // out of what they chose to read — so say instead that it moved on.
+  // 绝不自动切回父会话（那会把用户从选定的内容里拽走），改说它已有新进展。
   delegationPeerBtn.textContent = delegation.parentHasNewActivity ? t.backToParentNew : t.backToParent;
 }
 
 /**
- * The header title shows where the user is: a historical subagent's title, the
- * current session's display name (or first message), or a "new session" placeholder.
- * The extension name itself already appears in the VS Code view title.
+ * header 标题显示用户所在位置：历史子代理的标题、当前会话的显示名（或
+ * 首条消息）、或「新会话」占位。插件名本身已在 VS Code 视图标题里。
  */
 function renderHeaderTitle(): void {
   const text = state.preview?.title || state.sessionName || t.newSessionLabel;
@@ -306,7 +285,7 @@ function renderHeaderTitle(): void {
 }
 
 /* ---------------------------------------------------------------- */
-/* State                                                             */
+/* 状态 */
 /* ---------------------------------------------------------------- */
 
 function applyState(next: ChatState): void {
@@ -333,8 +312,7 @@ function applyState(next: ChatState): void {
     : state.isCompacting
       ? t.compactionInputPlaceholder
       : t.inputPlaceholder;
-  // A running live lane keeps the stop control active; a historical replay has
-  // nothing to stop and is fully disabled.
+  // 运行中的 live lane 保留停止控件；历史回放没有可停的东西，整体禁用。
   sendBtn.disabled = !state.ready || (childReadOnly && !active);
   steerBtn.classList.toggle("hidden", !state.isStreaming || state.isCompacting || childReadOnly);
   followUpBtn.classList.toggle("hidden", !active || childReadOnly);
@@ -345,51 +323,47 @@ function applyState(next: ChatState): void {
     : parentWaiting
       ? t.parentFollowUpTitle
       : t.followUpTitle;
-  // Model / thinking values speak for themselves; no label prefix needed.
+  // 模型 / 思考等级的值自解释，不需要文字前缀。
   modelBtn.textContent = state.modelId ?? "-";
   modelBtn.title = state.providerId ? `${t.modelTitle}: ${state.providerId}/${state.modelId}` : t.modelTitle;
   thinkingBtn.textContent = state.thinkingLevel ?? "-";
-  // Models without selectable thinking levels report only one fixed value
-  // (usually "off"); hiding the control avoids a dead-end picker.
+  // 不可选思考等级的模型只报一个固定值（通常是 off）；隐藏控件免得点开一个死胡同。
   const canSelectThinkingLevel = (state.thinkingLevels?.length ?? 0) > 1;
   thinkingBtn.classList.toggle("hidden", !canSelectThinkingLevel);
   modelBtn.disabled = childReadOnly;
   thinkingBtn.disabled = !canSelectThinkingLevel || childReadOnly;
-  // A disabled chip must not keep its popup open, and an open one has to show
-  // the new current model / level.
+  // 禁用的 chip 不能留着打开的弹层；开着的弹层要反映新的当前模型 / 等级。
   if (modelBtn.disabled && thinkingBtn.disabled) closePicker();
   else refreshPicker();
-  // A brand-new empty session cannot be re-created or navigated, and
-  // single-task-line mode forbids switching mid-run: shown disabled.
+  // 全新空会话不能再新建或导航，任务线运行中禁止切换：均显示为禁用。
   updateHeaderButtons();
-  // Per-message tree actions need a settled, live transcript to act on: not
-  // while subagents run, and not while a subagent's transcript is on screen
-  // (its entries are not the parent's to fork or relabel).
+  // 每条消息的会话树动作只对已落定的 live transcript 有意义：子代理运行
+  // 中不行，显示着子代理 transcript 时也不行（那些 entry 不是父会话可
+  // 回溯或加标签的）。
   setEntryActionsLocked(active || isDelegating() || isInLane());
   renderDelegationBar();
   applyAuthGate();
   renderStatusLine();
   updateWorkingIndicator();
-  // Button labels and visibility just changed, so the rows may fit differently.
+  // 按钮文案与可见性刚变过，行的排布可能随之变化，重判一次。
   updateResponsiveLayout();
 }
 
 /* ---------------------------------------------------------------- */
-/* Responsive layout                                                 */
+/* 响应式布局 */
 /* ---------------------------------------------------------------- */
 
 /**
- * Secondary actions collapse into a "..." popup instead of wrapping, and the
- * status line disappears entirely, once the panel gets too narrow for them.
- * The session title keeps a minimum width (CSS) so it never vanishes first.
+ * 面板过窄时，次要动作收进「...」弹层而不是换行，状态行则整体消失。
+ * 会话标题保住最小宽度（CSS），绝不最先消失。
  */
 const headerOverflow = createOverflowGroup({
   row: headerActionsEl,
   items: [newBtn, sessionsBtn, treeBtn, searchBtn, resourcesBtn, settingsBtn],
   toggle: headerMoreBtn,
   menu: headerMenuEl,
-  // Editor tabs carry the title, so their hidden header title consumes no
-  // budget. The auxiliary sidebar keeps the title and its minimum readable width.
+  // 编辑区 tab 自带标题，隐藏的 header 标题不占预算；辅助侧栏保留标题
+  // 及其最小可读宽度。
   available: () => {
     const style = getComputedStyle(headerContentEl);
     const inner = headerContentEl.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
@@ -404,7 +378,7 @@ const composerOverflow = createOverflowGroup({
   items: [modelBtn, thinkingBtn, steerBtn, followUpBtn, recallBtn],
   toggle: composerMoreBtn,
   menu: composerMenuEl,
-  // The action row spans the composer, so its own box is the budget.
+  // 动作行横跨整个 composer，它自己的盒子就是预算。
   available: () => composerActionsEl.clientWidth,
 });
 
@@ -418,20 +392,20 @@ function setWideLayout(wide: boolean): void {
   if (wideLayout === wide) return;
   wideLayout = wide;
   rootEl.classList.toggle("layout-wide", wide);
-  // The rail and the narrow overlay panel are separate surfaces with separate
-  // state; hand the panel over to the incoming mode before anything reads it.
+  // 停靠栏与窄屏浮层是两个表面、两份状态；先交给即将进入的模式，再让
+  // 任何代码去读。
   setResourcesLayout(wide);
 
   if (wide) {
-    // A narrow full-page listing does not survive as a dock: reaching the
-    // threshold opens nothing the user did not open in wide mode before.
+    // 窄屏整页清单不会自动变成停靠栏：跨过阈值不打开用户此前没在宽屏
+    // 开过的东西。
     sessionsPageOpen = false;
     setSessionListVisible(wideRailsOpen.sessions);
     chatColumnEl.classList.remove("hidden");
-    // The wide panel state is the shell's memory, not the panel's default.
+    // 宽屏面板状态由外壳记忆，不是面板自己的默认值。
     setResourcesShown(wideRailsOpen.resources);
   } else {
-    // Wide mode never carries a hidden full-page state back to a narrow panel.
+    // 宽屏绝不把隐藏的整页状态带回窄屏浮层。
     setSessionListVisible(sessionsPageOpen);
   }
   applySessionsRail();
@@ -441,26 +415,24 @@ function setWideLayout(wide: boolean): void {
   updateHeaderButtons();
 }
 
-/** Mirror the sessions rail's open state into the wide grid. */
+/** 把会话栏的开合状态镜像进宽屏 grid。 */
 function applySessionsRail(): void {
   if (wideLayout) setRailOpen("sessions", wideRailsOpen.sessions);
 }
 
-// Only width matters here, and re-measuring on every height change (the input
-// box is user-resizable) would be wasted work. ResizeObserver is event-driven;
-// it does not poll the surface.
+// 这里只有宽度有意义；高度每次变化（输入框可被用户拖高）都重算纯属
+// 浪费。ResizeObserver 是事件驱动的，不轮询表面。
 let lastWidth = -1;
 function applyViewportWidth(width: number): void {
   const rounded = Math.round(width);
   if (rounded === lastWidth) return;
   lastWidth = rounded;
-  // The dividers size against the observed width rather than measuring the
-  // surface, so it has to land before anything asks them to re-clamp.
+  // 分隔线按喂进来的观测宽度工作而不是自行测量表面，宽度必须先落地，
+  // 再让它们重新夹取。
   setAvailableWidth(rounded);
   setWideLayout(rounded >= wideMinWidth);
-  // A shrinking window walks the rails back rather than squeezing the chat
-  // column past its minimum; a rail that can no longer meet its own minimum
-  // closes, exactly as dragging it there would.
+  // 窗口收窄时逐步收回落栏，而不是把聊天列挤过最小宽度；再也满足不了
+  // 自身最小值的栏直接关闭，与拖到那里的结果一致。
   if (wideLayout) reflowRails();
   updateResponsiveLayout();
 }
@@ -470,13 +442,13 @@ new ResizeObserver((entries) => {
 }).observe(document.documentElement);
 
 /* ---------------------------------------------------------------- */
-/* Wiring                                                            */
+/* 接线 */
 /* ---------------------------------------------------------------- */
 
 initComposer({ beforeSend: closeSessions });
 initSessions({ close: closeSessions, onResume: clearFileRefs });
 
-/** While running or compacting the send button becomes a stop button. */
+/** 运行或压缩期间，发送按钮变为停止按钮。 */
 sendBtn.addEventListener("click", () => {
   if (state.isStreaming || state.isCompacting) post({ type: "abort" });
   else if (!state.inputDisabled) send();
@@ -485,12 +457,12 @@ steerBtn.addEventListener("click", () => send("steer"));
 followUpBtn.addEventListener("click", () => send("followUp"));
 recallBtn.addEventListener("click", () => post({ type: "dequeue" }));
 
-/** Visible only while queued/steering messages are still waiting. */
+/** 仅在还有排队 / 插话消息等待时可见。 */
 function updateRecallButton(): void {
   recallBtn.classList.toggle("hidden", !hasPendingBubbles() || Boolean(state.inputDisabled) || Boolean(state.preview));
 }
 
-/** CLI dequeue: recalled texts go in front of whatever is being typed. */
+/** CLI 的 dequeue：撤回的文本放在正在输入的内容之前。 */
 function prependToInput(texts: string[]): void {
   const combined = [...texts, inputEl.value].filter((part) => part.trim()).join("\n\n");
   setInput(combined);
@@ -502,13 +474,12 @@ headerTitleEl.addEventListener("dblclick", () => {
 });
 newBtn.addEventListener("click", () => {
   closeSessions();
-  // While this runtime is occupied the host replaces only this surface's GUI
-  // controller. Do not clear the running transcript before the new one is ready.
+  // 当前 runtime 被占用时，宿主只替换本表面的 GUI controller；新会话
+  // 就绪前不要清掉正在跑的 transcript。
   const preserveCurrent = state.isStreaming || state.isCompacting || isDelegating() || Boolean(state.inputDisabled);
   if (!preserveCurrent) {
     clearFileRefs();
-    // A new session has no history to wait for: showing the loading spinner
-    // here would flash it for the duration of one round trip.
+    // 新会话没有历史可等：这里显示加载态只会在一次往返里闪一下。
     showNewSession();
   }
   post({ type: "newSession" });
@@ -543,7 +514,7 @@ byId("btn-sessions").addEventListener("click", () => {
   }
 });
 
-/** Single write path for the sessions rail, shared by the toggle and by a drag. */
+/** 会话栏状态的唯一写入口：header 开关与拖拽关闭共用。 */
 function setWideSessionsOpen(open: boolean): void {
   wideRailsOpen.sessions = open;
   setPersisted("wideSessionsOpen", open);
@@ -552,14 +523,12 @@ function setWideSessionsOpen(open: boolean): void {
   updateHeaderButtons();
 }
 
-// The overlay scrollbars only paint while a container is actually moving, and
-// CSS has no "is scrolling" state to key that off. One capture-phase listener
-// covers every scroller in the view, including ones rendered later.
+// 覆盖式滚动条只在容器真正滚动时绘制，而 CSS 没有「正在滚动」状态可用。
+// 一个捕获阶段监听器覆盖视图内所有滚动容器，包括后来渲染的。
 initScrollbars();
 
-// Dragging a divider past a rail's minimum closes that rail, so the header
-// toggle and the persisted choice have to follow it: the two are the same
-// decision made with different gestures.
+// 把分隔线拖过某栏的最小宽度会关闭该栏，header 开关与持久化选择必须
+// 跟上：两种手势做的是同一个决定。
 initSplitters((rail) => {
   if (rail === "sessions") {
     wideRailsOpen.sessions = false;
@@ -575,30 +544,28 @@ initSplitters((rail) => {
   updateHeaderButtons();
 });
 delegationPeerBtn.addEventListener("click", () => {
-  // A historical subagent is still framed as a lane while its session file is
-  // replayed, so every visible peer action returns through this one route.
+  // 历史子代理重放期间仍按 lane 呈现，所有可见的同伴动作都经这一条路返回。
   if (isInLane()) post({ type: "showLane" });
 });
 
 window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   const message = event.data;
   if (message.type === "state") applyState(message.state);
-  // No re-render of our own: the host always follows a threshold change with
-  // a history replay, which is how bubbles that already exist re-decide.
+  // 本端不重渲染：宿主在阈值变更后总会跟一次 history 重放，已存在的
+  // 气泡借机重新判定。
   else if (message.type === "foldThreshold") setFoldMaxLines(message.maxLines);
-  // No re-render of our own: the host always follows the setting change with a
-  // history replay, which is how existing cards re-decide whether they open
-  // expanded. Same rule as the fold threshold one line above.
+  // 本端不重渲染：宿主在设置变更后总会跟一次 history 重放，已有卡片
+  // 借机重新判定展开与否。同上一条阈值规则。
   else if (message.type === "showThinking") setShowThinking(message.enabled);
-  // Pure CSS-geometry config; applied where it lands, nothing to re-render.
+  // 纯 CSS 几何配置；在哪落地就在哪生效，没有需要重渲染的东西。
   else if (message.type === "contentWidth") applyLayoutGeometry(message.maxWidth, message.wideMinWidth);
   else if (message.type === "event") {
     applyEvent(message.event);
     updateRecallButton();
   } else if (message.type === "history") {
     applyHistory(message.events, message.live, message.systemPromptOverridden, message.subagent, message.transcriptId, message.terminal);
-    // Only replays the host marked as "a session became live" feed the
-    // composer's ↑ history; the composer dedupes per transcript.
+    // 只有宿主标记为「会话成为 live」的重放才喂 composer 的 ↑ 输入历史；
+    // composer 按 transcript 去重。
     if (message.populateInputHistory) populateInputHistoryFromEvents(message.transcriptId, message.events);
   }
   else if (message.type === "entryIds") {

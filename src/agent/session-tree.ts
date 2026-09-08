@@ -5,17 +5,16 @@ import type { PiRuntime } from "./runtime.js";
 import { contentText, userDisplayFromText, userDisplayText } from "./session-title.js";
 
 /**
- * Session tree operations (`/tree`, `/fork`, `/clone`).
+ * 会话树操作（`/tree`、`/fork`、`/clone`）。
  *
- * The session file is a tree of entries linked by `id`/`parentId`. The CLI
- * exposes it through a TUI selector; here the same operations are driven by
- * native QuickPicks.
+ * 会话文件是一棵以 `id`/`parentId` 相连的条目树。CLI 用 TUI 选择器呈现，
+ * 这里把同样的操作接到原生 QuickPick 上。
  */
 
-/** Host callbacks the tree UI needs; keeps this module free of bridge details. */
+/** 树 UI 需要的宿主回调；让本模块不依赖 bridge 细节。 */
 export interface SessionTreeUi {
   status(text: string): void;
-  /** Prefill the composer, mirroring the CLI's editor restore on fork/navigate. */
+  /** 预填 composer，对齐 CLI 在 fork/导航后的编辑器恢复。 */
   setInput(text: string): void;
 }
 
@@ -23,11 +22,11 @@ export interface TreeChoice extends vscode.QuickPickItem {
   entryId: string;
 }
 
-/** Native QuickPick cannot scroll horizontally, so indentation must stay bounded. */
+/** 原生 QuickPick 不能横向滚动，缩进必须有界。 */
 const MAX_TREE_INDENT_DEPTH = 6;
 const MAX_TREE_LABEL_CHARS = 10;
 
-/** Switch the active branch in place, like the CLI's `/tree`. */
+/** 就地切换活动分支，同 CLI 的 `/tree`。 */
 export async function navigateSessionTree(runtime: PiRuntime, ui: SessionTreeUi): Promise<void> {
   const choices = buildTreeChoices(runtime.session.sessionManager);
   if (choices.length === 0) {
@@ -64,12 +63,11 @@ export async function navigateSessionTree(runtime: PiRuntime, ui: SessionTreeUi)
 }
 
 /**
- * Move the leaf pointer to `entryId`, staying in the same session file.
+ * 把叶子指针移到 `entryId`，留在同一个会话文件里。
  *
- * The session is append-only: the abandoned path is kept and stays reachable
- * from the tree navigator. Landing on a user message puts its text back in the
- * composer and the leaf on its parent, so re-sending (possibly with another
- * model) grows a new branch instead of duplicating the message.
+ * 会话只追加：被放弃的路径保留着，仍可从树导航到达。落在用户消息上时
+ * 把它的文本放回 composer、叶子指到其父条目，这样重发（可换模型）长出
+ * 新分支而不是重复该消息。
  */
 export async function switchToEntry(runtime: PiRuntime, entryId: string, ui: SessionTreeUi): Promise<void> {
   const result = await runtime.session.navigateTree(entryId);
@@ -81,7 +79,7 @@ export async function switchToEntry(runtime: PiRuntime, entryId: string, ui: Ses
   ui.status(t("treeSwitched"));
 }
 
-/** Set or clear the bookmark label on one entry (append-only, no branching). */
+/** 设置或清除某条目的书签标签（只追加，不分叉）。 */
 export async function editEntryLabel(runtime: PiRuntime, entryId: string, ui: SessionTreeUi): Promise<void> {
   const current = runtime.session.sessionManager.getLabel(entryId);
   const label = await vscode.window.showInputBox({
@@ -93,7 +91,7 @@ export async function editEntryLabel(runtime: PiRuntime, entryId: string, ui: Se
   ui.status(label.trim() ? tf("treeLabelSet", label.trim()) : t("treeLabelCleared"));
 }
 
-/** Fork from a previous user message into a new session, like the CLI's `/fork`. */
+/** 从较早的用户消息 fork 出新会话，同 CLI 的 `/fork`。 */
 export async function pickForkPoint(runtime: PiRuntime, ui: SessionTreeUi): Promise<void> {
   const choices = buildTreeChoices(runtime.session.sessionManager, { userMessagesOnly: true });
   if (choices.length === 0) {
@@ -109,7 +107,7 @@ export async function pickForkPoint(runtime: PiRuntime, ui: SessionTreeUi): Prom
   await forkFromEntry(runtime, picked.entryId, ui);
 }
 
-/** Duplicate the session at its current position, like the CLI's `/clone`. */
+/** 在当前位置复制会话，同 CLI 的 `/clone`。 */
 export async function cloneSession(runtime: PiRuntime, ui: SessionTreeUi): Promise<void> {
   const leaf = runtime.session.sessionManager.getLeafEntry();
   if (!leaf) {
@@ -123,13 +121,12 @@ export async function cloneSession(runtime: PiRuntime, ui: SessionTreeUi): Promi
 }
 
 /**
- * Fork from an entry into a new session.
+ * 从某条目 fork 出新会话。
  *
- * Forking *before* an entry only means something on a user message: the SDK
- * hands that message back as editor text so it can be edited and re-sent, and
- * it rejects the position outright for anything else. An assistant reply forks
- * *at* itself instead — the new session keeps the conversation through that
- * reply, which is the only reading that has a meaning there.
+ * 在某条目*之前* fork 只对用户消息有意义：SDK 会把那条消息作为编辑器
+ * 文本交回以便改后重发，对其他条目则直接拒绝该 position。assistant 回答
+ * 改为在*自身*处 fork——新会话保留到该回答为止的对话，那是它唯一说得
+ * 通的读法。
  */
 export async function forkFromEntry(runtime: PiRuntime, entryId: string, ui: SessionTreeUi): Promise<void> {
   const entry = runtime.session.sessionManager.getEntry(entryId);
@@ -144,10 +141,9 @@ export async function forkFromEntry(runtime: PiRuntime, entryId: string, ui: Ses
 }
 
 /**
- * Flatten the entry tree into indented QuickPick items.
+ * 把条目树摊平成带缩进的 QuickPick 项。
  *
- * Exported for diagnostics: it is the only part of the tree UI that can be
- * exercised without opening a QuickPick.
+ * 导出供诊断使用：这是树 UI 里唯一不开 QuickPick 就能驱动的部分。
  */
 export function buildTreeChoices(
   sessionManager: Pick<SessionManager, "getTree" | "getLeafEntry">,
@@ -174,13 +170,12 @@ export function buildTreeChoices(
           entryId: entry.id,
           label: `${treeIndent(branchDepth)}${display.label}`,
           description: description || undefined,
-          // Keep the complete message text on its own line, independent of
-          // visual indentation and title metadata, for reading and searching.
+          // 完整消息文本独立成行，不掺视觉缩进与标题元信息，
+          // 便于阅读与搜索。
           detail: display.detail || undefined,
         });
       }
-      // A linear chain is not visually deeper. Only entering alternatives at
-      // a real fork consumes one indentation level.
+      // 线性链在视觉上不加深；只有进入真分叉处的备选分支才消耗一级缩进。
       walk(node.children, branchDepth + (node.children.length > 1 ? 1 : 0));
     }
   };
@@ -193,7 +188,7 @@ function isUserMessage(entry: { type: string; message?: unknown }): boolean {
   return entry.type === "message" && (entry.message as { role?: string } | undefined)?.role === "user";
 }
 
-/** One-line preview of an entry; returns undefined for entries not worth listing. */
+/** 条目的单行预览；不值得列出的条目返回 undefined。 */
 function describeEntry(entry: { type: string; message?: unknown; summary?: string }): { label: string; detail: string } | undefined {
   if (entry.type === "compaction") {
     return {
@@ -207,9 +202,8 @@ function describeEntry(entry: { type: string; message?: unknown; summary?: strin
   if (!message?.role) return undefined;
   if (message.role === "toolResult") return undefined;
 
-  // Labels are whitespace-normalized below, so the shared projection's line
-  // breaks do not matter; what does matter is that a user entry reads here
-  // exactly as it reads in the transcript and the sessions list.
+  // 标签在下面会做空白归一化，共享投影里的换行无所谓；要紧的是用户
+  // 条目在这里读起来与 transcript、会话列表里的完全一致。
   const text = message.role === "user" ? userDisplayText(message.content) : contentText(message.content);
   const normalized = text.replace(/\s+/g, " ").trim();
   if (!normalized) return undefined;

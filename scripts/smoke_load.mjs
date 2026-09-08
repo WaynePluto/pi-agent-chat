@@ -1,9 +1,7 @@
 /**
- * Load-time smoke test for the bundled extension.
- *
- * Runs `dist/extension.js` in plain Node with a stubbed `vscode` module to catch
- * bundling failures (missing externals, ESM->CJS issues) before launching an
- * Extension Development Host.
+ * 扩展 bundle 的加载期冒烟测试。
+ * 在纯 Node 里用桩 vscode 模块跑 dist/extension.js，在启动 Extension
+ * Development Host 之前抓住打包失败（external 缺失、ESM→CJS 问题）。
  */
 import Module from "node:module";
 import { resolve } from "node:path";
@@ -18,7 +16,7 @@ const vscodeStub = {
   Uri: { file: (path) => ({ fsPath: path, path }), joinPath: (base, ...parts) => ({ fsPath: [base?.fsPath, ...parts].join("/") }) },
   EventEmitter: class {},
   ProgressLocation: { Notification: 15 },
-  // The host always provides a display language; localized strings read it.
+  // 宿主总会提供显示语言；本地化文案要读它。
   env: { language: "en", clipboard: { writeText: async () => {} }, openExternal: async () => true },
   window: {
     createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }),
@@ -74,7 +72,7 @@ if (typeof extension.activate !== "function" || typeof extension.deactivate !== 
 
 console.log(`[ok]   bundle loaded and activated (${subscriptions.length} subscriptions registered)`);
 
-/** Report a diagnostic batch and remember whether anything failed. */
+/** 汇报一批诊断结果，并记下是否有失败。 */
 let failures = 0;
 function report(results) {
   failures += results.filter((result) => !result.ok).length;
@@ -83,8 +81,8 @@ function report(results) {
 
 const { DIAGNOSTIC_SUITES, runLiveToolCallTest, formatDiagnostics } = extension.__spike;
 
-// One list, defined in `src/agent/diagnostics.ts`: a self-check added there
-// runs here and in the VS Code command without touching either runner.
+// 唯一的一份清单，定义在 src/agent/diagnostics.ts：在那边新增自检项后，
+// 这里与 VS Code 命令两个 runner 都会跑，两边都不用改。
 for (const suite of DIAGNOSTIC_SUITES) report(await suite(root));
 
 if (process.env.PI_SPIKE_LIVE === "1") {

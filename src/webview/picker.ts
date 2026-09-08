@@ -7,40 +7,35 @@ import { composerActionsEl, inputEl, modelBtn, pickerEl, thinkingBtn } from "./s
 import { state } from "./store.js";
 
 /**
- * The composer's quick menus for model and thinking level.
- *
- * Both are small popups anchored to the chip that opens them, in the spirit of
- * the editor's own chat controls: a native QuickPick opens centered at the top
- * of the window, far from the control the user just clicked.
- *
- * The model menu is deliberately a *switcher*, not a browser: it lists the
- * frequently used models with their provider and hands everything else —
- * search, capabilities, ⭐ frequently used, 📌 default — to the native picker
- * behind its "other models" row.
+ * composer 的模型与思考等级快捷菜单。两者都是锚定在触发 chip 上的小弹层，
+ * 对齐编辑器自己的聊天控件——原生 QuickPick 固定出现在窗口顶部，离用户
+ * 刚点的控件太远。模型菜单刻意只做切换器而非浏览器：列出常用模型及供应
+ * 商，其余一切（搜索、能力详情、⭐常用、📌默认）交给「其他模型」行后面
+ * 的原生 picker。
  */
 
 const t = getDict();
 
 type PickerKind = "model" | "thinking";
 
-/** One rendered, selectable row and what pressing Enter on it does. */
+/** 一条已渲染的可选行，及在其上按 Enter 的动作。 */
 interface PickerRow {
   element: HTMLElement;
   accept(): void;
 }
 
 let openKind: PickerKind | undefined;
-/** Last catalogue pushed by the host; kept so re-opening is instant. */
+/** 宿主最近推送的目录；留存以便再次打开即时显示。 */
 let catalog: ModelCatalog | undefined;
 let listEl: HTMLElement | undefined;
-/** Footer row of the model menu; built once per open, never per render. */
+/** 模型菜单的底部行；每次打开建一次，不随每次渲染重建。 */
 let moreBtn: HTMLButtonElement | undefined;
 let rows: PickerRow[] = [];
 let selectedIndex = 0;
 
 export function closePicker(): void {
   if (!openKind) return;
-  // Typing should continue where it left off, not in a dismissed popup.
+  // 输入应回到关闭前的位置继续，而不是停在已关的弹层里。
   const hadFocus = pickerEl.contains(document.activeElement);
   openKind = undefined;
   listEl = undefined;
@@ -52,7 +47,7 @@ export function closePicker(): void {
   if (hadFocus && !inputEl.disabled) inputEl.focus();
 }
 
-/** Chip click and the host's `/model` command both land here. */
+/** 点击 chip 与宿主的 `/model` 命令都走这里。 */
 export function togglePicker(kind: PickerKind): void {
   if (openKind === kind) {
     closePicker();
@@ -69,27 +64,27 @@ export function openPicker(kind: PickerKind): void {
   buildFrame(kind);
   renderRows();
   anchorTo(anchor);
-  // The list is refreshed on every open: models in scope can change from the
-  // settings menu, the native picker or the terminal in between.
+  // 每次打开都刷新列表：两次打开之间，设置菜单、原生 picker 或终端都
+  // 可能改了常用模型。
   if (kind === "model") post({ type: "listModels" });
-  // Focus decides who owns the arrow keys and Enter: as long as it is inside
-  // the popup, the composer's own key handling stays out of the way.
+  // 焦点决定方向键与 Enter 归谁：只要焦点在弹层内，composer 自己的按键
+  // 处理就让路。
   pickerEl.focus();
 }
 
-/** Host push: refresh the list in place, keeping the selection. */
+/** 宿主推送：就地刷新列表，保留选中项。 */
 export function setModelCatalog(next: ModelCatalog): void {
   catalog = next;
   if (openKind === "model") renderRows();
 }
 
-/** State changes (model switched, levels of a new model) must not leave a stale list. */
+/** 状态变化（切换模型、新模型的等级列表）不能留下过期列表。 */
 export function refreshPicker(): void {
   if (openKind) renderRows();
 }
 
 /* ---------------------------------------------------------------- */
-/* Frame and placement                                               */
+/* 框架与定位 */
 /* ---------------------------------------------------------------- */
 
 function anchorFor(kind: PickerKind): HTMLButtonElement {
@@ -103,8 +98,8 @@ function buildFrame(kind: PickerKind): void {
   listEl = el("div", "picker-list");
   listEl.setAttribute("role", "listbox");
   pickerEl.appendChild(listEl);
-  // Everything the model menu leaves out lives one click away. The row belongs
-  // to the frame, not to the list, so re-rendering rows cannot duplicate it.
+  // 模型菜单装不下的都在一次点击之外。该行属于框架而非列表，重渲染行
+  // 不会复制它。
   if (kind === "model") {
     moreBtn = button("picker-more", t.modelPickerOther, () => {
       closePicker();
@@ -119,10 +114,8 @@ function pickerTitle(kind: PickerKind): string {
 }
 
 /**
- * Line the popup up with its chip instead of stretching it across the
- * composer, pulling it back inside when the chip sits too far right. Both the
- * chip and the popup are laid out by the composer's action row, so its own
- * coordinates are all that is needed.
+ * 让弹层与它的 chip 对齐而不是横跨整个 composer，chip 过靠右时拉回边界
+ * 内。chip 与弹层都由 composer 动作行排版，用它的坐标就够了。
  */
 function anchorTo(anchor: HTMLElement): void {
   const left = anchor.offsetParent === composerActionsEl ? anchor.offsetLeft : 0;
@@ -135,7 +128,7 @@ function renderRows(): void {
   rows = openKind === "model" ? buildModelRows() : buildThinkingRows();
   if (selectedIndex >= rows.length) selectedIndex = Math.max(0, rows.length - 1);
   applySelection();
-  // Optional call: jsdom, which runs the DOM snapshot test, has no scrollIntoView.
+  // 可选调用：跑 DOM 快照测试的 jsdom 没有 scrollIntoView。
   rows[selectedIndex]?.element.scrollIntoView?.({ block: "nearest" });
 }
 
@@ -150,7 +143,7 @@ function moveSelection(delta: number): void {
   rows[selectedIndex]?.element.scrollIntoView?.({ block: "nearest" });
 }
 
-/** Shared single-select row: check mark, name, muted trailing note. */
+/** 通用单选行：对勾、名称、弱化的尾注。 */
 function buildRow(name: string, options: { note?: string; current: boolean; accept(): void }): PickerRow {
   const element = el("div", `picker-row${options.current ? " current" : ""}`);
   element.setAttribute("role", "option");
@@ -163,7 +156,7 @@ function buildRow(name: string, options: { note?: string; current: boolean; acce
 }
 
 /* ---------------------------------------------------------------- */
-/* Rows                                                              */
+/* 行 */
 /* ---------------------------------------------------------------- */
 
 function buildModelRows(): PickerRow[] {
@@ -171,8 +164,8 @@ function buildModelRows(): PickerRow[] {
   list.replaceChildren();
   const built: PickerRow[] = [];
 
-  // No frequently used models configured: say so rather than dumping the whole
-  // catalogue into a popup that is not built to browse it.
+  // 未配置常用模型：直说，而不是把整个目录倒进一个本就不是用来浏览的
+  // 弹层。
   if (!catalog) list.appendChild(el("div", "picker-empty", t.modelPickerLoading));
   else if (catalog.items.length === 0) list.appendChild(el("div", "picker-empty", t.modelPickerNone));
 
@@ -200,10 +193,9 @@ function buildThinkingRows(): PickerRow[] {
   const list = listEl!;
   list.replaceChildren();
   const built: PickerRow[] = [];
-  // No "default" marker here on purpose: since SDK 0.84.3 the session's
-  // setThinkingLevel() is session-only (the global default changes only
-  // through the settings menu), and the host sends just the session's current
-  // level — the picker has no global default to mark.
+  // 刻意不标「默认」：SDK 0.84.3 起会话的 setThinkingLevel() 只作用于当
+  // 前会话（全局默认只能经设置菜单改），宿主发来的就是会话当前等级
+  // ——picker 没有可标的全局默认。
   for (const level of state.thinkingLevels ?? []) {
     const current = level === state.thinkingLevel;
     const row = buildRow(level, {
@@ -221,11 +213,11 @@ function buildThinkingRows(): PickerRow[] {
 }
 
 /* ---------------------------------------------------------------- */
-/* Dismissal and keyboard                                            */
+/* 关闭与键盘 */
 /* ---------------------------------------------------------------- */
 
-// Clicks on the chips are ignored here: their own handler toggles the popup,
-// and closing it from both places would make the second click a no-op.
+// 这里忽略对 chip 的点击：chip 自己的 handler 负责开合弹层，两处都关会
+// 让第二次点击落空。
 document.addEventListener("click", (event) => {
   if (!openKind) return;
   const target = event.target as Node;
@@ -240,8 +232,7 @@ document.addEventListener("keydown", (event) => {
     closePicker();
     return;
   }
-  // List navigation belongs to whoever has focus; while the caret is back in
-  // the composer, Enter must still send the message.
+  // 列表导航归焦点持有者；光标回到 composer 时，Enter 仍要能发送消息。
   if (!pickerEl.contains(document.activeElement)) return;
   if (event.key === "ArrowDown" || event.key === "ArrowUp") {
     event.preventDefault();

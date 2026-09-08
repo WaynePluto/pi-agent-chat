@@ -1,468 +1,63 @@
-import type { ChatEvent, JsonValue, RetryOfferState, SkillRef, SubagentSetup, ToolSetup, TranscriptImage } from "../shared/protocol.js";
-import { SUBAGENT_TOOL } from "../shared/protocol.js";
-import { createMessageBubble, type MessageBubble } from "./bubble.js";
-import { CARD_CLASSES, WORK_CLASSES, createCollapsible, type Collapsible } from "./collapsible.js";
-import { button, el, icon } from "./dom.js";
-import {
-  MAX_DIFF_LINES,
-  MAX_LANE_DETAIL_CHARS,
-  MAX_NOTICE_HEADER_CHARS,
-  MAX_TOOL_ARGS_CHARS,
-  MAX_TOOL_OUTPUT_CHARS,
-  formatTokens,
-  truncate,
-} from "./format.js";
-import { post } from "./host.js";
-import { BRANCH_ICON, RETRY_ICON, REWIND_ICON, TAG_ICON } from "./icons.js";
+import type { ChatEvent, SubagentSetup, ToolSetup } from "../shared/protocol.js";
+import { el } from "./dom.js";
 import { getDict } from "./i18n.js";
-import { renderMarkdown } from "./markdown.js";
-import { clearResourceHighlights, markExtensionUsed, markPromptUsed, markSkillActive, markToolUsed } from "./resources-view.js";
-import { messagesContentEl, messagesEl, scrollDownBtn } from "./shell.js";
+import { clearResourceHighlights } from "./resources-view.js";
+import { messagesContentEl } from "./shell.js";
 import { ensureSpinnerRunning, spinner } from "./spinner.js";
 import { currentLane, isDelegating, state } from "./store.js";
+import { st } from "./transcript/state.js";
+import {
+  appendBubble,
+  appendMarkdownBubble,
+  appendUserBubble,
+  clearStreamingCaret,
+  createStreamingBubble,
+  normalizeUserBubble,
+} from "./transcript/bubbles.js";
+import {
+  createThinkingCard,
+  endToolCard,
+  finishCard,
+  finishThinkingCard,
+  finishWorkBlock,
+  startToolCard,
+} from "./transcript/cards.js";
+import { appendCompactionBoundary, appendNoticeCard } from "./transcript/notices.js";
+import { resumeFollowing, scrollToEnd } from "./transcript/scroll.js";
+import { captureViewState, restoreViewState, selectTranscript } from "./transcript/view-state.js";
+
 /**
- * The transcript: chat bubbles, the grouped "work block" of non-formal output
- * (thinking + tool cards), status/error notices and the working indicator.
+ * transcript：聊天气泡、非正式输出（思考 + 工具卡片）聚合的「执行过程」块、
+ * 状态/错误通知与运行指示行。
  *
- * Live streaming and history replay share one path (`applyEvent`), so a resumed
- * session renders exactly like a live one.
+ * 实时流式与历史回放共用同一条路径（`applyEvent`），因此恢复的会话
+ * 渲染结果与实时会话完全一致。
+ *
+ * 实现拆分在 `./transcript/` 各模块（state、scroll、view-state、bubbles、
+ * cards、notices、reveal）；本模块保留事件入口与胶水代码，并原样
+ * re-export 公开面，调用方不受影响。
  */
 
 const t = getDict();
 
-/** Streaming assistant bubble keeps raw markdown for re-render on each delta. */
-interface StreamingBubble {
-  bubble: MessageBubble;
-  raw: string;
-}
-let assistantBubble: StreamingBubble | undefined;
-
-/** Queued/steering bubbles waiting to be consumed by the agent loop. */
-const pendingUserBubbles: Array<{ element: HTMLElement; text: string; mode: "steer" | "followUp" }> = [];
-
-interface ThinkingCard extends Collapsible {
-  raw: string;
-}
-let thinkingCard: ThinkingCard | undefined;
-
-interface WorkBlock {
-  collapsible: Collapsible;
-  thinkingCount: number;
-  toolCount: number;
-  failedToolCount: number;
-  activeTools: Map<string, string>;
-  action?: string;
-}
-/** The non-formal output group currently being built by the agent. */
-let activeWorkBlock: WorkBlock | undefined;
-
-interface ToolCard extends Collapsible {
-  /** Tool name, so cards with a purpose-built body can recognise themselves. */
-  toolName: string;
-  argsText: string;
-  bodyText: string;
-  patch?: string;
-  path?: string;
-  /** Tool-defined structured result; see `renderDetailsBlock`. */
-  details?: JsonValue;
-}
-const toolCards = new Map<string, ToolCard>();
-
-let renderScheduled = false;
-
-/** Working indicator row shown at the end of the message list while streaming. */
-let workingEl: HTMLElement | undefined;
-let workingLabelEl: HTMLElement | undefined;
-/** Bubble of the agent turn currently receiving deltas, if any. */
-let liveBubbleEl: HTMLElement | undefined;
-/**
- * Everything about how a transcript is being looked at, kept per transcript.
- *
- * Switching away and back rebuilds the DOM from scratch, so without this the
- * user loses their place every time they glance at a subagent — which this
- * feature invites them to do constantly. Bounded and in LRU order: view state
- * is not worth leaking a session's worth of memory over.
- */
-interface TranscriptViewState {
-  /** Per work block, by position: open, and how far into it the user had read. */
-  work: Map<number, { expanded: boolean; scrollTop?: number }>;
-  /**
-   * Message bubbles the user folded or unfolded by hand, by position. Only
-   * manual decisions are recorded: everything else follows the default rule
-   * (newest of each role open), which is recomputed on every replay.
-   */
-  bubbles: Map<number, boolean>;
-  /** Message list offset. Undefined means this transcript was never left. */
-  scrollTop?: number;
-  /** Whether the user was following new output when they left. */
-  followBottom: boolean;
-  /** Offsets inside tool card bodies, by tool call id. */
-  toolScroll: Map<string, number>;
-}
-
-function emptyViewState(): TranscriptViewState {
-  return { work: new Map(), bubbles: new Map(), followBottom: true, toolScroll: new Map() };
-}
-
-const transcriptViews = new Map<string, TranscriptViewState>();
-const MAX_REMEMBERED_TRANSCRIPTS = 8;
-let currentView: TranscriptViewState = emptyViewState();
-/**
- * Work blocks of the transcript on screen, by position.
- *
- * Position is a stable identity: the same event sequence always groups into the
- * same blocks, whether replayed at once or appended live.
- */
-const workBlocks = new Map<number, Collapsible>();
-let workBlockIndex = -1;
-
-/**
- * The newest formal message of each role, and how many have been rendered.
- *
- * The count is the bubble's position, the same stable identity work blocks use;
- * the newest bubble of a role is the one that stays unfolded until the next
- * message of that role takes its place.
- */
-const latestBubbles = new Map<string, MessageBubble>();
-let bubbleIndex = -1;
-
-/**
- * Bubbles whose automatic fold is waiting for the user to come back to the
- * bottom.
- *
- * Folding the previous message of a role the moment a new one arrives is right
- * only while the user is following the latest output. When they have scrolled
- * up they are, by definition, reading something older — and the message being
- * read is usually exactly the one the rule wants to collapse, so the text
- * vanishes from under the cursor and everything below it jumps. So while
- * following is off the fold is recorded instead of applied, and flushed the
- * moment following resumes (jump button, End, sending, wheeling back down).
- * Replay is exempt: it rebuilds the whole transcript, and its result must not
- * depend on where the user happened to be standing.
- */
-const deferredFolds = new Set<MessageBubble>();
-
-/**
- * Apply the folds held back while the user was reading. Bubbles pinned in the
- * meantime keep the user's decision; a bubble can never become the newest of
- * its role again, since only an older one is ever deferred and both sets are
- * cleared together with the transcript.
- */
-function flushDeferredFolds(): void {
-  if (deferredFolds.size === 0) return;
-  const pending = [...deferredFolds];
-  // Cleared first: folding shrinks the content, which fires "scroll" again.
-  deferredFolds.clear();
-  for (const bubble of pending) {
-    if (!bubble.pinned) bubble.setFolded(true);
-  }
-  // The content just got shorter above the newest message; stay glued to it.
-  if (followBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
-}
-
-function selectTranscript(id: string | undefined): void {
-  const key = id ?? "";
-  const existing = transcriptViews.get(key);
-  if (existing) {
-    // Re-insert to refresh its LRU position.
-    transcriptViews.delete(key);
-    transcriptViews.set(key, existing);
-    currentView = existing;
-    return;
-  }
-  currentView = emptyViewState();
-  transcriptViews.set(key, currentView);
-  for (const oldest of transcriptViews.keys()) {
-    if (transcriptViews.size <= MAX_REMEMBERED_TRANSCRIPTS) break;
-    transcriptViews.delete(oldest);
-  }
-}
-
-/**
- * Record where the user was, just before the DOM holding that information is
- * torn down. Called from `clearMessages()` because every teardown path goes
- * through it, and there it still sees the outgoing transcript.
- */
-function captureViewState(): void {
-  currentView.scrollTop = messagesEl.scrollTop;
-  currentView.followBottom = followBottom;
-  for (const [index, block] of workBlocks) {
-    currentView.work.set(index, { expanded: block.expanded, scrollTop: block.body.scrollTop || undefined });
-  }
-  for (const [id, card] of toolCards) {
-    const scroller = card.body.querySelector(".tool-body");
-    if (scroller instanceof HTMLElement && scroller.scrollTop > 0) currentView.toolScroll.set(id, scroller.scrollTop);
-  }
-}
-
-/** Put the reading position back, once the rebuilt transcript is in the DOM. */
-function restoreViewState(): void {
-  for (const [index, block] of workBlocks) {
-    const saved = currentView.work.get(index)?.scrollTop;
-    if (saved !== undefined) block.body.scrollTop = saved;
-  }
-  for (const [id, card] of toolCards) restoreToolScroll(id, card.body);
-  const saved = currentView.scrollTop;
-  if (saved === undefined) {
-    // First visit to this transcript: show the newest content, as always.
-    resumeFollowing();
-    scrollToEnd();
-    return;
-  }
-  // Fresh view: the previous transcript's wheel intent does not carry over.
-  userWheeledUp = false;
-  followBottom = currentView.followBottom;
-  messagesEl.scrollTop = saved;
-  // Markdown, code blocks and images can settle a frame later and shift the
-  // content out from under the offset just applied.
-  requestAnimationFrame(() => {
-    if (currentView.scrollTop === saved) messagesEl.scrollTop = saved;
-    updateScrollDownButton(false);
-  });
-}
-
-/** Card bodies render lazily, so one expanded after the replay restores here. */
-function restoreToolScroll(id: string, body: HTMLElement): void {
-  const saved = currentView.toolScroll.get(id);
-  if (saved === undefined) return;
-  const scroller = body.querySelector(".tool-body");
-  if (scroller instanceof HTMLElement) scroller.scrollTop = saved;
-}
+// 拆分模块的公开面，原样 re-export。
+export { assignEntryIds, hasPendingBubbles, removePendingBubbles, setEntryActionsLocked } from "./transcript/bubbles.js";
+export { setShowThinking } from "./transcript/cards.js";
+export { appendNoticeCard } from "./transcript/notices.js";
+export { collectHiddenBodies, revealTranscriptElement } from "./transcript/reveal.js";
+export { followLatest } from "./transcript/scroll.js";
 
 /* ---------------------------------------------------------------- */
-/* Search support: reveal, and the text of unrendered bodies         */
-/* ---------------------------------------------------------------- */
-
-/**
- * How to open one collapsible thing on screen: expand a card or work block,
- * unfold a message bubble. Keyed by root element so transcript search can
- * reach them from a bare DOM anchor.
- */
-const revealActions = new WeakMap<HTMLElement, () => HTMLElement | undefined>();
-
-/** Register how a collapsible opens itself; returns its body on reveal. */
-function registerReveal(collapsible: Collapsible): void {
-  revealActions.set(collapsible.root, () => {
-    collapsible.setExpanded(true);
-    return collapsible.body;
-  });
-}
-
-/**
- * Expand everything between the transcript root and `target` — and `target`
- * itself when it is a collapsible — outermost first, so a match buried in a
- * collapsed execution is uncovered layer by layer: the work block, then the
- * card, and the details block inside it on the next navigation (its region
- * only exists once the card body has rendered). Returns the collapsible body
- * of `target` when `target` itself became one, else undefined.
- */
-export function revealTranscriptElement(target: Element): HTMLElement | undefined {
-  const chain: Array<() => HTMLElement | undefined> = [];
-  for (let node: Element | null = target; node && node !== messagesEl; node = node.parentElement) {
-    const action = revealActions.get(node as HTMLElement);
-    if (action) chain.push(action);
-  }
-  let body: HTMLElement | undefined;
-  // Outermost first: expanding a parent renders the DOM the children live in.
-  for (const action of chain.reverse()) body = action() ?? body;
-  return body;
-}
-
-interface HiddenBody {
-  /** Collapsed body element; empty until the first expansion renders it. */
-  body: HTMLElement;
-  getText(): string;
-}
-
-/**
- * Text of lazy card bodies that have never rendered — tool output, thinking,
- * notices, compaction summaries, details payloads — so search can reach it
- * before any expansion. Collapsed is not enough to be listed: the body must
- * still be empty, because once rendered the text is in the DOM for good (and
- * re-collapsing keeps it there). Cleared with the transcript.
- */
-const hiddenBodies = new Map<HTMLElement, HiddenBody>();
-
-function registerHiddenBody(collapsible: Collapsible, getText: () => string): void {
-  registerReveal(collapsible);
-  hiddenBodies.set(collapsible.root, { body: collapsible.body, getText });
-}
-
-/** Searchable text of not-yet-rendered card bodies, with the card root to reveal. */
-export function collectHiddenBodies(): Array<{ root: HTMLElement; text: string }> {
-  const regions: Array<{ root: HTMLElement; text: string }> = [];
-  for (const [root, region] of hiddenBodies) {
-    if (!root.isConnected) {
-      hiddenBodies.delete(root);
-      continue;
-    }
-    // Rendered already: the DOM corpus covers this text from here on.
-    if (region.body.childElementCount > 0) continue;
-    const text = region.getText();
-    if (text) regions.push({ root, text });
-  }
-  return regions;
-}
-
-/* ---------------------------------------------------------------- */
-/* Batched history replay                                            */
-/* ---------------------------------------------------------------- */
-
-/**
- * Where top-level transcript nodes are appended. While replaying a persisted
- * session this is a detached fragment: building hundreds of cards directly in
- * the live DOM makes the browser maintain layout for every single append.
- */
-let sink: HTMLElement | DocumentFragment = messagesContentEl;
-
-/** Suppresses per-event scrolling (which forces a synchronous layout). */
-let replaying = false;
-
-/** The "no messages yet" / "loading" placeholder, tracked instead of queried. */
-let placeholderEl: HTMLElement | undefined;
-/** Last flags seen with a history, reused by the new-session placeholder. */
-let systemPromptOverridden = false;
-let subagent: SubagentSetup | undefined;
-let terminal: ToolSetup | undefined;
-
-/* ---------------------------------------------------------------- */
-/* Sticky auto-scroll                                                */
-/* ---------------------------------------------------------------- */
-
-/** Only follow new content while the user is at (or near) the bottom. */
-let followBottom = true;
-
-const NEAR_BOTTOM_PX = 40;
-
-/**
- * The user's most recent wheel input went up, and nothing since has cancelled
- * that intent. Geometry alone cannot tell the user's escape apart from our own
- * snaps: assigning scrollTop also fires "scroll", and a small upward wheel
- * stays inside the NEAR_BOTTOM_PX zone where both look identical — so the snap
- * came right back on the next streaming frame and the view jittered up and
- * down. The wheel event is the one input a scrollTop assignment can never
- * produce, so it alone cancels following at any distance.
- */
-let userWheeledUp = false;
-
-/** Whether an element between `node` and `root` would eat an upward wheel
- * (its own content is scrolled down). Wheel over a card body that scrolls
- * reads that body, not the transcript — not an escape attempt. */
-function innerScrollerConsumesWheelUp(node: Element | null, root: Element): boolean {
-  for (let el = node; el && el !== root; el = el.parentElement) {
-    const overflowY = getComputedStyle(el).overflowY;
-    if ((overflowY === "auto" || overflowY === "scroll") && el.scrollTop > 0) return true;
-  }
-  return false;
-}
-
-function isNearBottom(): boolean {
-  return messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < NEAR_BOTTOM_PX;
-}
-
-/** Force following back on: sending a message, the jump button, fresh views. */
-function resumeFollowing(): void {
-  userWheeledUp = false;
-  followBottom = true;
-  flushDeferredFolds();
-}
-
-messagesEl.addEventListener(
-  "wheel",
-  (event) => {
-    if (event.deltaY < 0) {
-      if (!innerScrollerConsumesWheelUp(event.target as Element | null, messagesEl)) userWheeledUp = true;
-    } else if (event.deltaY > 0) {
-      userWheeledUp = false;
-    }
-  },
-  { passive: true },
-);
-
-messagesEl.addEventListener("scroll", () => {
-  // An exact-bottom landing alone must NOT resume following. While streaming,
-  // any re-render shrink (markdown re-parse merging an unfinished construct,
-  // the working row going away, a bubble folding) clamps scrollTop to the new
-  // maximum and fires a scroll event that looks like "user reached the
-  // bottom" — treating that as a resume signal resurrected the snap on the
-  // next streaming event, and the view jittered against every small upward
-  // wheel (large wheels escaped via the NEAR_BOTTOM_PX geometry, so only they
-  // seemed to work). Resumes come from explicit intent only: wheel down, the
-  // jump button, sending, End.
-  const wasFollowing = followBottom;
-  followBottom = !userWheeledUp && isNearBottom();
-  // Scrolling back down by hand re-arms the default fold rule, same as the
-  // jump button does through resumeFollowing().
-  if (followBottom && !wasFollowing) flushDeferredFolds();
-  updateScrollDownButton(false);
-});
-
-// Keyboard escape hatch for the resume rule above: End means "take me to the
-// latest" just as much as the jump button does. Guarded so the composer's own
-// End (caret to line end) keeps its native meaning.
-window.addEventListener("keydown", (event) => {
-  if (event.key !== "End") return;
-  const target = event.target;
-  if (
-    target instanceof HTMLElement &&
-    (target.tagName === "TEXTAREA" || target.tagName === "INPUT" || target.isContentEditable)
-  ) {
-    return;
-  }
-  resumeFollowing();
-});
-
-scrollDownBtn.addEventListener("click", () => {
-  resumeFollowing();
-  messagesEl.scrollTop = messagesEl.scrollHeight;
-  updateScrollDownButton(false);
-  // The scroll event fires asynchronously; re-check on the next frame.
-  requestAnimationFrame(() => updateScrollDownButton(false));
-});
-
-function updateScrollDownButton(hasNews: boolean): void {
-  // Hidden while following the latest messages or already at the bottom.
-  if (followBottom || isNearBottom()) {
-    scrollDownBtn.style.display = "none";
-    scrollDownBtn.classList.remove("news");
-    return;
-  }
-  scrollDownBtn.style.display = "inline-flex";
-  if (hasNews) scrollDownBtn.classList.add("news");
-}
-
-/** Re-attach to the bottom, e.g. after the user sends a new message. */
-export function followLatest(): void {
-  resumeFollowing();
-  updateScrollDownButton(false);
-}
-
-function scrollToEnd(): void {
-  // Queued/steering bubbles stay glued to the bottom (above the working
-  // indicator) until they are consumed by the agent loop.
-  for (const pending of pendingUserBubbles) {
-    if (pending.element !== messagesContentEl.lastElementChild) messagesContentEl.appendChild(pending.element);
-  }
-  // Keep the working indicator glued to the bottom as new content arrives.
-  if (workingEl && workingEl !== messagesContentEl.lastElementChild) messagesContentEl.appendChild(workingEl);
-  // Respect the user's reading position: only auto-scroll while following.
-  if (followBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
-  else updateScrollDownButton(true);
-}
-
-/* ---------------------------------------------------------------- */
-/* Event rendering                                                   */
+/* 事件渲染                                                          */
 /* ---------------------------------------------------------------- */
 
 export function applyEvent(event: ChatEvent): void {
   switch (event.kind) {
     case "user_message":
-      // A user message ends the execution process that precedes it, exactly as
-      // formal assistant text does — otherwise everything the agent does next
-      // keeps landing in the block above the bubble. Queued/steering messages
-      // are the exception: they are still floating at the bottom and the run on
-      // screen is not theirs yet, so they split the transcript only once the
-      // agent consumes them (see `reconcilePendingBubbles`).
+      // 用户消息与正式的 agent 文本一样，会结束它前面的执行过程——否则
+      // agent 接下来做的事会继续落进气泡上方的那个块。排队/转向消息例外：
+      // 它们还浮在底部，屏幕上的运行不属于它们，要等 agent 消费后才
+      // 分割 transcript（见 `reconcilePendingBubbles`）。
       if (!event.mode) {
         finishThinkingCard();
         finishWorkBlock();
@@ -470,22 +65,21 @@ export function applyEvent(event: ChatEvent): void {
       appendUserBubble(event.text, event.mode, event.skill, event.prompt, event.extension, event.images);
       break;
     case "assistant_start":
-      assistantBubble = undefined;
+      st.assistantBubble = undefined;
       finishThinkingCard();
       break;
     case "text_delta":
-      // Formal assistant text ends the current non-formal work block. Any
-      // later thinking/tools will start a fresh block in the transcript.
+      // 正式的 agent 文本结束当前执行过程块；之后的思考/工具另起新块。
       finishThinkingCard();
       finishWorkBlock();
-      assistantBubble ??= createStreamingBubble("assistant");
-      assistantBubble.raw += event.delta;
+      st.assistantBubble ??= createStreamingBubble("assistant");
+      st.assistantBubble.raw += event.delta;
       scheduleRender();
       break;
     case "thinking_delta":
-      thinkingCard ??= createThinkingCard(true);
-      thinkingCard.raw += event.delta;
-      thinkingCard.invalidate();
+      st.thinkingCard ??= createThinkingCard(true);
+      st.thinkingCard.raw += event.delta;
+      st.thinkingCard.invalidate();
       scheduleRender();
       break;
     case "thinking_message": {
@@ -493,29 +87,29 @@ export function applyEvent(event: ChatEvent): void {
       card.raw = event.text;
       card.invalidate();
       finishCard(card);
-      thinkingCard = undefined;
+      st.thinkingCard = undefined;
       break;
     }
     case "assistant_message":
       finishWorkBlock();
       appendMarkdownBubble("assistant", event.text);
-      assistantBubble = undefined;
+      st.assistantBubble = undefined;
       break;
     case "assistant_end":
-      // Final render with syntax highlighting (streaming skips it).
-      if (assistantBubble) assistantBubble.bubble.setText(assistantBubble.raw);
+      // 最终完整渲染带语法高亮（流式期间跳过）。
+      if (st.assistantBubble) st.assistantBubble.bubble.setText(st.assistantBubble.raw);
       finishThinkingCard();
-      assistantBubble = undefined;
+      st.assistantBubble = undefined;
       break;
     case "tool_start":
       startToolCard(event.id, event.name, event.args, event.skill);
       break;
     case "tool_update": {
-      const card = toolCards.get(event.id);
+      const card = st.toolCards.get(event.id);
       if (card) {
         if (event.text) card.bodyText = event.text;
-        // Live payload of a still-running tool. The delegation card is built
-        // from it, so this is what makes its per-subagent rows move.
+        // 仍在运行的工具的实时 payload；委派卡片由它构建，
+        // 各子代理行因此能动起来。
         if (event.details !== undefined) card.details = event.details;
         card.invalidate();
         if (card.expanded) scheduleRender();
@@ -526,22 +120,22 @@ export function applyEvent(event: ChatEvent): void {
       endToolCard(event);
       break;
     case "agent_start":
-      assistantBubble = undefined;
+      st.assistantBubble = undefined;
       break;
     case "agent_end":
       finalizeStreamingBubble();
       finishThinkingCard();
-      // This only ends one low-level run. Automatic retries, compaction and
-      // queued continuations may still add cards to the same work block.
-      assistantBubble = undefined;
+      // 这里只结束一次底层运行；自动重试、压缩与排队续跑
+      // 仍可能往同一个执行过程块里加卡片。
+      st.assistantBubble = undefined;
       break;
     case "agent_settled":
       finalizeStreamingBubble();
       finishThinkingCard();
       finishWorkBlock();
-      assistantBubble = undefined;
-      // Anything still marked pending was consumed or dropped by now.
-      while (pendingUserBubbles.length > 0) normalizeUserBubble(pendingUserBubbles.pop()!.element);
+      st.assistantBubble = undefined;
+      // 此刻仍标记为 pending 的气泡都已被消费或丢弃。
+      while (st.pendingUserBubbles.length > 0) normalizeUserBubble(st.pendingUserBubbles.pop()!.element);
       break;
     case "queue_update":
       reconcilePendingBubbles(event.steering, event.followUp);
@@ -550,7 +144,7 @@ export function applyEvent(event: ChatEvent): void {
       finalizeStreamingBubble();
       finishThinkingCard();
       finishWorkBlock();
-      assistantBubble = undefined;
+      st.assistantBubble = undefined;
       appendCompactionBoundary(event.summary, event.tokensBefore, event.estimatedTokensAfter);
       break;
     case "status":
@@ -560,18 +154,17 @@ export function applyEvent(event: ChatEvent): void {
       appendNoticeCard("error", event.text, event.scope);
       break;
   }
-  if (placeholderEl) {
-    placeholderEl.remove();
-    placeholderEl = undefined;
+  if (st.placeholderEl) {
+    st.placeholderEl.remove();
+    st.placeholderEl = undefined;
   }
-  // During replay every event would force a layout read; scroll once at the end.
-  if (!replaying) scrollToEnd();
+  // 回放时逐事件滚动会强制读布局；只在结束时滚一次。
+  if (!st.replaying) scrollToEnd();
 }
 
 /**
- * Replay a persisted transcript. Everything is built inside a detached
- * fragment and attached in one go, so a long session costs one layout pass
- * instead of one per event.
+ * 回放持久化的 transcript。全部内容先在游离 fragment 里构建、
+ * 一次性挂载，长会话只付一次布局成本，而不是每个事件一次。
  */
 export function applyHistory(
   events: ChatEvent[],
@@ -582,60 +175,56 @@ export function applyHistory(
   terminalNow?: ToolSetup,
 ): void {
   const started = performance.now();
-  systemPromptOverridden = systemPromptOverriddenNow;
-  subagent = subagentNow;
-  terminal = terminalNow;
-  // Order matters: `clearMessages()` captures where the user was in the
-  // transcript being replaced, so the switch to the new one comes after it.
+  st.systemPromptOverridden = systemPromptOverriddenNow;
+  st.subagent = subagentNow;
+  st.terminal = terminalNow;
+  // 顺序重要：`clearMessages()` 要在旧 transcript 拆掉前捕获阅读位置，
+  // 切换到新 transcript 必须排在它之后。
   clearMessages();
   selectTranscript(transcriptId);
   const fragment = document.createDocumentFragment();
-  sink = fragment;
-  replaying = true;
+  st.sink = fragment;
+  st.replaying = true;
   try {
     for (const event of events) applyEvent(event);
   } finally {
-    replaying = false;
-    sink = messagesContentEl;
+    st.replaying = false;
+    st.sink = messagesContentEl;
   }
   const built = performance.now();
   messagesContentEl.appendChild(fragment);
 
   if (events.length === 0) appendEmptySessionPlaceholder();
-  // Persisted history has no agent lifecycle events. Its final non-formal
-  // cards belong to a completed historical execution process, not a live one —
-  // unless the session is still streaming (e.g. returning from a preview),
-  // where closing the block would split one execution process in two.
+  // 持久化历史没有 agent 生命周期事件，末尾的非正式卡片属于已完成的
+  // 执行过程；除非会话仍在流式（如从 preview 返回），此时收块会把
+  // 同一个执行过程切成两半。
   if (!live) finishWorkBlock();
   restoreViewState();
-  // One line per session switch: the cheapest way to spot replay regressions
-  // on a real (large) session from the webview devtools. The transcript id and
-  // restored-state count are here because view state surviving a round trip
-  // (parent -> subagent -> parent) is invisible in the DOM until it breaks.
+  // 每次会话切换打一行：在真实（大）会话上从 webview devtools 发现回放
+  // 回归的最便宜手段。transcript id 与恢复状态数写在这里，是因为阅读
+  // 位置在往返（父→子→父）后是否存活在 DOM 里看不见，坏了才知道。
   console.log(
-    `[pi-agent-chat] history replay: ${events.length} events, transcript ${transcriptId ?? "(none)"}, ${currentView.work.size} remembered work block(s), build ${Math.round(built - started)}ms, total ${Math.round(performance.now() - started)}ms`,
+    `[pi-agent-chat] history replay: ${events.length} events, transcript ${transcriptId ?? "(none)"}, ${st.currentView.work.size} remembered work block(s), build ${Math.round(built - started)}ms, total ${Math.round(performance.now() - started)}ms`,
   );
 }
 
 /**
- * Placeholder shown between "user picked a session" and the history arriving:
- * without it the previous transcript stays on screen while the host loads and
- * parses the session file, which reads as a frozen UI.
+ * 「用户选中会话」到「历史到达」之间的占位：没有它，宿主加载并解析
+ * 会话文件期间旧 transcript 一直留在屏上，看起来像 UI 冻住。
  */
 export function showLoading(): void {
   clearMessages();
   const row = el("div", "working-row");
   row.append(spinner(), el("span", undefined, ` ${t.loadingSession}`));
   messagesContentEl.appendChild(row);
-  placeholderEl = row;
+  st.placeholderEl = row;
   resumeFollowing();
 }
 
 /**
- * Placeholder for "start a new session": nothing has to be loaded, so the
- * spinner of `showLoading()` would only flash. Render the empty-session
- * message right away — the empty history that follows renders the same bubble,
- * so nothing changes on screen when it arrives.
+ * 「新建会话」的占位：没有东西要加载，`showLoading()` 的转圈只会一闪
+ * 而过。直接渲染空会话消息——随后到达的空历史渲染的是同一个气泡，
+ * 到达时屏上不会有任何变化。
  */
 export function showNewSession(): void {
   clearMessages();
@@ -644,881 +233,74 @@ export function showNewSession(): void {
 }
 
 function appendEmptySessionPlaceholder(): void {
-  placeholderEl = appendBubble("status", t.emptySession(systemPromptOverridden, subagent, terminal));
-  placeholderEl.classList.add("empty-session");
+  st.placeholderEl = appendBubble("status", t.emptySession(st.systemPromptOverridden, st.subagent, st.terminal));
+  st.placeholderEl.classList.add("empty-session");
 }
 
 export function clearMessages(): void {
-  // Before the DOM goes: this is the last moment the reading position exists.
+  // DOM 拆掉之前：这是阅读位置还存在的最后时刻。
   captureViewState();
   messagesContentEl.innerHTML = "";
-  // The working row goes with it. Keeping the variable would make
-  // `updateWorkingIndicator()` re-attach this now-detached element instead of
-  // building a new one — and with it a spinner whose shared timer has since
-  // stopped (it halts on the first tick that finds no spinner in the
-  // document), leaving a permanently frozen "working..." animation.
-  workingEl = undefined;
-  workingLabelEl = undefined;
-  // Pointed at an element that is no longer in the document; clearing the flag
-  // too keeps the next run from trying to touch a detached node.
-  liveBubbleEl = undefined;
-  toolCards.clear();
-  pendingUserBubbles.length = 0;
-  assistantBubble = undefined;
-  thinkingCard = undefined;
-  activeWorkBlock = undefined;
-  // Blocks are numbered per rendered transcript; the state they index into is
-  // only swapped when the transcript itself changes.
-  workBlocks.clear();
-  workBlockIndex = -1;
-  latestBubbles.clear();
-  deferredFolds.clear();
-  bubbleIndex = -1;
-  hiddenBodies.clear();
-  placeholderEl = undefined;
-  // Skill marks describe the displayed transcript, so they go with it.
+  // 运行行随 innerHTML 一同消失。留着变量会让 `updateWorkingIndicator()`
+  // 把这个已脱离文档的元素重新挂回去而不是新建——连同那个共享定时器
+  // 早已停摆的 spinner（定时器在第一次找不到文档中的 spinner 时就停了），
+  // 留下一个永久冻住的 "working..." 动画。
+  st.workingEl = undefined;
+  st.workingLabelEl = undefined;
+  // 它指向的元素已不在文档里；一并清掉，避免下一轮运行去碰游离节点。
+  st.liveBubbleEl = undefined;
+  st.toolCards.clear();
+  st.pendingUserBubbles.length = 0;
+  st.assistantBubble = undefined;
+  st.thinkingCard = undefined;
+  st.activeWorkBlock = undefined;
+  // 块按当前渲染的 transcript 编号；它们索引的状态只在
+  // transcript 本身变化时才换。
+  st.workBlocks.clear();
+  st.workBlockIndex = -1;
+  st.latestBubbles.clear();
+  st.deferredFolds.clear();
+  st.bubbleIndex = -1;
+  st.hiddenBodies.clear();
+  st.placeholderEl = undefined;
+  // 技能标记描述的是正在显示的 transcript，随它一起清除。
   clearResourceHighlights();
 }
 
-/* ---------------------------------------------------------------- */
-/* Bubbles                                                           */
-/* ---------------------------------------------------------------- */
-
-function appendBubble(role: string, text: string): HTMLElement {
-  const wrapper = el("div", `bubble ${role}`, text);
-  sink.appendChild(wrapper);
-  return wrapper;
-}
-
-function appendMarkdownBubble(role: string, text: string, extra?: HTMLElement): MessageBubble {
-  const index = ++bubbleIndex;
-  const remembered = currentView.bubbles.get(index);
-  const bubble = createMessageBubble({
-    role,
-    text,
-    extra,
-    folded: remembered,
-    onToggle: (folded) => currentView.bubbles.set(index, folded),
-  });
-  // The message that just arrived is the one being read, so the previous one of
-  // the same role folds away — unless the user opened or closed it by hand, in
-  // which case their decision outranks the default. While the user is reading
-  // further up (following off) the fold is deferred instead: see deferredFolds.
-  const previous = latestBubbles.get(role);
-  if (previous && !previous.pinned) {
-    if (replaying || followBottom) previous.setFolded(true);
-    else deferredFolds.add(previous);
-  }
-  latestBubbles.set(role, bubble);
-  // Both roles are addressable in the session tree, so both carry the action
-  // bar; it stays invisible until the host binds an entry id to the bubble.
-  if (role === "user" || role === "assistant") bubble.root.appendChild(entryActionBar(role));
-  // A folded bubble clips its content away, so search must be able to open it.
-  // Not pinned: only the user's own toggle outranks the fold rules.
-  revealActions.set(bubble.root, () => {
-    if (bubble.folded) bubble.setFolded(false);
-    return undefined;
-  });
-  sink.appendChild(bubble.root);
-  return bubble;
-}
-
 /**
- * Attachments of a user message, shown as thumbnails under the text.
- *
- * The bytes arrive already processed by the host (converted / downscaled), so
- * this is exactly what the model received. `data:` URLs are allowed by the
- * webview CSP; nothing here needs a host round trip.
- */
-function imageStrip(images: TranscriptImage[]): HTMLElement {
-  const strip = el("div", "bubble-images");
-  for (const image of images) {
-    const figure = el("span", "bubble-image");
-    const img = document.createElement("img");
-    img.src = `data:${image.mimeType};base64,${image.data}`;
-    img.alt = image.name ?? "";
-    if (image.name) img.title = image.name;
-    figure.appendChild(img);
-    strip.appendChild(figure);
-  }
-  return strip;
-}
-
-/**
- * User message; queued (follow-up) and steering messages get a badge and a
- * distinct accent so they read differently from immediate prompts.
- */
-function appendUserBubble(
-  text: string,
-  mode?: "steer" | "followUp",
-  skill?: string,
-  prompt?: string,
-  extension?: string,
-  images?: TranscriptImage[],
-): void {
-  // A new turn opens with extra space rather than a rule. Both mark the same
-  // boundary, but a full-width line is a piece of furniture the eye has to step
-  // over on every scroll, while the tinted right-aligned bubble already
-  // announces itself. `.turn-open` is what the spacing hangs off; queued and
-  // steering messages are excluded on purpose (they are floating at the bottom
-  // waiting to be consumed, so the run on screen is not theirs yet), and the
-  // first message in a transcript has nothing to be separated from.
-  const opensTurn = !mode && sink.childElementCount > 0;
-  const wrapper = appendMarkdownBubble("user", text, images?.length ? imageStrip(images) : undefined).root;
-  if (opensTurn) wrapper.classList.add("turn-open");
-  // A prompt template is expanded, and an extension command is consumed, before
-  // the agent runs, so neither leaves a tool card behind. The host resolves
-  // them from the submitted text; light up their resource rows here, the way a
-  // model-initiated load lights up a skill.
-  if (prompt) markPromptUsed(prompt);
-  if (extension) {
-    markExtensionUsed(extension);
-    // Extension commands never reach the session file, so the host's
-    // `bubbleEntryIds` has no entry for this bubble. Mark it so `assignEntryIds`
-    // skips it when mapping ids by position — otherwise every later bubble
-    // shifts by one and the latest user message loses its action buttons.
-    wrapper.dataset.noEntry = "";
-  }
-  if (skill) {
-    // `/skill:<name>` is expanded by the SDK before the agent runs, so no tool
-    // card will ever report it; mark the bubble instead, and light up the skill
-    // in the resources panel exactly as a model-initiated load would.
-    wrapper.classList.add("skill");
-    const badge = el("span", "bubble-badge skill-invocation", t.skillInvokedBadge);
-    badge.title = t.skillInvokedTitle;
-    bubbleBadgeColumn(wrapper).appendChild(badge);
-    markSkillActive(skill);
-  }
-  if (!mode) return;
-  wrapper.classList.add(mode === "steer" ? "steered" : "queued");
-  // Run state is the primary badge, so keep it above an invoked-skill badge.
-  bubbleBadgeColumn(wrapper).prepend(el("span", "bubble-badge", mode === "steer" ? t.steerBadge : t.queuedBadge));
-  pendingUserBubbles.push({ element: wrapper, text, mode });
-}
-
-function bubbleBadgeColumn(bubble: HTMLElement): HTMLElement {
-  const existing = bubble.querySelector<HTMLElement>(":scope > .bubble-badges");
-  if (existing) return existing;
-  const column = el("div", "bubble-badges");
-  bubble.prepend(column);
-  return column;
-}
-
-/**
- * Per-message session-tree actions, shown beside the bubble on hover once the
- * host has told us which entry it maps to (see `assignEntryIds`). User bubbles
- * carry them in the gutter on their left, assistant bubbles in the one on
- * their right, so the bar never covers the message text.
- *
- * "Rewind" is the frequent one: on a user message it moves the session back to
- * it and returns its text to the composer, which is how a failed run gets
- * retried (optionally with another model); on a reply it moves the session back
- * to that answer. The session file is append-only, so the abandoned branch
- * survives and stays reachable from the tree navigator.
- */
-function entryActionBar(role: "user" | "assistant"): HTMLElement {
-  const bar = el("div", "bubble-actions");
-  const reply = role === "assistant";
-  bar.append(
-    entryActionButton("switch", REWIND_ICON, t.entrySwitch, reply ? t.entrySwitchReplyTitle : t.entrySwitchTitle),
-    entryActionButton("fork", BRANCH_ICON, t.entryFork, reply ? t.entryForkReplyTitle : t.entryForkTitle),
-    entryActionButton("label", TAG_ICON, t.entryLabel, t.entryLabelTitle),
-  );
-  return bar;
-}
-
-function entryActionButton(
-  action: "switch" | "fork" | "label",
-  svg: string,
-  label: string,
-  title: string,
-): HTMLButtonElement {
-  const element = button(`bubble-action ${action}`, undefined, (event) => {
-    const entryId = (event.currentTarget as HTMLElement).closest<HTMLElement>(".bubble")?.dataset.entryId;
-    if (entryId) post({ type: "entryAction", action, entryId });
-  });
-  element.appendChild(icon(svg));
-  // Icon-only button: the name survives in the tooltip and for screen readers.
-  element.title = `${label} — ${title}`;
-  element.setAttribute("aria-label", label);
-  return element;
-}
-
-/**
- * Bind the message bubbles on screen to their session entries, in order.
- *
- * The host sends one id per bubble it can act on, per role; bubbles beyond that
- * (a message still queued, a reply still streaming, or any bubble in a
- * read-only transcript) stay unbound and therefore show no actions.
- * Extension-command bubbles are skipped (`data-no-entry`): they have no session
- * entry, so counting them would shift every later bubble's index and hide its
- * actions.
- */
-export function assignEntryIds(
-  ids: string[],
-  labels: (string | undefined)[],
-  assistantIds: string[],
-  assistantLabels: (string | undefined)[],
-): void {
-  bindEntryIds(".bubble.user", ids, labels);
-  bindEntryIds(".bubble.assistant", assistantIds, assistantLabels);
-}
-
-function bindEntryIds(selector: string, ids: string[], labels: (string | undefined)[]): void {
-  const bubbles = [...messagesEl.querySelectorAll<HTMLElement>(selector)].filter(
-    (bubble) => bubble.dataset.noEntry === undefined,
-  );
-  bubbles.forEach((bubble, index) => {
-    const id = ids[index];
-    if (id) bubble.dataset.entryId = id;
-    else delete bubble.dataset.entryId;
-    const label = id ? labels[index] : undefined;
-    const existing = bubble.querySelector(".label-badge");
-    if (!label) {
-      existing?.remove();
-      return;
-    }
-    if (existing) existing.textContent = label;
-    else {
-      const badge = el("span", "bubble-badge label-badge", label);
-      const column = bubble.querySelector<HTMLElement>(":scope > .bubble-badges");
-      if (column) column.prepend(badge);
-      else bubble.prepend(badge);
-    }
-  });
-}
-
-/**
- * Hide every per-message action while the transcript is not a stable, editable
- * view of the live session (a run in progress, a subagent, a preview).
- */
-export function setEntryActionsLocked(locked: boolean): void {
-  messagesEl.classList.toggle("actions-locked", locked);
-}
-
-/**
- * Once a queued/steering message is consumed by the agent loop it becomes a
- * normal part of the conversation: drop the badge and the accent styling,
- * and move it to its natural position (before the content that follows it).
- * `queue_update` carries the texts still waiting, so anything absent from the
- * matching queue has been consumed.
+ * 排队/转向消息被 agent 循环消费后就成为对话的正常部分：摘掉徽章与
+ * 强调样式，移到自然位置（其后内容之前）。`queue_update` 携带仍在等待
+ * 的文本，不在对应队列里的就是已被消费。
  */
 function reconcilePendingBubbles(steering: string[], followUp: string[]): void {
-  for (let i = pendingUserBubbles.length - 1; i >= 0; i -= 1) {
-    const pending = pendingUserBubbles[i]!;
+  for (let i = st.pendingUserBubbles.length - 1; i >= 0; i -= 1) {
+    const pending = st.pendingUserBubbles[i]!;
     const queue = pending.mode === "steer" ? steering : followUp;
     if (queue.includes(pending.text)) continue;
     normalizeUserBubble(pending.element);
-    // Anchor it at the current end of the transcript: subsequent output
-    // belongs to this message, so it must no longer float. That also makes it
-    // a boundary — the work block above it is the run the user interrupted, so
-    // close it and let what follows open a fresh one.
+    // 锚定在 transcript 当前末尾：后续输出属于这条消息，不能再漂浮。
+    // 这也构成边界——其上方的块是被打断的那次运行，收掉它，
+    // 让后面的内容另起新块。
     finishThinkingCard();
     finishWorkBlock();
     messagesContentEl.appendChild(pending.element);
-    pendingUserBubbles.splice(i, 1);
+    st.pendingUserBubbles.splice(i, 1);
   }
-}
-
-function normalizeUserBubble(element: HTMLElement): void {
-  element.classList.remove("queued", "steered");
-  const column = element.querySelector<HTMLElement>(":scope > .bubble-badges");
-  column?.querySelector(":scope > .bubble-badge:not(.label-badge):not(.skill-invocation)")?.remove();
-  if (column && column.childElementCount === 0) column.remove();
-}
-
-/**
- * Recall: queued messages went back to the composer, so their floating
- * bubbles disappear from the transcript entirely (CLI dequeue behavior).
- */
-export function removePendingBubbles(): void {
-  for (const pending of pendingUserBubbles) pending.element.remove();
-  pendingUserBubbles.length = 0;
-}
-
-/** Whether any queued/steering bubbles are still waiting to be consumed. */
-export function hasPendingBubbles(): boolean {
-  return pendingUserBubbles.length > 0;
-}
-
-/**
- * The caret belongs to one specific turn -- the bubble currently receiving
- * deltas -- not to "the session is busy". Those are different facts: once the
- * agent stops talking and starts calling tools, the run is still streaming but
- * *this* message is finished, and a cursor left blinking on it would keep
- * claiming the text is still growing.
- */
-function clearStreamingCaret(): void {
-  liveBubbleEl?.classList.remove("streaming");
-  liveBubbleEl = undefined;
-}
-
-function createStreamingBubble(role: string): StreamingBubble {
-  const bubble = appendMarkdownBubble(role, "");
-  if (role === "assistant") {
-    clearStreamingCaret();
-    liveBubbleEl = bubble.root;
-    liveBubbleEl.classList.add("streaming");
-  }
-  return { bubble, raw: "" };
-}
-
-/**
- * Status / error notices. Run-scoped notices (retry, compaction) are grouped
- * into the current work block as collapsed one-line cards. Command-scoped
- * notices (e.g. /session output) are the direct result the user asked for:
- * they render at the top level of the transcript, expanded by default.
- *
- * A notice carrying an action (`retry`) also stays at the top level whatever
- * its scope: work blocks are collapsed by default, and a button the user has
- * to go hunting for behind a fold is not an offer.
- */
-export function appendNoticeCard(kind: "status" | "error", text: string, scope?: "command", retry?: RetryOfferState): void {
-  const command = scope === "command";
-  const parent = command || retry ? sink : ensureWorkBlock().collapsible.body;
-  const firstLine = text.split("\n")[0] ?? "";
-  const short = firstLine.length > MAX_NOTICE_HEADER_CHARS ? `${firstLine.slice(0, MAX_NOTICE_HEADER_CHARS)}...` : firstLine;
-  // Nothing hidden behind the fold: render a flat, non-expandable card.
-  if (short === text) {
-    const card = el("div", `notice-card flat ${kind}${retry ? " actionable" : ""}`);
-    card.appendChild(el("span", "card-label", text));
-    if (retry) card.appendChild(createRetryButton(retry));
-    parent.appendChild(card);
-    return;
-  }
-  const card = createCollapsible({
-    classes: CARD_CLASSES,
-    rootClass: `notice-card ${kind}`,
-    label: short,
-    expanded: command,
-    parent,
-    render: (body) => body.replaceChildren(el("pre", "notice-body", text)),
-  });
-  // The collapsible header is itself a button, so the action goes in a row of
-  // its own below it rather than inside the header.
-  if (retry) {
-    const actions = el("div", "notice-actions");
-    actions.appendChild(createRetryButton(retry));
-    card.root.appendChild(actions);
-  }
-  registerHiddenBody(card, () => text);
-}
-
-/**
- * Re-issue the request that failed, instead of typing "continue".
- *
- * The button is drawn from the state the host put on the notice, never from
- * local click state: the transcript is rebuilt from scratch on every replay
- * (session switch, preview, re-attach), so anything the button remembered on
- * its own would be lost there — and a card nobody rebuilds afterwards would
- * keep claiming a finished retry is still running.
- *
- * One shot per offer: a request that fails again closes its turn with a fresh
- * offer of its own, so a spent one stays on screen as its outcome.
- */
-function createRetryButton(state: RetryOfferState): HTMLButtonElement {
-  const retryButton = button("notice-action", undefined, () => {
-    // Optimistic: the host answers with a rebuilt transcript, which is what
-    // actually decides how this button looks from here on.
-    paintRetryButton(retryButton, "running");
-    post({ type: "retry" });
-  });
-  paintRetryButton(retryButton, state);
-  return retryButton;
-}
-
-function paintRetryButton(retryButton: HTMLButtonElement, state: RetryOfferState): void {
-  const label = state === "running"
-    ? t.noticeRetrying
-    : state === "succeeded"
-      ? t.noticeRetrySucceeded
-      : state === "failed"
-        ? t.noticeRetryFailed
-        : t.noticeRetry;
-  retryButton.disabled = state !== "offered";
-  retryButton.title = state === "offered" ? t.noticeRetryTitle : label;
-  retryButton.replaceChildren(icon(RETRY_ICON), el("span", undefined, label));
-}
-
-/**
- * Persistent checkpoint between transcript phases. The full conversation stays
- * visible, while the expandable body shows the summary Pi now carries forward
- * together with some recent messages.
- */
-function appendCompactionBoundary(summary: string, tokensBefore: number, estimatedTokensAfter?: number): void {
-  const status = estimatedTokensAfter === undefined
-    ? t.compactionTokensBefore(formatTokens(tokensBefore))
-    : t.compactionTokens(formatTokens(tokensBefore), formatTokens(estimatedTokensAfter));
-  const boundary = createCollapsible({
-    classes: CARD_CLASSES,
-    rootClass: "compaction-boundary",
-    tag: "section",
-    label: t.compactionBoundary,
-    status,
-    parent: sink,
-    render: (body) => {
-      body.append(el("p", "compaction-note", t.compactionContextNote));
-      if (summary.trim()) {
-        const rendered = el("div", "compaction-summary");
-        rendered.append(renderMarkdown(summary));
-        body.append(el("div", "compaction-summary-label", t.compactionSummary), rendered);
-      }
-    },
-  });
-  // The summary is the only body text worth finding; the note is boilerplate.
-  registerHiddenBody(boundary, () => summary);
 }
 
 /* ---------------------------------------------------------------- */
-/* Work block + collapsible cards (thinking, tools)                  */
+/* 渲染调度                                                          */
 /* ---------------------------------------------------------------- */
 
-/**
- * Whether thinking streams stay expanded while running (host setting
- * `piAgentChat.transcript.showThinking`, pushed on `ready` and on change).
- * Off by default, and every behaviour below is gated on it: with the flag
- * off, work blocks and thinking cards open collapsed, exactly as before.
- */
-let showThinking = false;
-
-/** Set by the host (`showThinking` message); see above. */
-export function setShowThinking(enabled: boolean): void {
-  showThinking = enabled;
-}
-
-/**
- * Thinking cards that must fold themselves once their own stream ends.
- * A card gets in here only when it was opened automatically by the
- * showThinking setting; the moment the user touches it (in either
- * direction) it leaves the set and its state is theirs from then on —
- * `onToggle` fires only on user clicks, programmatic `setExpanded` does not.
- */
-const autoFoldable = new WeakSet<ThinkingCard>();
-
-/**
- * Create or reuse the current group of non-formal output. The group is kept
- * at the top level of the transcript while its cards live in `body`.
- */
-function ensureWorkBlock(): WorkBlock {
-  if (activeWorkBlock) return activeWorkBlock;
-  // Tool activity means the agent has stopped talking, so whatever message was
-  // streaming is finished even though the run continues.
-  clearStreamingCaret();
-
-  // Position is a stable identity here: the same event sequence always groups
-  // into the same blocks, whether replayed at once or appended live.
-  const index = ++workBlockIndex;
-  const work: WorkBlock = {
-    collapsible: createCollapsible({
-      classes: WORK_CLASSES,
-      rootClass: "work-block running",
-      tag: "section",
-      label: t.workHeader,
-      // View memory wins; without it a block only opens expanded while being
-      // built live with showThinking on. Replay stays collapsed either way —
-      // the replayed final state must match what a live run ended up as.
-      expanded: currentView.work.get(index)?.expanded ?? (!replaying && showThinking),
-      parent: sink,
-    }),
-    thinkingCount: 0,
-    toolCount: 0,
-    failedToolCount: 0,
-    activeTools: new Map(),
-  };
-  updateWorkStatus(work);
-  // Two more header fields after the summary, in this order: the failure count,
-  // then what the block is doing right now. `.work-status` holds the counts and
-  // is never truncated; the action is last because it is the unbounded one
-  // (tool and skill names) and the one whose tail matters least. Putting the
-  // failure count at the tail instead would put the part that must survive
-  // exactly where the ellipsis eats.
-  work.collapsible.statusEl.after(el("span", "work-failures"), el("span", "work-action"));
-  activeWorkBlock = work;
-  workBlocks.set(index, work.collapsible);
-  // No hidden-body text here: the work body is filled eagerly, only hidden.
-  registerReveal(work.collapsible);
-  return work;
-}
-
-/** Update the compact execution summary shown while the work block is collapsed. */
-function updateWorkStatus(work: WorkBlock, action?: string): void {
-  if (action !== undefined) work.action = action;
-  work.collapsible.statusEl.textContent = t.workInProgress(work.thinkingCount, work.toolCount);
-  updateWorkFailures(work);
-  setWorkField(work, "work-action", work.action ?? "");
-}
-
-/** Write one of the header's trailing fields; empty text collapses the field. */
-function setWorkField(work: WorkBlock, cls: string, text: string): void {
-  const field = work.collapsible.root.querySelector<HTMLElement>(`.${cls}`);
-  if (field) field.textContent = text;
-}
-
-/** Keep the standalone failure field in sync; empty when nothing has failed. */
-function updateWorkFailures(work: WorkBlock): void {
-  setWorkField(work, "work-failures", work.failedToolCount ? t.workFailed(work.failedToolCount) : "");
-}
-
-/** Mark the current group complete; the next non-formal event creates a new one. */
-function finishWorkBlock(): void {
-  if (!activeWorkBlock) return;
-  activeWorkBlock.collapsible.root.classList.remove("running");
-  activeWorkBlock.collapsible.root.classList.add("finished");
-  updateWorkFailures(activeWorkBlock);
-  // "What it is doing now" has no meaning once the block is done.
-  setWorkField(activeWorkBlock, "work-action", "");
-  activeWorkBlock.collapsible.statusEl.textContent = t.workDone(activeWorkBlock.thinkingCount, activeWorkBlock.toolCount);
-  // A block that opened expanded because of showThinking closes again once its
-  // process ends. No child-card pin check: the user's intent to keep the block
-  // open is already carried by the view-state memory (`captureViewState`
-  // records the actual expanded state, and a switch away and back restores
-  // it), so the forced close loses nothing that could not come back.
-  if (showThinking && !activeWorkBlock.collapsible.root.classList.contains("collapsed")) {
-    activeWorkBlock.collapsible.setExpanded(false);
-  }
-  activeWorkBlock = undefined;
-}
-
-function createThinkingCard(streaming: boolean): ThinkingCard {
-  const work = ensureWorkBlock();
-  work.thinkingCount += 1;
-  updateWorkStatus(work, t.workThinking);
-  // Declared before the call: with the card created expanded, `render()` runs
-  // synchronously inside `createCollapsible`, one step before `entry` is
-  // assigned — at that moment `entry` is simply `undefined`.
-  let entry: ThinkingCard;
-  entry = createCollapsible({
-    classes: CARD_CLASSES,
-    rootClass: "thinking-card",
-    label: streaming ? t.thinkingHeader : t.thinkingDone,
-    // Open while the stream runs, when showThinking is on and this card is
-    // being built live; `finishCard()` closes it again when the stream ends.
-    expanded: !replaying && showThinking,
-    onToggle: () => {
-      // Any manual touch (either direction) makes the card the user's: it
-      // leaves `autoFoldable` and no later stream- or block-end may fold it.
-      autoFoldable.delete(entry);
-    },
-    parent: work.collapsible.body,
-    render: (body) => body.replaceChildren(renderMarkdown(entry?.raw ?? "")),
-  }) as ThinkingCard;
-  entry.raw = "";
-  if (!replaying && showThinking) autoFoldable.add(entry);
-  registerHiddenBody(entry, () => entry.raw);
-  if (streaming) entry.root.classList.add("streaming");
-  return entry;
-}
-
-/** Freeze the active thinking card: stop the pulse and relabel it. */
-function finishThinkingCard(): void {
-  if (!thinkingCard) return;
-  finishCard(thinkingCard);
-  thinkingCard = undefined;
-}
-
-function finishCard(card: ThinkingCard): void {
-  card.root.classList.remove("streaming");
-  card.labelEl.textContent = t.thinkingDone;
-  card.invalidate();
-  card.refresh();
-  // A card that was opened by the setting — and never touched by the user —
-  // closes itself the moment its own stream ends; it does not wait for the
-  // block's end.
-  if (showThinking && autoFoldable.has(card)) {
-    autoFoldable.delete(card);
-    card.setExpanded(false);
-  }
-}
-
-function startToolCard(id: string, name: string, args: unknown, skill?: SkillRef): void {
-  const work = ensureWorkBlock();
-  work.toolCount += 1;
-  work.activeTools.set(id, name);
-  // History replay funnels through here too, so the panel's "used here" mark
-  // covers replayed transcripts as well as live runs.
-  markToolUsed(name);
-  updateWorkStatus(work, skill?.kind === "load" ? t.workLoadingSkill(skill.name) : t.workCalling(name));
-  const entry = createCollapsible({
-    classes: CARD_CLASSES,
-    rootClass: "tool-card",
-    label: name,
-    status: t.running,
-    parent: work.collapsible.body,
-    render: (body) => {
-      renderToolBody(toolCards.get(id) ?? entry, body);
-      restoreToolScroll(id, body);
-    },
-  }) as ToolCard;
-  entry.root.classList.add("running", "streaming");
-  if (skill) markToolCardSkill(entry, skill);
-  entry.toolName = name;
-  entry.argsText = summarizeArgs(args);
-  entry.bodyText = "";
-  toolCards.set(id, entry);
-  // While collapsed the body never renders, so its text (args, output, patch,
-  // details) is searchable only through this region; the closure reads the
-  // live entry, which tool_end keeps filling in.
-  registerHiddenBody(entry, () =>
-    [entry.argsText, entry.bodyText, entry.patch, flattenDetailText(entry.details)].filter(Boolean).join("\n"));
-  // Expanded after the entry exists, because expanding renders the body and the
-  // body reads back from `entry`. The delegation card is the only view of what
-  // the subagents are doing, and the parent produces no output while it waits:
-  // collapsed by default it would look like the window had frozen.
-  if (name === SUBAGENT_TOOL) entry.setExpanded(true);
-}
-
-/**
- * Set a skill apart from an ordinary file access: the SDK reports a skill the
- * model loads on its own as a plain `read` of its SKILL.md, which is otherwise
- * indistinguishable from any other read in the work block.
- */
-function markToolCardSkill(entry: ToolCard, skill: SkillRef): void {
-  const load = skill.kind === "load";
-  entry.root.classList.add(load ? "skill-load" : "skill-resource");
-  const badge = el("span", load ? "skill-badge load" : "skill-badge", load ? t.skillLoadBadge(skill.name) : skill.name);
-  badge.title = load ? t.skillLoadTitle : t.skillResourceTitle;
-  entry.labelEl.appendChild(badge);
-  if (load) markSkillActive(skill.name);
-}
-
-function endToolCard(event: Extract<ChatEvent, { kind: "tool_end" }>): void {
-  // History replay has no preceding `tool_start`, so create the card on demand.
-  if (!toolCards.has(event.id)) startToolCard(event.id, event.name, event.args, event.skill);
-  const entry = toolCards.get(event.id);
-  if (!entry) return;
-
-  entry.statusEl.textContent = event.isError ? t.errorLabel : t.done;
-  entry.root.classList.remove("running", "streaming");
-  entry.root.classList.toggle("error", event.isError);
-  entry.bodyText = event.text;
-  entry.patch = event.patch;
-  entry.path = event.path;
-  entry.details = event.details;
-  entry.invalidate();
-  entry.refresh();
-
-  const work = activeWorkBlock;
-  if (work) {
-    work.activeTools.delete(event.id);
-    if (event.isError) work.failedToolCount += 1;
-    const activeTool = [...work.activeTools.values()].at(-1);
-    updateWorkStatus(work, activeTool ? t.workCalling(activeTool) : t.workLastTool(event.name));
-  }
-  toolCards.delete(event.id);
-}
-
-/** Full body of a tool card: args summary + output text or diff + actions. */
-function renderToolBody(entry: ToolCard, body: HTMLElement): void {
-  body.replaceChildren();
-  // The subagent card is built from `details` rather than from the
-  // result text: while the call runs that payload is the only live view of what
-  // each subagent is doing, and the parent produces no output of its own
-  // meanwhile.
-  if (entry.toolName === SUBAGENT_TOOL && renderLanes(entry, body)) return;
-  if (entry.argsText) body.appendChild(el("div", "tool-args", entry.argsText));
-  if (entry.patch) {
-    const diff = el("div");
-    diff.appendChild(renderPatch(entry.patch));
-    body.appendChild(diff);
-    if (entry.path) {
-      const actions = el("div", "tool-actions");
-      actions.append(
-        button("secondary", t.openDiff, () => post({ type: "openDiff", path: entry.path ?? "", patch: entry.patch ?? "" })),
-        button("secondary", t.openFile, () => post({ type: "openFile", path: entry.path ?? "" })),
-      );
-      body.appendChild(actions);
-    }
-  } else if (entry.bodyText) {
-    body.appendChild(el("pre", "tool-body", truncate(entry.bodyText, MAX_TOOL_OUTPUT_CHARS)));
-  }
-  if (entry.details !== undefined) renderDetailsBlock(entry.details, body);
-}
-
-/**
- * Per-subagent rows of a `subagent` call.
- *
- * Returns false when the payload is not the expected shape, so the card falls
- * back to the generic rendering rather than showing nothing.
- *
- * Each row carries what the user needs to decide whether to intervene: what it
- * is doing right now, what it may write, what it has written, and — once it is
- * over — how it ended. Rows are clickable (open that subagent's transcript,
- * read-only) and running ones can be stopped individually; the rest of the run
- * continues and the parent still receives a full report.
- */
-function renderLanes(entry: ToolCard, body: HTMLElement): boolean {
-  const details = entry.details;
-  if (details === null || typeof details !== "object" || Array.isArray(details)) return false;
-  const raw = (details as Record<string, JsonValue>).lanes;
-  if (!Array.isArray(raw) || raw.length === 0) return false;
-
-  const list = el("div", "lane-list");
-  for (const item of raw) {
-    if (item === null || typeof item !== "object" || Array.isArray(item)) continue;
-    const lane = item as Record<string, JsonValue>;
-    const status = typeof lane.status === "string" ? lane.status : "running";
-    const row = el("div", `lane-row lane-${status}`);
-
-    const head = el("div", "lane-head");
-    head.appendChild(el("span", "lane-mark", laneMark(status)));
-    const title = typeof lane.title === "string" ? lane.title : "subagent";
-    head.appendChild(el("span", "lane-title", title));
-    const scope = Array.isArray(lane.scope) ? lane.scope.filter((s): s is string => typeof s === "string") : [];
-    if (scope.length > 0) head.appendChild(el("span", "lane-scope", scope.join(", ") || "."));
-    row.appendChild(head);
-
-    // While running the progress line is the whole point; afterwards the
-    // outcome takes its place.
-    const progress = typeof lane.progress === "string" ? lane.progress : undefined;
-    const summary = typeof lane.summary === "string" ? lane.summary : undefined;
-    const detail = status === "running" ? progress : summary;
-    if (detail) row.appendChild(el("div", "lane-detail", truncate(detail, MAX_LANE_DETAIL_CHARS)));
-
-    const written = Array.isArray(lane.writtenFiles)
-      ? lane.writtenFiles.filter((f): f is string => typeof f === "string")
-      : [];
-    if (written.length > 0) {
-      const label = status === "completed" ? t.laneWrote(written.length) : t.laneWroteBeforeStopping(written.length);
-      row.appendChild(el("div", "lane-files", `${label}: ${written.join(", ")}`));
-    }
-    const violations = typeof lane.scopeViolations === "number" ? lane.scopeViolations : 0;
-    if (violations > 0) row.appendChild(el("div", "lane-warning", t.laneScopeRefused(violations)));
-    // Which files, not just how many: this is the list the parent has to finish
-    // by hand, so it is worth a line of its own.
-    const denied = Array.isArray(lane.deniedPaths)
-      ? lane.deniedPaths.filter((p): p is string => typeof p === "string")
-      : [];
-    if (denied.length > 0) {
-      row.appendChild(el("div", "lane-files", `${t.laneRefusedFiles}: ${denied.join(", ")}`));
-    }
-    if (lane.bashMayHaveWritten === true) row.appendChild(el("div", "lane-warning", t.laneBashUntracked));
-
-    const actions = el("div", "lane-actions");
-    const laneId = typeof lane.id === "string" ? lane.id : undefined;
-    const sessionFile = typeof lane.sessionFile === "string" ? lane.sessionFile : undefined;
-    if (laneId || sessionFile) {
-      // Always opened as a subagent. The host uses the live child session when
-      // it still has one and replays the session file otherwise (after a window
-      // reload), but either way the title keeps the framing — falling back to a
-      // plain preview would offer "back to the running session" with nothing
-      // running.
-      actions.append(
-        button("secondary", t.laneView, () => post({ type: "showLane", laneId, sessionFile, title })),
-      );
-    }
-    if (status === "running" && laneId) {
-      actions.append(button("secondary", t.laneStop, () => post({ type: "stopLane", laneId })));
-    }
-    if (actions.childElementCount > 0) row.appendChild(actions);
-    list.appendChild(row);
-  }
-
-  if (list.childElementCount === 0) return false;
-  body.appendChild(list);
-  return true;
-}
-
-function laneMark(status: string): string {
-  switch (status) {
-    case "completed":
-      return "\u2713";
-    case "failed":
-      return "\u2717";
-    case "stopped":
-      return "\u25a0";
-    default:
-      return "\u25cf";
-  }
-}
-
-/**
- * Generic, collapsed-by-default view of a tool's own `details` payload.
- *
- * A tool's `renderCall`/`renderResult` only ever produce pi-tui components
- * (ANSI lines), so their *presentation* cannot be reused here — but the data
- * behind them can. This draws that data in the webview's own idiom.
- *
- * Deliberately schema-free: every payload is rendered the same way, and no
- * extension gets special treatment. The host already bounded the size and
- * stripped anything unclonable (`agent/tool-details.ts`).
- */
-function renderDetailsBlock(details: JsonValue, parent: HTMLElement): void {
-  const block = createCollapsible({
-    classes: CARD_CLASSES,
-    rootClass: "tool-details-block",
-    label: t.toolDetails,
-    parent,
-    render: (target) => appendDetailValue(target, details),
-  });
-  block.root.title = t.toolDetailsTitle;
-  registerHiddenBody(block, () => flattenDetailText(details));
-}
-
-/**
- * Scalar values of a details payload as one line, keys excluded — the same
- * text the rendered tree shows, which is what search should match against.
- */
-function flattenDetailText(value: JsonValue | undefined): string {
-  if (value === undefined || value === null) return "";
-  if (typeof value !== "object") return String(value);
-  const children = Array.isArray(value) ? value : Object.values(value);
-  return children
-    .map((item) => flattenDetailText(item as JsonValue))
-    .filter(Boolean)
-    .join(" ");
-}
-
-function appendDetailValue(parent: HTMLElement, value: JsonValue): void {
-  if (Array.isArray(value)) {
-    if (value.length === 0) {
-      parent.appendChild(el("div", "detail-empty", "[]"));
-      return;
-    }
-    value.forEach((item, index) => appendDetailRow(parent, String(index), item));
-    return;
-  }
-  if (value !== null && typeof value === "object") {
-    const entries = Object.entries(value);
-    if (entries.length === 0) {
-      parent.appendChild(el("div", "detail-empty", "{}"));
-      return;
-    }
-    for (const [key, item] of entries) appendDetailRow(parent, key, item);
-    return;
-  }
-  // A bare scalar at the root: no key to pair it with.
-  parent.appendChild(el("div", "detail-value", formatDetailScalar(value)));
-}
-
-function appendDetailRow(parent: HTMLElement, key: string, value: JsonValue): void {
-  const row = el("div", "detail-row");
-  row.appendChild(el("span", "detail-key", key));
-  if (value !== null && typeof value === "object") {
-    const children = el("div", "detail-children");
-    appendDetailValue(children, value);
-    row.appendChild(children);
-    row.classList.add("nested");
-  } else {
-    row.appendChild(el("span", "detail-value", formatDetailScalar(value)));
-  }
-  parent.appendChild(row);
-}
-
-/** Strings are shown unquoted; the key/value split already carries the shape. */
-function formatDetailScalar(value: JsonValue): string {
-  return value === null ? "null" : String(value);
-}
-
-/** Minimum interval between streaming renders (ms). One rAF is ~16ms, so
- * this skips 2–3 frames — visually imperceptible but cuts rendering work by 4x. */
+/** 流式渲染的最小间隔（ms）。一次 rAF 约 16ms，即跳过 2–3 帧——
+ * 视觉不可感知，渲染量降到 1/4。 */
 const RENDER_THROTTLE_MS = 60;
-let lastRenderTime = 0;
 
-/** Re-render streaming content at most once per throttle interval. */
+/** 每个节流间隔最多重渲染一次流式内容。 */
 function scheduleRender(): void {
-  if (renderScheduled) return;
-  renderScheduled = true;
-  const elapsed = performance.now() - lastRenderTime;
+  if (st.renderScheduled) return;
+  st.renderScheduled = true;
+  const elapsed = performance.now() - st.lastRenderTime;
   const delay = Math.max(0, RENDER_THROTTLE_MS - elapsed);
   if (delay === 0) {
     requestAnimationFrame(doRender);
@@ -1528,77 +310,50 @@ function scheduleRender(): void {
 }
 
 function doRender(): void {
-  renderScheduled = false;
-  lastRenderTime = performance.now();
+  st.renderScheduled = false;
+  st.lastRenderTime = performance.now();
   flushStreaming();
   scrollToEnd();
 }
 
 /**
- * Final full render (with syntax highlighting) when streaming ends.
- * Used by assistant_end, agent_end, agent_settled, compaction_boundary.
+ * 流式结束时的最终完整渲染（带语法高亮）。
+ * 供 assistant_end、agent_end、agent_settled、compaction_boundary 使用。
  */
 function finalizeStreamingBubble(): void {
-  if (assistantBubble) assistantBubble.bubble.setText(assistantBubble.raw);
-  for (const card of toolCards.values()) card.refresh();
+  if (st.assistantBubble) st.assistantBubble.bubble.setText(st.assistantBubble.raw);
+  for (const card of st.toolCards.values()) card.refresh();
 }
 
 function flushStreaming(): void {
-  if (assistantBubble) assistantBubble.bubble.setStreamingText(assistantBubble.raw);
-  // Collapsed cards keep their raw text unrendered on purpose.
-  if (thinkingCard) {
-    thinkingCard.invalidate();
-    thinkingCard.refresh();
+  if (st.assistantBubble) st.assistantBubble.bubble.setStreamingText(st.assistantBubble.raw);
+  // 折叠的卡片有意保持原文不渲染。
+  if (st.thinkingCard) {
+    st.thinkingCard.invalidate();
+    st.thinkingCard.refresh();
   }
-  for (const card of toolCards.values()) card.refresh();
-}
-
-/** Render a unified patch with per-line coloring, hiding the file headers. */
-function renderPatch(patch: string): DocumentFragment {
-  const fragment = document.createDocumentFragment();
-  const lines = patch.split("\n").filter((line) => !/^(---|\+\+\+|diff |index )/.test(line));
-  for (const line of lines.slice(0, MAX_DIFF_LINES)) {
-    const row = el("div", "diff-line");
-    if (line.startsWith("+")) row.classList.add("added");
-    else if (line.startsWith("-")) row.classList.add("removed");
-    else if (line.startsWith("@@")) row.classList.add("hunk");
-    row.textContent = line || " ";
-    fragment.appendChild(row);
-  }
-  if (lines.length > MAX_DIFF_LINES) {
-    fragment.appendChild(el("div", "diff-line hunk", `... ${lines.length - MAX_DIFF_LINES} more lines`));
-  }
-  return fragment;
-}
-
-function summarizeArgs(args: unknown): string {
-  if (args === undefined || args === null) return "";
-  try {
-    return truncate(typeof args === "string" ? args : JSON.stringify(args), MAX_TOOL_ARGS_CHARS);
-  } catch {
-    return "";
-  }
+  for (const card of st.toolCards.values()) card.refresh();
 }
 
 /* ---------------------------------------------------------------- */
-/* Working indicator                                                 */
+/* 运行指示行                                                        */
 /* ---------------------------------------------------------------- */
 
-/** CLI-style working row, specialized while a child session is active. */
+/** CLI 风格的运行行；子会话活跃时换成专属文案。 */
 export function updateWorkingIndicator(): void {
   if (state.isStreaming || state.isCompacting) {
-    if (!workingEl) {
-      workingEl = el("div", "working-row");
-      workingLabelEl = el("span");
-      workingEl.append(spinner(), workingLabelEl);
+    if (!st.workingEl) {
+      st.workingEl = el("div", "working-row");
+      st.workingLabelEl = el("span");
+      st.workingEl.append(spinner(), st.workingLabelEl);
     } else {
-      // Belt and braces for the bug fixed in `clearMessages()`: whatever else
-      // may detach the row, the animation must not stay dead once it is back.
+      // 为 `clearMessages()` 修过的 bug 上双保险：无论还有什么会拆走
+      // 这一行，回来之后动画不能停死。
       ensureSpinnerRunning();
     }
-    if (workingLabelEl) {
+    if (st.workingLabelEl) {
       const lane = currentLane();
-      workingLabelEl.textContent = state.isCompacting
+      st.workingLabelEl.textContent = state.isCompacting
         ? ` ${t.compacting}`
         : state.delegation?.role === "parent" && isDelegating()
           ? ` ${t.waitingForSubagent}`
@@ -1606,16 +361,15 @@ export function updateWorkingIndicator(): void {
             ? ` ${t.subagentWorking}`
             : ` ${t.streaming}`;
     }
-    messagesContentEl.appendChild(workingEl); // re-append to keep it last
+    messagesContentEl.appendChild(st.workingEl); // 重新 append 保证它排在最后
     scrollToEnd();
   } else {
-    workingEl?.remove();
-    workingEl = undefined;
-    workingLabelEl = undefined;
+    st.workingEl?.remove();
+    st.workingEl = undefined;
+    st.workingLabelEl = undefined;
   }
-  // The caret and the working row report different facts, so only the "not
-  // running any more" direction is shared: a settled run certainly has no
-  // streaming turn. Lighting it up is `createStreamingBubble`'s job, because
-  // only it knows *which* turn is growing.
+  // 光标与运行行报告的是两件不同的事实，只共享「不再运行」这个方向：
+  // settle 的运行必然没有流式回合。点亮光标是 `createStreamingBubble`
+  // 的职责，只有它知道是哪一条消息在长。
   if (!state.isStreaming) clearStreamingCaret();
 }

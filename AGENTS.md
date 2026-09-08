@@ -7,9 +7,9 @@
 ## 架构速览
 
 - `src/extension.ts` — 插件入口：注册侧边栏 webview view（`piAgentChat.view`）、编辑区 `WebviewPanel` serializer、命令与诊断。
-- `src/chat-surfaces.ts` — 顶层聊天编排：sidebar/editor 是可替换 GUI surface，每个独立会话由自己的 `ChatController`（`PiRuntime` + `ChatBridge`）驱动；窗口级 session claim、surface 间移动、关闭 editor 后无面保活到 settle、peer 会话状态都在这里。
-- `src/agent/runtime.ts` — SDK `AgentSessionRuntime` 薄封装；负责 session 新建/切换/fork 与 extension 重绑定；扩展 UI 的 `ctx.ui.notify` 经 sink 转到 transcript。
-- `src/agent/bridge.ts` — 双向翻译层：SDK 事件 → `HostMessage`，webview 消息 → runtime 操作；session 历史回放的编排（投影本身在 `agent/history.ts`）。
+- `src/chat-surfaces.ts`（桶，实现在 `src/chat-surfaces/`）— 顶层聊天编排：sidebar/editor 是可替换 GUI surface，每个独立会话由自己的 `ChatController`（`PiRuntime` + `ChatBridge`）驱动；窗口级 session claim、surface 间移动、关闭 editor 后无面保活到 settle、peer 会话状态都在这里（基类 controller + 面板 manager 等按职责分模块，`ownedSessionFiles()` 唯一所有权规则内聚不分散）。
+- `src/agent/runtime.ts`（桶，实现在 `src/agent/runtime/`：types、services 与隔离、启动会话解析、扩展 UI 上下文、`PiRuntime` 本体）— SDK `AgentSessionRuntime` 薄封装；负责 session 新建/切换/fork 与 extension 重绑定；扩展 UI 的 `ctx.ui.notify` 经 sink 转到 transcript。
+- `src/agent/bridge.ts`（桶，实现在 `src/agent/bridge/` 按职责分 14 模块：状态归 `ChatBridge` 类，功能层为接收 bridge 的模块函数）— 双向翻译层：SDK 事件 → `HostMessage`，webview 消息 → runtime 操作；session 历史回放的编排（投影本身在 `agent/history.ts`）。
 - `src/agent/history.ts` — 持久化 transcript → `ChatEvent` 的纯投影，与必须与它逐条对应的 `bubbleEntryIds()` 同居一个文件（那是保证对应关系的手段）。
 - `src/agent/resources.ts` — 资源面板清单的纯投影（Context / Skills / Prompts / Extensions / Tools），只列 pi 官方的资源类型。
 - `src/agent/jsonc-file.ts` — 向共享 JSONC 配置（models.json / settings.json）写入单个值的唯一手段：`modify()` + 整文档 `WorkspaceEdit` + `save()`，保留注释与格式、走与手改相同的重载路径；故意狭窄，不得在它之上长出字段级配置编辑器。
@@ -22,18 +22,18 @@
 - `src/agent/tool-details.ts` — 工具 `AgentToolResult.details` 跨界到 webview 前的清洗（排除清单 + 深度/条目/字符预算截断 + 不可克隆值剔除）。
 - `src/agent/activity.ts` — 宿主侧「本会话中真正生效过」的判定，专供资源面板点亮 Context / Extensions 两栏（transcript 里看不到这两类活动）：上下文文件每轮都无条件拼进 system prompt，故按「本会话已发出过请求」判定；扩展按它订阅的事件（`Extension.handlers` 的 key）是否已被 emit 推断，外加 `onError` 直证。
 - `src/agent/invocations.ts` — 提示词模板与扩展命令的归属判定：`prompt()` 会把 `/模板` 展开成正文、把扩展命令直接消费掉，所以归属只能在提交前从原文解析（回放时仅能靠无占位符的模板正文精确匹配），供资源面板点亮对应行。
-- `src/agent/subagent.ts` — 插件在 pi 自带工具之外提供的两个工具之一：`subagent`，并行子会话调度与逐路汇报（默认关闭，见红线）。
+- `src/agent/subagent.ts`（桶，实现在 `src/agent/subagent/`：types、模型解析、子会话提示词、进展投影、汇报文本、工具定义、调度器各一模块）— 插件在 pi 自带工具之外提供的两个工具之一：`subagent`，并行子会话调度与逐路汇报（默认关闭，见红线）。
 - `src/agent/scope.ts` — 子代理写入范围：路径前缀规范化、启动前重叠判定、`ScopeGuard`（越界拒绝 + 写入记账）。
 - `src/agent/scoped-tools.ts` — 用 SDK 导出的工厂重建的同名 `edit`/`write`，仅替换文件操作层以实施范围强制（唯一强制点）。
-- `src/agent/vscode-terminal.ts` — 另一个自有工具 `vscode_terminal`：在用户可见、可键入的集成终端里跑命令（默认关闭，见红线）。终端池 + `run`/`list`/`read`/`close` 四个动作；终端 API 经 `TerminalApi` 注入，自检可用脚本化实现驱动。
+- `src/agent/vscode-terminal.ts`（桶，实现在 `src/agent/vscode-terminal/`：api、pool、text、tool、types、constants、util 各一模块）— 另一个自有工具 `vscode_terminal`：在用户可见、可键入的集成终端里跑命令（默认关闭，见红线）。终端池 + `run`/`list`/`read`/`close` 四个动作；终端 API 经 `TerminalApi` 注入，自检可用脚本化实现驱动。
 - `src/agent/terminal-replay.ts` — 迷你 VT 重放（零依赖）：遵从光标指令而不是剥离它们，返回屏幕文本 + 光标行；光标行是 `read` 增量续读的边界。附用例，spike 与 `pnpm verify` 共用同一份。
 - `src/agent/terminal-spike.ts` — 终端能力的真机探针（命令面板触发）：只有真窗口 + 真 shell + 真人能验证的事实（激活耗时、用户键入可捕获、增量交付、退出码保真）。保留不废弃：它是这个功能唯一的真机验证手段。
 - `src/agent/config.ts` — 插件自有能力的 VS Code 配置（宿主侧唯一读取点，workspace 级可覆盖），并提供打开 VS Code 设置界面用的 section id。
 - `src/agent/resume.ts` — 自动重试放弃后的手动重发（「retry failed」通知上的重试按钮）。
-- `src/shared/protocol.ts` — host ↔ webview 消息协议与共享常量，**必须保持零依赖**（webview 打包不能引入 Node 代码）。
-- `src/shared/messages.ts` — 宿主侧文案的中英字典（含参数化模板），同样零依赖；宿主经 `agent/i18n.ts` 的 `t()`/`tf()` 取用，webview `i18n.ts` 也引用它以保持措辞一致。
+- `src/shared/protocol.ts`（桶，实现在 `src/shared/protocol/`：layout 布局几何常量、types 数据形状与共用常量、messages 两向消息联合）— host ↔ webview 消息协议与共享常量，**目录内必须保持零依赖**（webview 打包不能引入 Node 代码）。
+- `src/shared/messages.ts`（桶，实现在 `src/shared/messages/`：固定文案 core、models.json 种子、参数化模板）— 宿主侧文案的中英字典（含参数化模板），同样零依赖；宿主经 `agent/i18n.ts` 的 `t()`/`tf()` 取用，webview `i18n.ts` 也引用它以保持措辞一致。
 - `src/shared/time.ts` — 双端共用的时间戳格式化（协议走 ISO UTC，显示按本机时区的固定 `YYYY-MM-DD HH:MM`；不用 `toLocaleString()`，否则会话列表那一列参差且 DOM 快照会依赖宿主 ICU），同样零依赖。
-- `src/webview/` — webview 前端（无框架，DOM 直操作），按面板拆分：`main.ts` 只做布局/接线/路由，`transcript.ts`、`composer.ts`、`sessions-view.ts`、`resources-view.ts`、`picker.ts`、`statusline.ts`、`search.ts`（transcript 搜索，高亮走 CSS Custom Highlight API，不改 DOM）各管一块，`shell.ts`/`store.ts`/`host.ts`/`collapsible.ts`/`bubble.ts`/`clipboard.ts`/`dom.ts` 为公共设施；`i18n.ts` 提供 zh/en 双语。
+- `src/webview/` — webview 前端（无框架，DOM 直操作），按面板拆分：`main.ts` 只做布局/接线/路由，`transcript.ts`（桶，实现在 `webview/transcript/`，可变状态集中于 `state.ts` 的 `st` 对象）、`composer.ts`（桶，实现在 `webview/composer/`，共享状态集中于 `state.ts` 的 `cs` 对象：编排入口、图片附件、输入历史、补全面板、chip 条各一模块）、`sessions-view.ts`、`resources-view.ts`、`picker.ts`、`statusline.ts`、`search.ts`（transcript 搜索，高亮走 CSS Custom Highlight API，不改 DOM）各管一块，`shell.ts`/`store.ts`/`host.ts`/`collapsible.ts`/`bubble.ts`/`clipboard.ts`/`dom.ts` 为公共设施；`i18n.ts` 提供 zh/en 双语。
 - `src/styles/` — SCSS 样式源（`main.scss` 入口，经 esbuild 编译到 `dist/main.css`），颜色只用 VS Code 主题变量。
 
 项目模块架构见 `ARCHITECTURE.md`；修改模块结构后请更新该文件。

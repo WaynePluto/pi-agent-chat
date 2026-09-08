@@ -3,32 +3,24 @@ import { basename } from "node:path";
 import { t, tf } from "./i18n.js";
 
 /**
- * Turn raw bytes from the composer into an `ImageContent` the SDK can attach to
- * a prompt.
+ * 把 composer 送来的原始字节变成 SDK 能附到 prompt 上的 `ImageContent`。
+ * 这是对三个已导出 SDK 原语的粘合，不是复刻：`convertToPng`
+ * （photon/WASM）、`resizeImage`（worker 线程里的 photon）与
+ * `formatDimensionNote` 干全部实活。SDK 自己的编排
+ * （`utils/image-process.ts`）未导出；下面这段序列是这里唯一手写的部分。
  *
- * This is glue over three exported SDK primitives, not a reimplementation:
- * `convertToPng` (photon/WASM), `resizeImage` (photon in a worker thread) and
- * `formatDimensionNote` do all of the actual work. The SDK's own orchestration
- * of them (`utils/image-process.ts`) is not exported; the sequence below is the
- * only part written here, and it is the same sequence any host has to write.
- *
- * Not tagged `SDK-MIRROR:` on purpose: nothing is copied line by line, so there
- * is nothing to diff on an upgrade. The one thing that can drift is
- * {@link PASSTHROUGH_MIME_TYPES} — see the note there.
+ * 故意不打 `SDK-MIRROR:` 标记：没有逐行拷贝，升级时无需比对。唯一会
+ * 漂移的是 {@link PASSTHROUGH_MIME_TYPES}——见其说明。
  */
 
 /**
- * Formats a provider accepts inline, so they are attached as-is.
+ * 供应商接受的行内格式，原样附上；其余一律先转 PNG。宁可窄也不要
+ * 乐观：发送供应商拒绝的格式会失败整次请求，而多余的转换只多几个字节。
  *
- * Anything else is converted to PNG first. Keep this list narrow rather than
- * optimistic: sending a format the provider rejects fails the whole request,
- * while an unnecessary conversion only costs bytes.
- *
- * Drift risk: the SDK keeps the same list privately (`normalizeSupportedImage-
- * MimeType`). If it ever gains a format (avif, say), images of that type get
- * re-encoded to PNG here instead of passing through — larger, never wrong.
- * The fix is upstream exporting `processImage()`, not a copy that has to be
- * kept in sync.
+ * 漂移风险：SDK 私下维护同一份清单（`normalizeSupportedImageMimeType`）。
+ * 它将来新增格式（比如 avif）时，该类型的图在这里会被重编码成 PNG——
+ * 更大，但绝不会错。正确修法是上游导出 `processImage()`，不是维护一份
+ * 要人肉同步的拷贝。
  */
 const PASSTHROUGH_MIME_TYPES = new Map<string, string>([
   ["image/png", "image/png"],
@@ -38,17 +30,16 @@ const PASSTHROUGH_MIME_TYPES = new Map<string, string>([
   ["image/webp", "image/webp"],
 ]);
 
-/** Upper bound on what the webview may hand over, before any processing. */
+/** webview 单次可递交的上限，在任何处理之前。 */
 export const MAX_ATTACHMENT_BYTES = 32 * 1024 * 1024;
 
 export interface PreparedImage {
-  /** base64, ready for `ImageContent.data`. */
+  /** base64，可直接用于 `ImageContent.data`。 */
   data: string;
   mimeType: string;
   /**
-   * Host-generated notes about the processing that happened (conversion,
-   * downscaling with the coordinate mapping the model needs). They travel in
-   * the message text, the way the CLI's `@file` attachments do.
+   * 宿主生成的处理说明（转换、按共享设置缩小及模型所需的坐标换算）。
+   * 随消息正文走，形状对齐 CLI 的 `@file` 附件。
    */
   hints: string[];
 }
@@ -56,10 +47,10 @@ export interface PreparedImage {
 export type PrepareImageResult = { ok: true; image: PreparedImage } | { ok: false; message: string };
 
 /**
- * Normalize, optionally downscale, and base64-encode one image.
+ * 规范化、按需缩小并 base64 编码一张图。
  *
- * `autoResize` comes from the shared `~/.pi/agent/settings.json`
- * (`images.autoResize`), so both hosts treat the same image the same way.
+ * `autoResize` 来自共享的 `~/.pi/agent/settings.json`
+ * （`images.autoResize`），两个宿主对同一张图的处理因此一致。
  */
 export async function prepareImage(bytes: Uint8Array, mimeType: string, autoResize: boolean): Promise<PrepareImageResult> {
   if (bytes.byteLength === 0) return { ok: false, message: t("imageEmpty") };
@@ -72,9 +63,9 @@ export async function prepareImage(bytes: Uint8Array, mimeType: string, autoResi
   let data = Buffer.from(bytes).toString("base64");
   let resolvedType = passthrough ?? "image/png";
   if (!passthrough) {
-    // Unsupported (or mislabelled) input: photon decodes it and re-encodes as
-    // PNG. A non-image lands here too and comes back null, which is how a
-    // wrong `File.type` from the webview is caught.
+    // 不支持（或标错类型）的输入：photon 解码后重编码为 PNG。
+    // 非图片也走到这里并返回 null，webview 传错的 `File.type`
+    // 由此被识破。
     const converted = await convertToPng(data, base || "application/octet-stream");
     if (!converted) return { ok: false, message: t("imageUnsupported") };
     data = converted.data;
@@ -86,21 +77,19 @@ export async function prepareImage(bytes: Uint8Array, mimeType: string, autoResi
 
   const resized = await resizeImage(Buffer.from(data, "base64"), resolvedType);
   if (!resized) return { ok: false, message: t("imageTooLargeToResize") };
-  // The note explains how to map coordinates back to the original; only
-  // present when the image was actually scaled.
+  // 说明如何把坐标换算回原图；只在图确实被缩放时出现。
   const note = formatDimensionNote(resized);
   if (note) hints.push(note);
   return { ok: true, image: { data: resized.data, mimeType: resized.mimeType, hints } };
 }
 
 /**
- * The text an attachment contributes to the user message.
+ * 附件写进用户消息的文本。
  *
- * Shaped after the CLI's `@file` attachments (`<file name="...">hints</file>`),
- * with `<image>` instead of `<file>` because a pasted screenshot is not a file
- * and because it gives the transcript a reliable thing to strip. Always
- * non-empty: the SDK puts a text block first in every user message, and an
- * empty one is rejected by some providers.
+ * 形状对齐 CLI 的 `@file` 附件（`<file name="...">hints</file>`），用
+ * `<image>` 而非 `<file>`：粘贴的截图不是文件，且这让 transcript 有了
+ * 可靠的剥离目标。永不为空：SDK 把文本块放在每条用户消息最前，某些
+ * 供应商会拒绝空文本块。
  */
 export function imageAttachmentMarkup(name: string, hints: readonly string[]): string {
   return `<image name="${name.replace(/["<>]/g, "")}">${hints.join("\n")}</image>`;
@@ -109,17 +98,16 @@ export function imageAttachmentMarkup(name: string, hints: readonly string[]): s
 const IMAGE_MARKUP = /[ \t]*<image name="[^"]*">[\s\S]*?<\/image>[ \t]*\n?/g;
 
 /**
- * Drop attachment markup from text shown to the user.
+ * 从面向用户展示的文本中剥掉附件标记。
  *
- * Same idea as `collapseSkillInvocation`: the model reads the expanded form,
- * the transcript shows what the user actually composed — the images themselves
- * are rendered as thumbnails, so repeating their markup is noise.
+ * 与 `collapseSkillInvocation` 同一思路：模型读展开形式，transcript 展示
+ * 用户实际编写的内容——图片本身渲染成缩略图，重复其标记只是噪声。
  */
 export function stripImageAttachmentMarkup(text: string): string {
   return text.includes("<image name=") ? text.replace(IMAGE_MARKUP, "").trimEnd() : text;
 }
 
-/** Display name for an attachment: the file's own name, or a numbered paste. */
+/** 附件的显示名：文件自身名，或按序编号的粘贴。 */
 export function attachmentName(index: number, path?: string): string {
   const named = path ? basename(path) : "";
   return named || `clipboard-${index}`;

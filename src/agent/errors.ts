@@ -1,17 +1,16 @@
 /**
- * Uniform error rendering for host-side logs and chat notices.
+ * 宿主侧日志与聊天提示共用的统一错误渲染。
  *
- * Every call site previously inlined `error instanceof Error ? … : String(error)`;
- * keeping one implementation avoids drift in what users see when something fails.
+ * 此前每个调用点都内联 `error instanceof Error ? … : String(error)`，
+ * 收敛到一处，避免各处给用户看的失败信息逐渐漂移。
  */
 
-/** `Name: message` for real errors, `String(value)` for anything thrown. */
+/** 真正的 Error 渲染为 `Name: message`，其余抛出值用 `String(value)`。 */
 export function describe(error: unknown): string {
   if (!(error instanceof Error)) return String(error);
   const parts = [`${error.name}: ${error.message}`];
-  // Unwrap the `cause` chain: undici reports every network failure as
-  // "TypeError: fetch failed" and hides the diagnostic (DNS, TLS, proxy,
-  // unreachable socket) inside `cause`. Other stdlib errors nest the same way.
+  // 解开 `cause` 链：undici 把一切网络失败报成 "TypeError: fetch failed"，
+  // 真正的诊断（DNS/TLS/代理/不可达 socket）藏在 `cause` 里；其他标准库错误同样嵌套。
   let cause: unknown = error.cause;
   let guard = 0;
   while (cause instanceof Error && cause.message && guard++ < 5) {
@@ -21,7 +20,7 @@ export function describe(error: unknown): string {
   return parts.join(" — ");
 }
 
-/** Same as `describe()` but keeps the stack when one is available (crash reports). */
+/** 同 `describe()`，但有 stack 时保留 stack（崩溃报告用）。 */
 export function describeWithStack(error: unknown): string {
   return error instanceof Error ? (error.stack ?? describe(error)) : String(error);
 }
