@@ -29,12 +29,18 @@ function modelRef(model: { provider: string; id: string }): string {
 }
 
 /**
- * composer 快捷菜单的模型：只有常用（scoped）的那些，按配置顺序——
- * 那也是 CLI Ctrl+P 的轮换顺序。什么都没配时菜单刻意留空：完整目录
- * 属于原生选择器，不属于一个小弹层。
+ * composer 快捷菜单的模型：只有常用（scoped）的那些，按供应商名聚拢、
+ * 供应商内按模型名排序（码元比较，排序不随宿主 ICU 漂移）。什么都没配
+ * 时菜单刻意留空：完整目录属于原生选择器，不属于一个小弹层。
  */
 export async function buildModelCatalog(runtime: PiRuntime): Promise<ModelCatalog> {
-  return { items: runtime.scopedModels.map(({ model }) => ({ provider: model.provider, id: model.id })) };
+  const items = runtime.scopedModels.map(({ model }) => ({ provider: model.provider, id: model.id }));
+  items.sort((a, b) => (a.provider === b.provider ? codeUnitOrder(a.id, b.id) : codeUnitOrder(a.provider, b.provider)));
+  return { items };
+}
+
+function codeUnitOrder(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /** 携带「点了哪个行内动作」的 QuickInputButton 扩展。 */
