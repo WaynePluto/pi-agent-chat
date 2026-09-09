@@ -54,6 +54,13 @@ pnpm outdated
 - devDependencies（esbuild、typescript、@vscode/vsce、@types/*、jsdom）：可跟进最新。
   `@types/vscode` 的 major.minor 不得超过 `engines.vscode`；`typescript` 对齐当前 VS Code 内置版本
   （`<VS Code 安装目录>/resources/app/extensions/node_modules/typescript/package.json`）。
+- `@types/node` **不跟进最新**：类型必须不超前于扩展宿主实际运行的 Node。规则是「落后而非超前」——
+  对齐当前稳定版 VS Code 内置 Node 的**主版本**，取 `@types/node` 在该主版本下的**最后一个发布**
+  （`npm view @types/node versions`；类型包不逐补丁追随 Node，主版本末版即最接近运行时的选择，
+  例：VS Code 1.136 内置 Node 24.18.1 → 用 24.13.3）。类型超前会把运行时没有的 API 判成可用，
+  typecheck 给的是假绿灯；落后一个主版本只会漏报，安全得多。VS Code 内置 Node 版本可查
+  `Help → About` 或 Remote-SSH issue 里的 `process.versions` 报告。若 `pnpm outdated` 显示
+  `@types/node` 有更高主版本的新版，**跳过它**。
 
 注意：`pnpm outdated` 只列“已安装版本落后于 latest”的包，**看不到版本声明写法的问题**
 （例：`^30.0.1` 当前恰好解析到 latest 时不会出现在输出里），因此不能只盯这张表，还要跑第 5 步的

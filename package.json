@@ -304,7 +304,7 @@
     "undici": "8.10.2"
   },
   "devDependencies": {
-    "@types/node": "26.4.1",
+    "@types/node": "24.13.3",
     "@types/vscode": "1.99.0",
     "@vscode/vsce": "3.9.2",
     "esbuild": "0.28.2",
