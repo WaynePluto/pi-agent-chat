@@ -82,12 +82,33 @@
     }
   }
 
+  /* 折叠/展开动效。与 work/card body 同一套：`interpolate-size` 让 intrinsic
+     关键字能与长度互转（Chromium 129+），旧内核不识别则退化为瞬时切换。
+     这里用的是 `max-content` 而不是 `none`——`none` 不参与插值，而
+     `max-content` 的钳制值就是内容自身高度，视觉等价 none。computed 值
+     停留在关键字上，流式期间内容增长不会触发过渡，只有类切换
+     （13em ↔ max-content）才动。
+     `overflow: hidden` 常驻（原来只在折叠态）：动画期间内容不得溢出正在
+     收缩/扩张的盒子；基态下没有超出可裁（首尾 margin 已归零，BFC 化无
+     布局差异）。 */
+  > .bubble-content {
+    max-height: max-content;
+    interpolate-size: allow-keywords;
+    overflow: hidden;
+    transition: max-height 0.22s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    > .bubble-content {
+      transition: none;
+    }
+  }
+
   /* 折叠：留一段预览，其余用 mask 淡出。高度用 `em`，跟随气泡字号。
      用 `mask-image` 而不是盖一层渐变遮罩——遮罩要知道背景色，而 agent 消息没有底色；
      不透明端用 `currentColor`，因为 mask 只读 alpha，写字面色只是多一个硬编码。 */
   &.folded > .bubble-content {
     max-height: 13em;
-    overflow: hidden;
     mask-image: linear-gradient(to bottom, currentColor 72%, transparent 100%);
     -webkit-mask-image: linear-gradient(to bottom, currentColor 72%, transparent 100%);
   }

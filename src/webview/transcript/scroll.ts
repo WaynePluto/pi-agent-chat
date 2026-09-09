@@ -1,5 +1,7 @@
 import { messagesContentEl, messagesEl, scrollDownBtn } from "../shell.js";
+import { state } from "../store.js";
 import { flushDeferredFolds } from "./bubbles.js";
+import { cancelSmoothScroll, onSmoothScrollSettled, smoothScrollActive, smoothScrollTo } from "./smooth-scroll.js";
 import { st } from "./state.js";
 
 /* ---------------------------------------------------------------- */
@@ -33,6 +35,8 @@ export function resumeFollowing(): void {
 messagesEl.addEventListener(
   "wheel",
   (event) => {
+    // 用户接管滚动：飞行中的平滑滚动立即让位。
+    cancelSmoothScroll();
     if (event.deltaY < 0) {
       if (!innerScrollerConsumesWheelUp(event.target as Element | null, messagesEl)) st.userWheeledUp = true;
     } else if (event.deltaY > 0) {
@@ -71,17 +75,27 @@ window.addEventListener("keydown", (event) => {
   resumeFollowing();
 });
 
+// 飞行结束（到达或被滚轮/贴底取消）时刷新跳底按钮：末帧可能不产生
+// scroll 事件，最后的 scroll 处理停留在「飞行中」的隐藏判定里。
+onSmoothScrollSettled(() => updateScrollDownButton(false));
+
 scrollDownBtn.addEventListener("click", () => {
   resumeFollowing();
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+  // 空闲时平滑滚到底（固定时长补间）；流式/压缩期间内容每帧都在增长，
+  // 贴底赋值会打断飞行中的动画，那时瞬时贴底反而更稳。
+  if (state.isStreaming || state.isCompacting) {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  } else {
+    smoothScrollTo(messagesEl.scrollHeight);
+  }
   updateScrollDownButton(false);
   // scroll 事件异步触发；下一帧再查一次。
   requestAnimationFrame(() => updateScrollDownButton(false));
 });
 
 export function updateScrollDownButton(hasNews: boolean): void {
-  // 正跟随最新消息或已在底部时隐藏。
-  if (st.followBottom || isNearBottom()) {
+  // 正跟随最新消息、已在底部、或平滑下滚的飞行途中：隐藏。
+  if (st.followBottom || isNearBottom() || smoothScrollActive()) {
     scrollDownBtn.style.display = "none";
     scrollDownBtn.classList.remove("news");
     return;
@@ -103,7 +117,10 @@ export function scrollToEnd(): void {
   }
   // 新内容到达时保持运行指示行贴底。
   if (st.workingEl && st.workingEl !== messagesContentEl.lastElementChild) messagesContentEl.appendChild(st.workingEl);
-  // 尊重用户阅读位置：仅在跟随时自动滚动。
-  if (st.followBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
-  else updateScrollDownButton(true);
+  // 尊重用户阅读位置：仅在跟随时自动滚动。程序赋值会取消飞行中的平滑
+  // 滚动（先到先得），必须显式让位，否则补间下一帧又把位置夺回去。
+  if (st.followBottom) {
+    cancelSmoothScroll();
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  } else updateScrollDownButton(true);
 }
