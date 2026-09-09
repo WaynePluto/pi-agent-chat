@@ -10,7 +10,7 @@ import { collectResourceSections } from "../resources.js";
 import type { ChatBridge } from "./chat-bridge.js";
 import { postExtensionStatus, postExtensionWidgets } from "./extension-ui.js";
 import { delegationState } from "./lanes.js";
-import { withRetryOffer } from "./retry.js";
+import { withOffer } from "./retry.js";
 
 import { buildSkillIndex } from "../skills.js";
 import { buildPromptIndex } from "../invocations.js";
@@ -111,7 +111,7 @@ export function postHistory(bridge: ChatBridge, populateInputHistory = false): v
   bridge.histories.set(session.sessionId, events);
   bridge.host.post({
     type: "history",
-    events: withRetryOffer(bridge, session, events),
+    events: withOffer(bridge, session, events),
     live: session.isStreaming,
     transcriptId: session.sessionId,
     systemPromptOverridden,

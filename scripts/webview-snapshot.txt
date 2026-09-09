@@ -16100,12 +16100,12 @@ Open in editor" type="button">
                   "Retry succeeded"
             <div class="notice-card flat status actionable">
               <span class="card-label">
-                "The last request did not complete, so no reply arrived."
-              <button class="notice-action" title="Retry failed" disabled type="button">
+                "Stopped at your request."
+              <button class="notice-action" title="Cannot continue" disabled type="button">
                 <span>
                   <svg/>
                 <span>
-                  "Retry failed"
+                  "Cannot continue"
         <button id="scroll-down" class="scroll-down hidden" title="Jump to the latest message">
           <svg/>
       <footer id="composer" class="composer">

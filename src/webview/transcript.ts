@@ -148,16 +148,16 @@ export function applyEvent(event: ChatEvent): void {
       appendCompactionBoundary(event.summary, event.tokensBefore, event.estimatedTokensAfter);
       break;
     case "status":
-      // 带重试提议的通知是一次轮次边界：上一轮请求已 definitively 失败，
-      // 其后内容属于新的一轮。收掉前面的执行过程块，避免块保持展开/
-      // 运行样式而下方却叠着通知与后续消息（回放路径没有 agent_settled
-      // 生命周期事件，不收块就永远开着）。普通状态卡是同一次运行内部
-      // 的事件，继续折进当前块。
-      if (event.retry) {
+      // 带续跑提议（重试/继续）的通知是一次轮次边界：上一轮请求已
+      // definitively 中断，其后内容属于新的一轮。收掉前面的执行过程块，
+      // 避免块保持展开/运行样式而下方却叠着通知与后续消息（回放路径没有
+      // agent_settled 生命周期事件，不收块就永远开着）。普通状态卡是同一
+      // 次运行内部的事件，继续折进当前块。
+      if (event.offer) {
         finishThinkingCard();
         finishWorkBlock();
       }
-      appendNoticeCard("status", event.text, event.scope, event.retry);
+      appendNoticeCard("status", event.text, event.scope, event.offer);
       break;
     case "error":
       appendNoticeCard("error", event.text, event.scope);

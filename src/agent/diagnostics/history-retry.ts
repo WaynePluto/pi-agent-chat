@@ -5,7 +5,7 @@ import { ChatBridge } from "../bridge.js";
 import { OriginalContentProvider } from "../diff-view.js";
 import { describe } from "../errors.js";
 import { buildHistoryEntryEvents } from "../history.js";
-import { isResumable, resumeAfterError, supportsResume } from "../resume.js";
+import { isContinuable, isResumable, resumeStalledRun, supportsResume } from "../resume.js";
 import { PiRuntime } from "../runtime.js";
 import type { HostMessage } from "../../shared/protocol.js";
 import type { DiagnosticResult } from "../diagnostics.js";
@@ -99,12 +99,29 @@ export async function runManualRetryTest(cwd: string): Promise<DiagnosticResult[
     sessions.push(thrown);
     const afterThrownFailure = isResumable(thrown);
 
+    /* 手动停止的尾巴只有「继续」可接：aborted 不进 isResumable（那是
+       重试的候选集），isContinuable 只认它。 */
+    const stopped = await open([user("first"), assistant("aborted")]);
+    sessions.push(stopped);
+    const abortedContinuable = isContinuable(stopped);
+    const abortedResumable = isResumable(stopped);
+    const stoppedNotContinuable = isContinuable(failed);
+
     let batch: unknown[] | undefined;
     (failed as unknown as Runner)._runAgentPrompt = async (messages) => {
       batch = messages;
     };
-    const resumed = await resumeAfterError(failed);
+    const resumed = await resumeStalledRun(failed);
     const left = failed.agent.state.messages;
+
+    /* 续跑被停止的运行：同一空批路径，aborted 尾巴照丢（供应商无法从
+       被中止的响应继续）。 */
+    let stoppedBatch: unknown[] | undefined;
+    (stopped as unknown as Runner)._runAgentPrompt = async (messages) => {
+      stoppedBatch = messages;
+    };
+    const stoppedResumed = await resumeStalledRun(stopped);
+    const stoppedLeft = stopped.agent.state.messages;
 
     const ok =
       mechanism &&
@@ -112,15 +129,23 @@ export async function runManualRetryTest(cwd: string): Promise<DiagnosticResult[
       !afterSuccess &&
       afterRepeatedFailure &&
       afterThrownFailure &&
+      abortedContinuable &&
+      !abortedResumable &&
+      !stoppedNotContinuable &&
       resumed &&
       Array.isArray(batch) &&
       batch.length === 0 &&
       left.length === 1 &&
-      left[0]?.role === "user";
+      left[0]?.role === "user" &&
+      stoppedResumed &&
+      Array.isArray(stoppedBatch) &&
+      stoppedBatch.length === 0 &&
+      stoppedLeft.length === 1 &&
+      stoppedLeft[0]?.role === "user";
     return [{
       name: "manual retry",
       ok,
-      detail: `sdk prompt path=${mechanism ? "present" : "MISSING"}; failed=${afterFailure ? "resumable" : "NOT OFFERED"}; completed=${afterSuccess ? "WRONGLY OFFERED" : "not offered"}; error-user-error=${afterRepeatedFailure ? "resumable" : "NOT OFFERED"}; dangling user=${afterThrownFailure ? "resumable" : "NOT OFFERED"}; resumed=${resumed}; re-issued with ${batch?.length ?? "n/a"} new message(s); agent state left with ${left.map((message) => message.role).join(",") || "nothing"}`,
+      detail: `sdk prompt path=${mechanism ? "present" : "MISSING"}; failed=${afterFailure ? "resumable" : "NOT OFFERED"}; completed=${afterSuccess ? "WRONGLY OFFERED" : "not offered"}; error-user-error=${afterRepeatedFailure ? "resumable" : "NOT OFFERED"}; dangling user=${afterThrownFailure ? "resumable" : "NOT OFFERED"}; aborted=${abortedContinuable ? "continuable" : "NOT OFFERED"} (retry=${abortedResumable ? "WRONGLY OFFERED" : "not offered"}); failed-tail continue=${stoppedNotContinuable ? "WRONGLY OFFERED" : "not offered"}; resumed=${resumed}; re-issued with ${batch?.length ?? "n/a"} new message(s); agent state left with ${left.map((message) => message.role).join(",") || "nothing"}; stopped run resumed=${stoppedResumed}, re-issued with ${stoppedBatch?.length ?? "n/a"} new message(s), left with ${stoppedLeft.map((message) => message.role).join(",") || "nothing"}`,
     }];
   } catch (error) {
     return [{ name: "manual retry", ok: false, detail: describe(error) }];
@@ -160,7 +185,7 @@ export async function runReplayedRetryOfferTest(cwd: string): Promise<Diagnostic
     const replayed = [...posted].reverse().find((message) => message.type === "history");
     const events = replayed?.type === "history" ? replayed.events : [];
     const last = events[events.length - 1];
-    const offered = last?.kind === "status" && last.retry === "offered";
+    const offered = last?.kind === "status" && last.offer?.kind === "retry" && last.offer.state === "offered";
     const keptError = events.some((event) => event.kind === "error" && event.text.includes("Request timed out."));
 
     return [{
@@ -311,7 +336,7 @@ export async function runRetryOfferLifecycleTest(cwd: string): Promise<Diagnosti
 function retryStates(posted: readonly HostMessage[]): string[] {
   return posted.flatMap((message) => {
     const events = message.type === "history" ? message.events : message.type === "event" ? [message.event] : [];
-    return events.flatMap((event) => (event.kind === "status" && event.retry ? [event.retry] : []));
+    return events.flatMap((event) => (event.kind === "status" && event.offer?.kind === "retry" ? [event.offer.state] : []));
   });
 }
 
@@ -319,6 +344,6 @@ function latestRetryStates(posted: readonly HostMessage[]): string[] {
   const history = [...posted].reverse().find((message) => message.type === "history");
   if (!history || history.type !== "history") return [];
   return history.events.flatMap((event) => (
-    event.kind === "status" && event.retry ? [event.retry] : []
+    event.kind === "status" && event.offer?.kind === "retry" ? [event.offer.state] : []
   ));
 }

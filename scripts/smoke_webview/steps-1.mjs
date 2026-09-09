@@ -378,7 +378,7 @@ export const STEPS_1 = [
           kind: "status",
           text: "The last request did not complete, so no reply arrived.",
           scope: "command",
-          retry: "offered",
+          offer: { kind: "retry", state: "offered" },
         },
       },
       { type: "state", state: baseState },

@@ -55,6 +55,9 @@ export async function handleMessage(bridge: ChatBridge, message: WebviewMessage)
     case "retry":
       await bridge.retryFailedRequest();
       break;
+    case "continue":
+      await bridge.continueStoppedRun();
+      break;
     case "dequeue":
       dequeueAll(bridge);
       break;

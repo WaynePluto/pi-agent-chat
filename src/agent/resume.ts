@@ -1,12 +1,12 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 
 /**
- * 重发被打断的那一轮请求，不替用户编造任何话。自动重试放弃后
- * transcript 停在一条从未到达的响应上；继续的办法曾是打一句「继续」
+ * 续跑被打断的那一轮请求（自动重试放弃的失败，或用户手动停止），
+ * 不替用户编造任何话。停止或重试放弃后，继续的办法曾是打一句「继续」
  * ——那条消息与任务无关却进了上下文。resume 原样重发同一请求。
  *
  * SDK-MIRROR: `core/agent-session.ts`，复刻自动重试的两步：只从 agent
- * state 丢失败响应（会话文件保留——供应商拒绝空 assistant 结尾）；
+ * state 丢中断的响应（会话文件保留——供应商拒绝空 assistant 结尾）；
  * 以空批走私有 `_runAgentPrompt`——外层循环管 streaming、重试、压缩与
  * settle，直调 agent 则 UI 永远等不到 settle。
  */
@@ -32,8 +32,8 @@ export function supportsResume(session: AgentSession): boolean {
  * 持久化分支刻意不总等于 `agent.state.messages`：Pi 自动重试前会把
  * assistant 错误从 agent state 移除但留在会话历史；请求在产出 assistant
  * 响应前抛错时，分支尾巴可能是 user/toolResult。两者都能用同一空批
- * prompt 路径 resume。正常结束或被中止的响应绝不做候选——重发它会
- * 悄悄丢掉答案（或撤销用户明确的停止）。
+ * prompt 路径 resume。正常结束的响应绝不做候选——重发它会悄悄丢掉屏幕上
+ * 的答案。
  */
 export function isResumable(session: AgentSession): boolean {
   if (session.isStreaming || session.isCompacting) return false;
@@ -48,17 +48,32 @@ export function isResumable(session: AgentSession): boolean {
 }
 
 /**
- * 重发被打断的那一轮。等 resume 的运行 settle 后 resolve；
- * 会话若已越过那次失败则返回 false。
+ * 活动分支是否停在用户手动停止的那一轮上（尾巴是被中止的 assistant
+ * 响应）。仅此形状给「继续」提议：停止落在工具执行中间时尾巴是
+ * toolResult，由 `isResumable()` 的既有形状盖住。
  */
-export async function resumeAfterError(session: AgentSession): Promise<boolean> {
+export function isContinuable(session: AgentSession): boolean {
+  if (session.isStreaming || session.isCompacting) return false;
+  if (!supportsResume(session)) return false;
+  const messages = session.sessionManager.buildSessionContext().messages;
+  const last = messages[messages.length - 1];
+  return last?.role === "assistant" && last.stopReason === "aborted";
+}
+
+/**
+ * 续跑停在半途的那一轮（失败或被停止）。等续跑的运行 settle 后 resolve；
+ * 会话若已越过那次中断则返回 false。
+ */
+export async function resumeStalledRun(session: AgentSession): Promise<boolean> {
   const run = runner(session);
-  if (!run || !isResumable(session)) return false;
+  if (!run || !(isResumable(session) || isContinuable(session))) return false;
   const messages = session.agent.state.messages;
   const last = messages[messages.length - 1];
-  // 供应商无法从空的失败 assistant 响应继续。Pi 的自动重试可能已经把它
-  // 移除，或抛错的请求根本没产出；只有它确实是 agent state 尾巴时才丢。
-  if (last?.role === "assistant" && last.stopReason === "error") {
+  // 供应商无法从空的失败/被中止 assistant 响应继续。Pi 的自动重试可能已经
+  // 把失败响应移除，或抛错的请求根本没产出；只有它确实是 agent state 尾巴
+  // 时才丢。被停止的响应照丢：transcript 上已显示的半截回答不受影响，
+  // 但模型从上一条完好消息重新发起那一轮。
+  if (last?.role === "assistant" && (last.stopReason === "error" || last.stopReason === "aborted")) {
     session.agent.state.messages = messages.slice(0, -1);
   }
   await run.call(session, []);

@@ -81,6 +81,19 @@ export const sharedMessages = {
     zh: "没有可重试的请求：该请求失败后会话已经继续了。发送一条消息即可继续。",
   },
 
+  /** 用户手动停止的那一轮的收尾提示，带继续动作。一句话陈述事实；
+      「可以继续」由按钮自己说。 */
+  continueStopped: {
+    en: "Stopped at your request.",
+    zh: "已按你的要求停止。",
+  },
+
+  /** 会话已越过停止点之后才点继续。 */
+  continueUnavailable: {
+    en: "Nothing to continue: this session has moved on since it was stopped. Send a message to continue.",
+    zh: "没有可继续的运行：停止后会话已经继续了。发送一条消息即可继续。",
+  },
+
   /* —— 会话 ----------------------------------------------------------------- */
 
   deleteActiveSession: {

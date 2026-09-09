@@ -1,4 +1,4 @@
-import type { RetryOfferState } from "../../shared/protocol.js";
+import type { OfferAction } from "../../shared/protocol.js";
 import { CARD_CLASSES, createCollapsible } from "../collapsible.js";
 import { button, el, icon } from "../dom.js";
 import { MAX_NOTICE_HEADER_CHARS, formatTokens } from "../format.js";
@@ -17,19 +17,19 @@ const t = getDict();
  * 单行卡片。命令域通知（如 /session 输出）是用户索要的直接结果：
  * 渲染在 transcript 顶层且默认展开。
  *
- * 带动作（`retry`）的通知无论何种 scope 都留在顶层：执行过程块默认
+ * 带动作（`offer`）的通知无论何种 scope 都留在顶层：执行过程块默认
  * 折叠，藏在折叠后面的按钮算不上「提供」。
  */
-export function appendNoticeCard(kind: "status" | "error", text: string, scope?: "command", retry?: RetryOfferState): void {
+export function appendNoticeCard(kind: "status" | "error", text: string, scope?: "command", offer?: OfferAction): void {
   const command = scope === "command";
-  const parent = command || retry ? st.sink : ensureWorkBlock().collapsible.body;
+  const parent = command || offer ? st.sink : ensureWorkBlock().collapsible.body;
   const firstLine = text.split("\n")[0] ?? "";
   const short = firstLine.length > MAX_NOTICE_HEADER_CHARS ? `${firstLine.slice(0, MAX_NOTICE_HEADER_CHARS)}...` : firstLine;
   // 折叠后面不藏东西：渲染扁平、不可展开的卡片。
   if (short === text) {
-    const card = el("div", `notice-card flat ${kind}${retry ? " actionable" : ""}`);
+    const card = el("div", `notice-card flat ${kind}${offer ? " actionable" : ""}`);
     card.appendChild(el("span", "card-label", text));
-    if (retry) card.appendChild(createRetryButton(retry));
+    if (offer) card.appendChild(createOfferButton(offer));
     parent.appendChild(card);
     return;
   }
@@ -42,45 +42,46 @@ export function appendNoticeCard(kind: "status" | "error", text: string, scope?:
     render: (body) => body.replaceChildren(el("pre", "notice-body", text)),
   });
   // 可折叠的头部本身是按钮，动作放在其下独立一行而不是塞进头部。
-  if (retry) {
+  if (offer) {
     const actions = el("div", "notice-actions");
-    actions.appendChild(createRetryButton(retry));
+    actions.appendChild(createOfferButton(offer));
     card.root.appendChild(actions);
   }
   registerHiddenBody(card, () => text);
 }
 
 /**
- * 重发失败的那次请求，而不是手打一句「继续」。
+ * 续跑停在半途的那轮运行（重发失败请求 / 继续被停止的运行），而不是
+ * 手打一句「继续」。
  *
  * 按钮一律按宿主写在通知上的状态绘制，绝不读本地点击状态：transcript
  * 每次回放（切会话、preview、重挂）都从头重建，按钮自己记住的东西到
  * 那时就丢了——而没人重建的卡片会一直声称已结束的重试还在跑。
  *
- * 每次提议只有一击：再次失败的请求会用新的提议收尾，用掉的这次留在
+ * 每次提议只有一击：再次中断的请求会用新的提议收尾，用掉的这次留在
  * 屏上作为它的结局。
  */
-function createRetryButton(state: RetryOfferState): HTMLButtonElement {
-  const retryButton = button("notice-action", undefined, () => {
+function createOfferButton(offer: OfferAction): HTMLButtonElement {
+  const offerButton = button("notice-action", undefined, () => {
     // 乐观更新：宿主以重建的 transcript 应答，按钮此后长什么样由它决定。
-    paintRetryButton(retryButton, "running");
-    post({ type: "retry" });
+    paintOfferButton(offerButton, offer.kind, "running");
+    post({ type: offer.kind === "continue" ? "continue" : "retry" });
   });
-  paintRetryButton(retryButton, state);
-  return retryButton;
+  paintOfferButton(offerButton, offer.kind, offer.state);
+  return offerButton;
 }
 
-function paintRetryButton(retryButton: HTMLButtonElement, state: RetryOfferState): void {
+function paintOfferButton(offerButton: HTMLButtonElement, kind: OfferAction["kind"], state: OfferAction["state"]): void {
   const label = state === "running"
-    ? t.noticeRetrying
+    ? kind === "continue" ? t.noticeContinuing : t.noticeRetrying
     : state === "succeeded"
-      ? t.noticeRetrySucceeded
+      ? kind === "continue" ? t.noticeContinueSucceeded : t.noticeRetrySucceeded
       : state === "failed"
-        ? t.noticeRetryFailed
-        : t.noticeRetry;
-  retryButton.disabled = state !== "offered";
-  retryButton.title = state === "offered" ? t.noticeRetryTitle : label;
-  retryButton.replaceChildren(icon(RETRY_ICON), el("span", undefined, label));
+        ? kind === "continue" ? t.noticeContinueFailed : t.noticeRetryFailed
+        : kind === "continue" ? t.noticeContinue : t.noticeRetry;
+  offerButton.disabled = state !== "offered";
+  offerButton.title = state === "offered" ? (kind === "continue" ? t.noticeContinueTitle : t.noticeRetryTitle) : label;
+  offerButton.replaceChildren(icon(RETRY_ICON), el("span", undefined, label));
 }
 
 /**

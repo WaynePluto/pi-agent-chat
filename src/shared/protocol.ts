@@ -47,4 +47,4 @@ export type {
   ToolSetup,
   TranscriptImage,
 } from "./protocol/types.js";
-export type { ChatEvent, HostMessage, RetryOfferState, WebviewMessage } from "./protocol/messages.js";
+export type { ChatEvent, HostMessage, OfferAction, OfferKind, OfferState, WebviewMessage } from "./protocol/messages.js";

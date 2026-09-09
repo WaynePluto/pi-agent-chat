@@ -102,9 +102,9 @@ export const STEPS_3 = [
         type: "history",
         transcriptId: "retry-outcomes",
         events: [
-          { kind: "status", text: "The last request did not complete, so no reply arrived.", scope: "command", retry: "running" },
-          { kind: "status", text: "The last request did not complete, so no reply arrived.", scope: "command", retry: "succeeded" },
-          { kind: "status", text: "The last request did not complete, so no reply arrived.", scope: "command", retry: "failed" },
+          { kind: "status", text: "The last request did not complete, so no reply arrived.", scope: "command", offer: { kind: "retry", state: "running" } },
+          { kind: "status", text: "The last request did not complete, so no reply arrived.", scope: "command", offer: { kind: "retry", state: "succeeded" } },
+          { kind: "status", text: "Stopped at your request.", scope: "command", offer: { kind: "continue", state: "failed" } },
         ],
       },
       { type: "state", state: baseState },

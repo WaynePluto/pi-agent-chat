@@ -4,7 +4,7 @@ import { matchSkill } from "../skills.js";
 import { sanitizeToolDetails } from "../tool-details.js";
 import type { ChatBridge } from "./chat-bridge.js";
 import { emitCombinedQueueUpdate, flushCompactionQueue } from "./compaction-queue.js";
-import { offerRetry, markRetryOffer } from "./retry.js";
+import { markOffer, offerStalledAction } from "./retry.js";
 import { rememberSession, postResourceListing } from "./updates.js";
 import { refreshSessions } from "./sessions-list.js";
 
@@ -32,11 +32,11 @@ export function onSessionEvent(bridge: ChatBridge, session: AgentSession, event:
       break;
     case "agent_settled": /* agent_end 之后仍可能跟着重试、压缩或排队 prompt，
       在 SDK 报告自动续跑全部落定后才刷新。「轮次停在一条从未回来的请求上」
-      在此刻成为稳定事实，重试提议因此挂在这里而非 auto_retry_end（见
-      offerRetry()）。历史 lane 停在用户选择阅读的位置：既不把父 runtime
+      在此刻成为稳定事实，续跑提议因此挂在这里而非 auto_retry_end（见
+      offerStalledAction()）。历史 lane 停在用户选择阅读的位置：既不把父 runtime
       切到子文件，也不把用户拽回来。 */
       bridge.emit(session, { kind: "agent_settled" });
-      offerRetry(bridge, session);
+      offerStalledAction(bridge, session);
       void bridge.postState();
       bridge.postEntryIds();
       refreshSessions(bridge);
@@ -60,18 +60,20 @@ export function onSessionEvent(bridge: ChatBridge, session: AgentSession, event:
          列表先见到它。 */
       bridge.emit(session, { kind: "assistant_end" });
       if (event.message.role === "assistant") {
+        bridge.liveFailedResponses.delete(session.sessionId);
+        bridge.liveAbortedResponses.delete(session.sessionId);
         if (event.message.stopReason === "error") bridge.liveFailedResponses.add(session.sessionId);
-        else bridge.liveFailedResponses.delete(session.sessionId);
+        else if (event.message.stopReason === "aborted") bridge.liveAbortedResponses.add(session.sessionId);
       }
       if (
         event.message.role === "assistant" &&
         event.message.stopReason !== "error" &&
         event.message.stopReason !== "aborted"
       ) {
-        const retry = bridge.activeManualRetries.get(session.sessionId);
-        if (retry && !retry.succeeded) {
-          retry.succeeded = true;
-          markRetryOffer(bridge, session, retry.offerIndex, "succeeded", retry.sourceLeafId);
+        const offer = bridge.activeManualOffers.get(session.sessionId);
+        if (offer && !offer.succeeded) {
+          offer.succeeded = true;
+          markOffer(bridge, session, offer.offerIndex, "succeeded", offer.sourceLeafId);
         }
       }
       if (event.message.role === "assistant") {
@@ -153,7 +155,7 @@ export function onSessionEvent(bridge: ChatBridge, session: AgentSession, event:
       重试的消息已经流过，此时再发提示会在那条消息后面新开一个 work
       block——唯一读起来错位的落点。失败保留：它是「为什么后面没有消息」
       的唯一解释，其后无文字时自然折回装着重试历史的块。重发提议刻意挂
-      agent_settled 而非这里（见 offerRetry()）。 */
+      agent_settled 而非这里（见 offerStalledAction()）。 */
       if (!event.success) {
         bridge.emit(session, { kind: "status", text: `retry failed: ${event.finalError ?? "unknown"}` });
       }

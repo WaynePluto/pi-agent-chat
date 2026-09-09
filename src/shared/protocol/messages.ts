@@ -71,23 +71,26 @@ export type ChatEvent =
       text: string;
       scope?: "command";
       /**
-       * 通知报告的是自动重试放弃的那次请求，且被中断的一轮仍可重发。webview
-       * 在卡片上画重试动作并让它留在（折叠的）work block 之外：继续只需一次
-       * 点击，而不是发一条「继续」——那条消息会进 transcript 与模型上下文。
-       * 动作的整个生命周期都在这个宿主持有的字段里：按钮永远按它画、不按本
-       * 地点击状态画，重试中途离开再回来，看到的就是离开时的样子。
+       * 通知携带的续跑动作：`retry` 重发自动重试放弃的那次请求，`continue`
+       * 在用户手动停止后接着跑。webview 在卡片上画动作按钮并让它留在（折叠
+       * 的）work block 之外：继续只需一次点击，而不是发一条「继续」——那条
+       * 消息会进 transcript 与模型上下文。动作的整个生命周期都在这个宿主
+       * 持有的字段里：按钮永远按它画、不按本地点击状态画，中途离开再回来，
+       * 看到的就是离开时的样子。
        */
-      retry?: RetryOfferState;
+      offer?: OfferAction;
     }
   | { kind: "error"; text: string; scope?: "command" };
 
 /**
- * 通知携带的「重发失败请求」动作的状态。
+ * 通知携带的续跑动作（重发失败请求 / 继续被停止的运行）与其状态。
  *
  * `offered` 是唯一可点击态；其余三个是点击结果，且每次 offer 至多点一次
- * （再次失败的请求会以其新 offer 收尾自己那一轮）。
+ * （再次失败或再次被停的请求会以其新 offer 收尾自己那一轮）。
  */
-export type RetryOfferState = "offered" | "running" | "succeeded" | "failed";
+export type OfferAction = { kind: OfferKind; state: OfferState };
+export type OfferKind = "retry" | "continue";
+export type OfferState = "offered" | "running" | "succeeded" | "failed";
 
 /** 扩展宿主 → webview。 */
 export type HostMessage =
@@ -214,8 +217,10 @@ export type WebviewMessage =
   | { type: "detachImage"; id: string }
   | { type: "listProjectFiles"; requestId: number; query: string; includeIgnored: boolean }
   | { type: "abort" }
-  /** 重发失败的请求，不新增用户消息（见 `status.retry`）。 */
+  /** 重发失败的请求，不新增用户消息（见 `status.offer`）。 */
   | { type: "retry" }
+  /** 继续被手动停止的运行，不新增用户消息（见 `status.offer`）。 */
+  | { type: "continue" }
   /** 清空全部排队（steer/follow-up）消息；文本退回 composer。 */
   | { type: "dequeue" }
   | { type: "newSession" }

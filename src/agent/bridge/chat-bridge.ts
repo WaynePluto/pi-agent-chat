@@ -45,7 +45,7 @@ import {
   reportModelsConfigError,
 } from "./models-config.js";
 import { guardStreaming, handleMessage as handleMessageBridge } from "./messaging.js";
-import { retryFailedRequest as retryFailedRequestBridge } from "./retry.js";
+import { runStalledAction } from "./retry.js";
 import { refreshSessions } from "./sessions-list.js";
 import { createSettingsWatcher, disposeSettingsTimers } from "./settings.js";
 import type { BridgeHost, CompactionQueuedPrompt, View } from "./types.js";
@@ -88,11 +88,12 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
    * 簿记与缓存：sessionsVisible 标记会话页 / 宽栏在屏；两个 PostVersion
    * 保证只有最新一次异步扫描 / 状态快照能到达 webview；availabilityProbe
    * 取消被取代投递里的可用性探测。histories 让父 / 子 transcript 互看时
-   * 都完整。retryOutcomes 是纯 UI 状态（绝不写入共享会话文件），仅当其
-   * sourceLeaf 仍在活动分支上才随回放重发。activeManualRetries：手动重试
-   * 拿到任何成功响应（哪怕只是工具请求）即视为成功，之后的失败属于新一轮
-   * 打断、自领新提议。liveFailedResponses 记实时 message_end 的错误事实
-   * （settle 与持久化是不同 SDK 阶段），由后续非错误响应清除。
+   * 都完整。offerOutcomes 是纯 UI 状态（绝不写入共享会话文件），仅当其
+   * sourceLeaf 仍在活动分支上才随回放重发。activeManualOffers：手动续跑
+   * （重试或继续）拿到任何成功响应（哪怕只是工具请求）即视为成功，之后
+   * 的中断属于新一轮、自领新提议。liveFailedResponses /
+   * liveAbortedResponses 记实时 message_end 的错误 / 停止事实（settle 与
+   * 持久化是不同 SDK 阶段），由后续非中断响应清除。
    */
   sessionsVisible = false;
   sessionsRefreshTimer?: ReturnType<typeof setTimeout>;
@@ -101,13 +102,15 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   statePostVersion = 0;
   availabilityProbe?: AbortController;
   readonly histories = new Map<string, ChatEvent[]>();
-  readonly retryOutcomes = new Map<string, { sourceLeafId: string; event: Extract<ChatEvent, { kind: "status" }> }>();
-  readonly activeManualRetries = new Map<string, {
+  readonly offerOutcomes = new Map<string, { sourceLeafId: string; event: Extract<ChatEvent, { kind: "status" }> }>();
+  readonly activeManualOffers = new Map<string, {
+    offerKind: "retry" | "continue";
     offerIndex: number;
     sourceLeafId: string;
     succeeded: boolean;
   }>();
   readonly liveFailedResponses = new Set<string>();
+  readonly liveAbortedResponses = new Set<string>();
   /**
    * 其余状态：extensionStatuses / extensionWidgets 存放扩展的 setStatus /
    * setWidget 条目，attach 时清空、由重绑的扩展重发（对齐 CLI）；
@@ -178,13 +181,14 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.extensionWidgets.clear();
     this.compactionQueues.clear();
     this.liveFailedResponses.clear();
+    this.liveAbortedResponses.clear();
     this.activity.reset();
     this.skillIndex = buildSkillIndex(session);
     this.promptIndex = buildPromptIndex(session);
     const events = this.buildHistory(session);
-    const retryOutcome = this.retryOutcomes.get(session.sessionId);
-    if (retryOutcome && session.sessionManager.getBranch().some((entry) => entry.id === retryOutcome.sourceLeafId)) {
-      events.push(retryOutcome.event);
+    const offerOutcome = this.offerOutcomes.get(session.sessionId);
+    if (offerOutcome && session.sessionManager.getBranch().some((entry) => entry.id === offerOutcome.sourceLeafId)) {
+      events.push(offerOutcome.event);
     }
     this.activity.noteHistory(events);
     this.histories.set(session.sessionId, events);
@@ -296,8 +300,14 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     clearExtensionUiState(this, session);
   }
 
+  /** 重发失败的那次请求（「重试」按钮）。 */
   retryFailedRequest(): Promise<void> {
-    return retryFailedRequestBridge(this);
+    return runStalledAction(this, "retry");
+  }
+
+  /** 继续被手动停止的运行（「继续」按钮）。 */
+  continueStoppedRun(): Promise<void> {
+    return runStalledAction(this, "continue");
   }
 
   login(): Promise<boolean> {
