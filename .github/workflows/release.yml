@@ -154,7 +154,14 @@ jobs:
           $notes += "`n---`nFull Changelog: https://github.com/$env:REPO/blob/$env:TAG/docs/changelog/$tagVersion.md`n"
           $notes += "简体中文: https://github.com/$env:REPO/blob/$env:TAG/docs/changelog/$tagVersion.zh-CN.md`n"
 
+          # Date-suffixed tags (e.g. v0.0.18-20260909) are pre-releases.
+          $prereleaseArgs = @()
+          if ($tagVersion -match '-') {
+            $prereleaseArgs += "--prerelease"
+          }
+
           gh release create $env:TAG @assets `
+            @prereleaseArgs `
             --verify-tag `
             --notes $notes `
             --title "Pi Agent Chat $env:TAG"
