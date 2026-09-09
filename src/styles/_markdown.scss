@@ -102,6 +102,11 @@
   &.foldable > .bubble-footer > .bubble-fold {
     display: inline-block;
   }
+
+  /* 「回到开头」只对展开的长消息有意义：折叠预览很短，顶部就在眼前。 */
+  &.foldable:not(.folded) > .bubble-footer > .bubble-start {
+    display: inline-block;
+  }
 }
 
 /* 附件缩略图。它在 `.bubble-content` 外面，因此不参与折叠裁剪：
@@ -126,7 +131,7 @@
   object-fit: contain;
 }
 
-/* 每条消息的 footer：「显示完整消息」与「复制」。浮在气泡右下角，
+/* 每条消息的 footer：「显示完整消息」、「回到开头」与「复制」。浮在气泡右下角，
    靠 `background: inherit` 拿到不透明底色才不会压住正文；两侧内边距保证它不压最后一行。
    hover 时显示，折叠状态下常驻——折叠必须能在不找 hover 目标的情况下撤销。 */
 .bubble-footer {
@@ -148,8 +153,9 @@
   gap: 4px;
 }
 
-/* 只有长到值得折叠的消息才有这个开关。 */
-.bubble-fold {
+/* 只有长到值得折叠的消息才有这两个开关（「回到开头」另要求未折叠，见上）。 */
+.bubble-fold,
+.bubble-start {
   display: none;
   /* 绝对定位在气泡内，保持单行不外溢。 */
   max-width: 40vw;

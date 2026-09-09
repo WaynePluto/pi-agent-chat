@@ -4,9 +4,9 @@
  * 与曾经的普通 `div` 的两点差别：
  * - **折叠**：不再是该角色最新一条的长消息折成预览，满篇长文的
  *   transcript 仍可导航；短消息永不折叠——省两行却多点一次是纯负担。
- * - **footer**：承载折叠开关与复制原始 Markdown 的按钮，因此渲染内容
- *   单独放在一个元素里而不是直接挂在 `.bubble` 下（裁剪不得吞掉
- *   footer、徽章与 hover 动作条）。
+ * - **footer**：承载折叠开关、「回到开头」与复制原始 Markdown 的按钮，
+ *   因此渲染内容单独放在一个元素里而不是直接挂在 `.bubble` 下（裁剪不得
+ *   吞掉 footer、徽章与 hover 动作条）。
  */
 
 import { copyButton } from "./clipboard.js";
@@ -65,6 +65,10 @@ export interface MessageBubbleOptions {
   /** 上次浏览这份 transcript 时记住的手动开合状态。 */
   folded?: boolean;
   onToggle?(folded: boolean): void;
+  /** 「回到开头」：把视图滚到这条消息的顶部。滚动逻辑属于 transcript
+   * 层（要写 `.messages` 的 scrollTop 并触发跟随状态的迁移），气泡只发
+   * 起事件。 */
+  onGotoStart?(): void;
 }
 
 export function createMessageBubble(options: MessageBubbleOptions): MessageBubble {
@@ -76,6 +80,8 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
     setFolded(!folded);
     options.onToggle?.(folded);
   });
+  const gotoStart = button("bubble-start", t.gotoMessageStart, () => options.onGotoStart?.());
+  gotoStart.title = t.gotoMessageStartTitle;
 
   let text = "";
   let foldable = false;
@@ -164,7 +170,7 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
     applyFold();
   };
 
-  footer.append(toggle, copyButton("bubble-copy", t.copyMessage, () => text));
+  footer.append(toggle, gotoStart, copyButton("bubble-copy", t.copyMessage, () => text));
   if (options.extra) root.append(content, options.extra, footer);
   else root.append(content, footer);
   setText(options.text);

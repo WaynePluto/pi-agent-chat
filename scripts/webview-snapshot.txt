@@ -2342,6 +2342,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -2401,6 +2403,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -2637,6 +2641,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -2696,6 +2702,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -2932,6 +2940,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -2991,6 +3001,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -3252,6 +3264,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -3311,6 +3325,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -3554,6 +3570,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -3613,6 +3631,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -3870,6 +3890,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -3929,6 +3951,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -4163,6 +4187,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -4183,6 +4209,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -4205,6 +4233,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -4441,6 +4471,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -4461,6 +4493,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -4698,6 +4732,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -4718,6 +4754,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -4739,6 +4777,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -4973,6 +5013,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -5035,6 +5077,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -5055,6 +5099,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -5075,6 +5121,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -5309,6 +5357,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -5371,6 +5421,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -5391,6 +5443,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -5411,6 +5465,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -5651,6 +5707,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -5713,6 +5771,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -5733,6 +5793,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -5753,6 +5815,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -5832,6 +5896,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -6077,6 +6143,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -6139,6 +6207,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -6159,6 +6229,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -6179,6 +6251,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -6258,6 +6332,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -6526,6 +6602,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -6588,6 +6666,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -6608,6 +6688,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -6628,6 +6710,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -6707,6 +6791,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -6753,6 +6839,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -6998,6 +7086,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -7060,6 +7150,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -7080,6 +7172,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -7100,6 +7194,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -7179,6 +7275,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -7240,6 +7338,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -7488,6 +7588,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -7550,6 +7652,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -7570,6 +7674,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -7590,6 +7696,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -7683,6 +7791,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -7829,6 +7939,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -8077,6 +8189,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -8139,6 +8253,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -8159,6 +8275,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -8179,6 +8297,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -8272,6 +8392,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -8418,6 +8540,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -8668,6 +8792,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -8730,6 +8856,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -8750,6 +8878,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -8770,6 +8900,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -8863,6 +8995,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -9009,6 +9143,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -9325,6 +9461,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -9387,6 +9525,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -9407,6 +9547,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -9427,6 +9569,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -9520,6 +9664,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -9666,6 +9812,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -10131,6 +10279,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -10193,6 +10343,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -10213,6 +10365,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -10233,6 +10387,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -10326,6 +10482,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -10472,6 +10630,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -10932,6 +11092,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -10994,6 +11156,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -11014,6 +11178,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -11034,6 +11200,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -11127,6 +11295,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -11273,6 +11443,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -11640,6 +11812,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -11660,6 +11834,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -12052,6 +12228,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -12072,6 +12250,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -12114,6 +12294,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -14036,6 +14218,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -14424,6 +14608,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -14465,6 +14651,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -14854,6 +15042,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -14874,6 +15064,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -15263,6 +15455,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -15283,6 +15477,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -15674,6 +15870,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -16484,6 +16682,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -16526,6 +16726,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -16945,6 +17147,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -16987,6 +17191,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -17404,6 +17610,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -17466,6 +17674,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -17486,6 +17696,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -17506,6 +17718,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -17895,6 +18109,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -17957,6 +18173,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -17977,6 +18195,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -17997,6 +18217,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -18386,6 +18608,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -18448,6 +18672,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -18468,6 +18694,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -18488,6 +18716,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -18877,6 +19107,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -19266,6 +19498,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -19328,6 +19562,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -19348,6 +19584,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -19737,6 +19975,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -19799,6 +20039,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -19819,6 +20061,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -20208,6 +20452,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -20270,6 +20516,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -20290,6 +20538,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -20679,6 +20929,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -20741,6 +20993,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="false" type="button">
                   "Show more"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>
@@ -20761,6 +21015,8 @@ Open in editor" type="button">
               <div class="bubble-footer">
                 <button class="bubble-fold" aria-expanded="true" type="button">
                   "Show less"
+                <button class="bubble-start" title="Scroll to the start of this message" type="button">
+                  "Back to start"
                 <button class="copy-button bubble-copy" title="Copy message" type="button">
                   <span>
                     <svg/>

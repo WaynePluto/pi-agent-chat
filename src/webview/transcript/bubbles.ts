@@ -37,6 +37,22 @@ export function appendBubble(role: string, text: string): HTMLElement {
   return wrapper;
 }
 
+/**
+ * 「回到开头」的滚动：把消息顶部锚定在滚动容器顶部下方一点的位置。直接写
+ * `.messages` 的 scrollTop 而不用 `scrollIntoView`——经 rect 差值定位不
+ * 依赖 offsetParent 链，也只会动这一个容器。随后的 scroll 事件自然把
+ * followBottom 置为 false 并亮出跳底按钮；恢复跟随的出口保持不变
+ * （向下滚轮 / End / 跳底按钮 / 发送），期间自动折叠照常延后。
+ */
+/** 锚定间距与 transcript 自身的 `--content-pad`（12px）一致：锚定的消息
+ * 与滚到最顶时的第一条消息离上缘同远。 */
+const START_ANCHOR_GAP_PX = 12;
+
+function scrollToBubbleStart(root: HTMLElement): void {
+  messagesEl.scrollTop +=
+    root.getBoundingClientRect().top - messagesEl.getBoundingClientRect().top - START_ANCHOR_GAP_PX;
+}
+
 export function appendMarkdownBubble(role: string, text: string, extra?: HTMLElement): MessageBubble {
   const index = ++st.bubbleIndex;
   const remembered = st.currentView.bubbles.get(index);
@@ -46,6 +62,7 @@ export function appendMarkdownBubble(role: string, text: string, extra?: HTMLEle
     extra,
     folded: remembered,
     onToggle: (folded) => st.currentView.bubbles.set(index, folded),
+    onGotoStart: () => scrollToBubbleStart(bubble.root),
   });
   // 刚到的消息才是正在读的，同角色上一条随之折叠——除非用户手动开合过，
   // 用户决定优先于默认。用户正在上方阅读（未跟随）时改为暂存：
