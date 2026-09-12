@@ -164,4 +164,4 @@ jobs:
             @prereleaseArgs `
             --verify-tag `
             --notes $notes `
-            --title "Pi Agent Chat $env:TAG"
+            --title "$env:TAG"
