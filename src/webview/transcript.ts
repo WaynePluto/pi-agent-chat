@@ -183,6 +183,7 @@ export function applyHistory(
   subagentNow?: SubagentSetup,
   transcriptId?: string,
   terminalNow?: ToolSetup,
+  sessionEntry = false,
 ): void {
   const started = performance.now();
   st.systemPromptOverridden = systemPromptOverriddenNow;
@@ -209,7 +210,16 @@ export function applyHistory(
   // 执行过程；除非会话仍在流式（如从 preview 返回），此时收块会把
   // 同一个执行过程切成两半。
   if (!live) finishWorkBlock();
-  restoreViewState();
+  // 会话切换（「成为 live」的重放，宿主以 populateInputHistory 标记）
+  // 不恢复阅读位置：一律落到底部，live 会话随即跟随新输出。位置记忆
+  // 只服务两类非切换重放——子代理 lane 的往返与同一会话的重放（设置
+  // 变更后宿主重发 history 等）。
+  if (sessionEntry) {
+    resumeFollowing();
+    scrollToEnd();
+  } else {
+    restoreViewState();
+  }
   // 每次会话切换打一行：在真实（大）会话上从 webview devtools 发现回放
   // 回归的最便宜手段。transcript id 与恢复状态数写在这里，是因为阅读
   // 位置在往返（父→子→父）后是否存活在 DOM 里看不见，坏了才知道。

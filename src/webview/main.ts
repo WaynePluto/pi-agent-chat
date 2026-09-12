@@ -567,7 +567,7 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
     applyEvent(message.event);
     updateRecallButton();
   } else if (message.type === "history") {
-    applyHistory(message.events, message.live, message.systemPromptOverridden, message.subagent, message.transcriptId, message.terminal);
+    applyHistory(message.events, message.live, message.systemPromptOverridden, message.subagent, message.transcriptId, message.terminal, message.populateInputHistory === true);
     // 只有宿主标记为「会话成为 live」的重放才喂 composer 的 ↑ 输入历史；
     // composer 按 transcript 去重。
     if (message.populateInputHistory) populateInputHistoryFromEvents(message.transcriptId, message.events);
