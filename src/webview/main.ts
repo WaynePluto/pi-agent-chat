@@ -53,7 +53,7 @@ import {
 } from "./shell.js";
 import { renderExtensionStatus, renderStatusLine, updateStatusLineFit } from "./statusline.js";
 import { currentLane, isDelegating, isInLane, setState, state } from "./store.js";
-import { applyEvent, applyHistory, assignEntryIds, clearMessages, hasPendingBubbles, removePendingBubbles, setEntryActionsLocked, setShowThinking, showNewSession, updateWorkingIndicator } from "./transcript.js";
+import { applyEvent, applyHistory, assignEntryIds, captureViewState, clearMessages, hasPendingBubbles, removePendingBubbles, setEntryActionsLocked, setShowThinking, showNewSession, updateWorkingIndicator } from "./transcript.js";
 
 /**
  * 应用外壳：把各视图模块接线到一起，负责页面布局（聊天 / 会话 / 认证门）
@@ -157,6 +157,10 @@ function openSessions(): void {
   if (wideLayout) return;
   closePicker();
   closeSearch();
+  // 聊天区即将 display:none：隐藏期间 scrollTop 只能读出 0。先把阅读
+  // 位置记下来——随后会话行点击触发的 showLoading()/applyHistory() 里
+  // 的捕获会因无布局/占位符跳过，能依赖的正是这一份。
+  captureViewState();
   sessionsPageOpen = true;
   setSessionListVisible(true);
   chatColumnEl.classList.add("hidden");

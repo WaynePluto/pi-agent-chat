@@ -27,14 +27,28 @@ export function selectTranscript(id: string | undefined): void {
  * 所有拆除路径都经过它，且在那里还能看到即将离开的 transcript。
  */
 export function captureViewState(): void {
-  st.currentView.scrollTop = messagesEl.scrollTop;
+  // 几何只有在 transcript 可见时才读得出：窄屏会话页把聊天区整个
+  // `display:none`（`.hidden` 类），隐藏期间 scrollTop 一律读作 0
+  // （Chrome 会在重新显示时恢复偏移，但捕获不能拿 0 覆盖好数据——
+  // hide 前的那次捕获见 main.ts 的 openSessions()）。判据用 `.hidden`
+  // 而不是 clientHeight：jsdom 无布局、clientHeight 恒为 0，会把无头
+  // 冒烟里的捕获全部跳过（那里程序化设置的 scrollTop 是可读的）。
+  // 结构性状态（块展开、跟随标志）与布局无关，照常记录；不可见时内部
+  // 滚动保留先前捕获的值。
+  const visible = messagesEl.closest(".hidden") === null;
+  if (visible) st.currentView.scrollTop = messagesEl.scrollTop;
   st.currentView.followBottom = st.followBottom;
   for (const [index, block] of st.workBlocks) {
-    st.currentView.work.set(index, { expanded: block.expanded, scrollTop: block.body.scrollTop || undefined });
+    st.currentView.work.set(index, {
+      expanded: block.expanded,
+      scrollTop: visible ? block.body.scrollTop || undefined : st.currentView.work.get(index)?.scrollTop,
+    });
   }
-  for (const [id, card] of st.toolCards) {
-    const scroller = card.body.querySelector(".tool-body");
-    if (scroller instanceof HTMLElement && scroller.scrollTop > 0) st.currentView.toolScroll.set(id, scroller.scrollTop);
+  if (visible) {
+    for (const [id, card] of st.toolCards) {
+      const scroller = card.body.querySelector(".tool-body");
+      if (scroller instanceof HTMLElement && scroller.scrollTop > 0) st.currentView.toolScroll.set(id, scroller.scrollTop);
+    }
   }
 }
 

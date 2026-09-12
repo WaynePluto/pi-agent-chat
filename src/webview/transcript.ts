@@ -46,6 +46,7 @@ export { setShowThinking } from "./transcript/cards.js";
 export { appendNoticeCard } from "./transcript/notices.js";
 export { collectHiddenBodies, revealTranscriptElement } from "./transcript/reveal.js";
 export { followLatest } from "./transcript/scroll.js";
+export { captureViewState } from "./transcript/view-state.js";
 
 /* ---------------------------------------------------------------- */
 /* 事件渲染                                                          */
@@ -247,8 +248,11 @@ function appendEmptySessionPlaceholder(): void {
 }
 
 export function clearMessages(): void {
-  // DOM 拆掉之前：这是阅读位置还存在的最后时刻。
-  captureViewState();
+  // DOM 拆掉之前：这是阅读位置还存在的最后时刻。占位符（加载转圈、
+  // 空会话气泡）在屏上时跳过：此刻 scrollTop 属于占位符而非任何
+  // transcript，而真正的 transcript 在占位符上岗那一刻已经捕获过——
+  // 再记一次会把好数据覆盖成 0，切走再切回就落在顶部。
+  if (!st.placeholderEl) captureViewState();
   messagesContentEl.innerHTML = "";
   // 运行行随 innerHTML 一同消失。留着变量会让 `updateWorkingIndicator()`
   // 把这个已脱离文档的元素重新挂回去而不是新建——连同那个共享定时器
