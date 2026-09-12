@@ -217,6 +217,11 @@ export function applyHistory(
   if (sessionEntry) {
     resumeFollowing();
     scrollToEnd();
+    // 同帧内布局还会继续稳定（markdown/高亮渲染后的回流），下一帧跟随
+    // 态再贴一次；迟到的状态行与扩展 widget 各自渲染时也会补贴底。
+    requestAnimationFrame(() => {
+      if (st.followBottom) scrollToEnd();
+    });
   } else {
     restoreViewState();
   }

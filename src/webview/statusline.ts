@@ -2,6 +2,7 @@ import type { ExtensionStatusItem } from "../shared/protocol.js";
 import { el } from "./dom.js";
 import { formatTokens } from "./format.js";
 import { getDict } from "./i18n.js";
+import { scrollToEnd } from "./transcript/scroll.js";
 import { statusLineEl } from "./shell.js";
 import { state } from "./store.js";
 
@@ -21,6 +22,13 @@ export function renderExtensionStatus(items: ExtensionStatusItem[]): void {
 }
 
 export function renderStatusLine(): void {
+  paintStatusLine();
+  // 状态行的出现/消失/增减行会压缩 transcript 视口：进入会话时的贴底
+  // 发生在宿主发出 extensionStatus / state 之前，此处跟随态补一次。
+  scrollToEnd();
+}
+
+function paintStatusLine(): void {
   statusLineEl.replaceChildren();
   statusLineEl.classList.remove("hidden");
 

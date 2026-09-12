@@ -1,6 +1,7 @@
 import type { ExtensionWidget } from "../shared/protocol.js";
 import { createCollapsible, type CollapsibleClasses } from "./collapsible.js";
 import { el } from "./dom.js";
+import { scrollToEnd } from "./transcript/scroll.js";
 import { widgetsAboveEl, widgetsBelowEl } from "./shell.js";
 
 /**
@@ -30,6 +31,10 @@ export function renderExtensionWidgets(items: ExtensionWidget[]): void {
   lastItems = items;
   paint(widgetsAboveEl, items.filter((item) => item.placement !== "belowEditor"));
   paint(widgetsBelowEl, items.filter((item) => item.placement === "belowEditor"));
+  // widget 区在 transcript 与 composer 之间，出现/消失/折叠都会压缩
+  // transcript 视口；宿主在 history 之后才发这批数据，进入会话时的贴底
+  // 需要在这里补一次（仅跟随态生效）。
+  scrollToEnd();
 }
 
 function paint(container: HTMLElement, items: ExtensionWidget[]): void {
