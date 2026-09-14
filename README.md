@@ -2,11 +2,13 @@
 
 English | [简体中文](./readme.zh-CN.md)
 
-The [Pi Coding Agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent), running natively in your VS Code sidebar or an editor tab — **no Pi CLI installation required**.
+The [Pi Coding Agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent), running natively in your VS Code sidebar or an editor tab — **no Pi CLI installation required**. Over Remote-SSH the whole agent runs on the server: install it, configure a provider, start working. The opt-in terminal tool runs commands in VS Code's integrated terminal, which you can type into — answer sudo prompts yourself; passwords never reach the model. Deliberately light: the SDK's agent loop runs unmodified, with exactly two opt-in tools on top of pi's own set.
 
 This extension is implemented with the **official** `@earendil-works/pi-coding-agent` SDK (**v0.85.1**) bundled directly inside — no RPC bridge, no separate Pi CLI. The agent loop, tools and LLM calls all run in-process, reading and writing your existing Pi configuration and sessions in place. Compatibility is drawn on the **data** side rather than promised feature for feature: both hosts share the same files, but a second host cannot run CLI extensions that need a terminal Pi process (see [Host boundaries](#host-boundaries)).
 
 - Reuses everything under `~/.pi/agent/` (auth, models, settings, extensions, skills, prompts, AGENTS.md) and the default sessions directory, fully interoperable with the terminal Pi: sessions can be listed and resumed from either side.
+- **A complete agent on any server you SSH into.** In a Remote-SSH window the extension host — and with it the agent, its tools and its sessions — runs on the server; the SDK is bundled, so configuring a model provider is the entire setup. See [On a remote server](#on-a-remote-server-remote-ssh).
+- **Deliberately light.** The agent loop, tools and LLM calls come from the official SDK unmodified; exactly two tools sit on top of pi's own set — both off by default — and everything else is shared with the CLI. See [Philosophy](#philosophy).
 - **Proxy-aware, and never in disagreement with the CLI.** A global dispatcher is installed exactly the way the Pi CLI does it, with this precedence: `http_proxy` / `https_proxy` (and their uppercase and `no_proxy` variants) from the environment → `httpProxy` in `~/.pi/agent/settings.json` → VS Code's `http.proxy`. The first two levels *are* the CLI's own order; the VS Code level only fills a slot where the CLI would have connected directly — so no `HTTP_PROXY` / `HTTPS_PROXY` needs to be set just for pi, and nothing here changes how your CLI connects. `http.proxyStrictSSL: false` relaxes certificate checking for these requests as well.
 - Built-in login/logout flow: if no model is available, an auth page guides you through OAuth or API key setup.
 - UI is bilingual (English / Chinese), following the VS Code display language.
@@ -58,7 +60,7 @@ Overall, this extension bets on simplicity and on the continued progress of the 
 - Image attachments: paste a screenshot (or an image file copied in your OS file manager) into the composer; the host converts and downscales it exactly as the CLI does for `@file` image arguments (honouring `images.autoResize` / `images.blockImages` in the shared settings) and sends it as a real attachment, with thumbnails shown in the transcript. Models without vision support are flagged before you send. Drag & drop is not offered: VS Code disables pointer events on every webview iframe while a drag is in progress, so a webview never receives the drop
 - Shell-style input history: `↑` / `↓` recall previously sent prompts (references restored as chips; the half-written draft is kept while browsing), claimed on the outer lines of the text so multi-line editing keeps its arrows; never during IME composition. Opening a session also seeds the history with its earlier questions, like the Pi CLI
 - Subagent (opt-in): one call fans out into several child sessions that each write directly to your working tree within a declared path range, shown as live rows in the parent's transcript
-- Terminal tool (opt-in): the agent runs commands in a **visible VS Code terminal you can type into** while they run — what you type is part of what the agent reads back
+- Terminal tool (opt-in): the agent runs commands in a **visible VS Code integrated terminal you can type into** while they run — what you type is part of what the agent reads back, and a password prompt (`sudo`, SSH) is answered by you, in the terminal, unechoed — the password never reaches the model
 
 ### Subagent (off by default)
 
@@ -136,6 +138,8 @@ It is **off by default**. Turn it on from the header **Settings → Plugin setti
 
 Both are `resource`-scoped, and a change reaches the next session the window builds — the same rule as the subagent settings above, including the empty-session shortcut.
 
+**Privileged commands ask you, not the model.** When a command needs a password or a confirmation — `sudo`, an SSH key passphrase, a package-manager prompt — you answer it in the terminal yourself. Password input is not echoed, so what you type never appears in the screen text the tool returns: the command runs with your authorization, and the password never reaches the model or the session file.
+
 **It never closes a terminal by itself.** A terminal is somewhere you may be reading or typing, so only an explicit `close` from the model, or your own ×, disposes one. For the same reason it can only see and close the terminals it created: terminals you or another extension opened are not listed and cannot be touched, whatever the model asks for.
 
 **A command that runs long is not killed.** Each call has a timeout (default 30s, at most 300s, chosen per call by the model); when it expires the tool reports that the command is *still running*, hands over the output so far, and leaves it alone — it may well be waiting for you. The agent can look again later, or end it.
@@ -149,6 +153,12 @@ Both are `resource`-scoped, and a change reaches the next session the window bui
 **Subagents do not get this tool.** Several child sessions typing into one visible terminal would interleave into something nobody can follow, and you would not know which one is asking. Subagents still have `bash`, which needs no audience.
 
 An extension that registers a tool named `vscode_terminal` is shadowed exactly like a `subagent` extension is, and for the same reason — see [If you already have a `subagent` extension](#if-you-already-have-a-subagent-extension); the new-session notice names it. In the Pi CLI, a session containing `vscode_terminal` calls replays as generic tool cards with self-explanatory result text, and the tool itself is unavailable there.
+
+### On a remote server (Remote-SSH)
+
+In a Remote-SSH window the extension runs on the server — the extension host is there — so the whole agent runs there too: the tools act on remote files, sessions land in the server's `~/.pi/agent/`, and since the SDK is bundled inside the extension there is nothing else to install on the machine. Configure a model provider — sign in, or add a custom one to `~/.pi/agent/models.json` on the server — and that server has a working agent. The Marketplace builds include Linux x64, which is what servers run; WSL and dev containers are the same mechanism and get the same result.
+
+The terminal tool is what makes privileged work practical there. An ordinary `bash` tool cannot answer a password prompt, so privileged commands are either avoided or fed credentials through the environment; here `sudo` or `ssh` asks in a visible VS Code integrated terminal **on the server**, and you answer from your chair. Password input is not echoed, so it never appears in the screen text the tool returns: the command runs with your authorization, and the password never reaches the model — not in the tool result, not anywhere in the session file.
 
 ### Host boundaries
 
