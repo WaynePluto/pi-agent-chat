@@ -24,10 +24,10 @@ const BIND_EVENTS = ["session_start", "resources_discover", "project_trust"] as 
  * `AgentSessionEvent` 类型作键。名字与会话事件逐字相同的（`agent_start`、
  * `message_end`、`tool_execution_*` 等）无需条目，按名匹配。
  *
- * SDK-MIRROR: emit 位置在 `core/agent-session.ts` 与 `core/agent.ts`
- * （一次运行的 `emitInput` / `emitBeforeAgentStart` / `emitContext` /
- * `emitBeforeProviderRequest` / `emitBeforeProviderHeaders`，工具调用的
- * `emitToolCall` / `emitToolResult`）。
+ * SDK-MIRROR: emit 位置在 `core/agent-session.ts`（SDK 0.86 起 `core/agent.ts`
+ * 的 emit 辅助并入其中；一次运行的 `emitInput` / `emitBeforeAgentStart` /
+ * `emitContext` / `emitBeforeProviderRequest` / `emitBeforeProviderHeaders`，
+ * 工具调用的 `emitToolCall` / `emitToolResult`）。
  */
 const COMPANION_EVENTS: Readonly<Record<string, readonly string[]>> = {
   agent_start: ["input", "before_agent_start", "context", "before_provider_request", "before_provider_headers", "turn_start"],

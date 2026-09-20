@@ -9,7 +9,7 @@
  */
 
 import { cp, mkdir, rm } from "node:fs/promises";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,7 +36,6 @@ export const runtimePackages = [
   "typebox",
   "jiti",
   "@silvia-odwyer/photon-node",
-  "@mariozechner/clipboard",
   // 供应商 SDK：pi-ai 把每个都包在 `lazyApi(() => import(...))` 门面后，所以
   // 下面的入口探针加载不到它们——可一旦有人经这份磁盘副本调用 api（比如扩展
   // 流式取补全），它们就会被触达，届时各模块在顶层 import 自己的 SDK。
@@ -83,6 +82,7 @@ export const runtimePackages = [
   "@smithy/node-http-handler",
   "http-proxy-agent",
   "https-proxy-agent",
+  "proxy-agent-negotiate",
   "debug",
   "ms",
   "agent-base",
@@ -105,21 +105,13 @@ export const runtimePackages = [
   "@aws-sdk/signature-v4-multi-region",
   "@aws-sdk/token-providers",
   "@aws-sdk/types",
-  "@aws-sdk/util-locate-window",
   "@aws-sdk/xml-builder",
-  "@aws-crypto/sha256-browser",
-  "@aws-crypto/sha256-js",
-  "@aws-crypto/supports-web-crypto",
-  "@aws-crypto/util",
   "@aws/lambda-invoke-store",
   "@smithy/core",
   "@smithy/credential-provider-imds",
   "@smithy/fetch-http-handler",
-  "@smithy/is-array-buffer",
   "@smithy/signature-v4",
   "@smithy/types",
-  "@smithy/util-buffer-from",
-  "@smithy/util-utf8",
   "tslib",
   // 上面各 SDK 包的传递依赖。bundle 覆盖不到它们：扩展的
   // `import "@earendil-works/pi-ai"` 经 jiti 落到磁盘副本，副本自己的
@@ -136,7 +128,6 @@ export const runtimePackages = [
   "cross-spawn",
   "diff",
   "get-east-asian-width",
-  "glob",
   "graceful-fs",
   "grok-mermaid",
   "highlight.js",
@@ -173,16 +164,6 @@ function runtimePackageSource(name) {
   return existsSync(nested) ? nested : resolve(repoRoot, "node_modules", name);
 }
 
-/** 原生剪贴板绑定装在按平台划分的兄弟包里。 */
-export function platformClipboardPackages() {
-  const manifest = resolve(repoRoot, "node_modules", "@mariozechner", "clipboard", "package.json");
-  try {
-    return Object.keys(JSON.parse(readFileSync(manifest, "utf8")).optionalDependencies ?? {});
-  } catch {
-    return [];
-  }
-}
-
 /**
  * 把运行时包拷入 `target`。
  * 嵌套 node_modules 是故意丢弃的：保留会让包在本地满足自己的依赖，把
@@ -200,25 +181,12 @@ export async function copyRuntimePackages(target, { log = () => {} } = {}) {
         // 类型声明与 sourcemap 在运行时是死重。
         filter: (path) => {
           const rel = path.slice(source.length);
-          if (/[\\/]node_modules[\\/]|\.map$|\.d\.ts$|\.d\.mts$|\.d\.cts$|\.md$/.test(rel)) return false;
-          // clipboard 的 npm 壳带 Rust 源码与构建文件，运行时永远用不上；
-          // 只保留 JS loader 与清单。
-          if (source === resolve(repoRoot, "node_modules", "@mariozechner", "clipboard")) {
-            if (/[\\/]src[\\/]|Cargo\.toml$|build\.rs$|exp\.ts$|\.yarnrc\.yml$/.test(rel)) return false;
-          }
-          return true;
+          return !/[\\/]node_modules[\\/]|\.map$|\.d\.ts$|\.d\.mts$|\.d\.cts$|\.md$/.test(rel);
         },
       });
     } catch (error) {
       skipped.push(name);
       log(`skipped runtime package ${name}: ${error.message}`);
-    }
-  }
-  for (const name of platformClipboardPackages()) {
-    try {
-      await cp(resolve(repoRoot, "node_modules", name), join(target, name), { recursive: true });
-    } catch {
-      // 其他平台对应的可选依赖；不存在时忽略。
     }
   }
   return { skipped };

@@ -4,7 +4,7 @@
 
 [Pi Coding Agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) 原生运行在你的 VS Code 侧边栏或编辑区标签页中 —— **无需安装 Pi CLI**。SSH 远程连接服务器时即获得一个完整运行在服务器上的 agent：装好插件、配置模型供应商即可开工。开启终端工具后，命令在 VS Code 集成终端里执行，sudo 要密码时由你亲自输入，密码不会传给模型。刻意保持轻量：官方 agent 循环原样运行，在 pi 自带工具之外只有两个默认关闭的自有工具。
 
-本插件通过内置的**官方** `@earendil-works/pi-coding-agent` SDK（**v0.85.1**）实现，而非 RPC 方式；agent 循环、工具与 LLM 调用都在扩展进程内完成，无需单独安装 Pi CLI，并直接读写你现有的 Pi 配置与会话。兼容边界划在**数据面**而不是能力面：两个宿主共用同一份文件，但依赖终端 Pi 进程的 CLI 扩展在这里跑不了（见[宿主边界](#宿主边界)）。
+本插件通过内置的**官方** `@earendil-works/pi-coding-agent` SDK（**v0.86.0**）实现，而非 RPC 方式；agent 循环、工具与 LLM 调用都在扩展进程内完成，无需单独安装 Pi CLI，并直接读写你现有的 Pi 配置与会话。兼容边界划在**数据面**而不是能力面：两个宿主共用同一份文件，但依赖终端 Pi 进程的 CLI 扩展在这里跑不了（见[宿主边界](#宿主边界)）。
 
 - 复用 `~/.pi/agent/` 的全部配置（auth、models、settings、extensions、skills、prompts、AGENTS.md）与默认 sessions 目录，可与终端 Pi 互相列出/恢复会话。
 - **SSH 连上任何一台服务器，就有了一个完整的 agent。** Remote-SSH 窗口的扩展宿主在服务器上，agent 循环、工具与会话也就都在服务器上运行；SDK 已随插件内置，配置好模型供应商就是全部准备工作。见[在远程服务器上](#在远程服务器上remote-ssh)。

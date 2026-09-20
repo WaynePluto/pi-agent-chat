@@ -26,12 +26,15 @@ function packageVersion(packageName) {
 /**
  * 必须留在 bundle 之外的模块：
  * - vscode：宿主提供
- * - photon-node / clipboard：原生 / wasm 资产按各自包目录相对解析
- *
- * jiti 故意打进 bundle：SDK 导入的是 ESM-only 的 `jiti/static` 入口，
- * CJS bundle 无法 `require()` 它。
+ * - photon-node：wasm 资产按包目录相对解析
+ * - jiti：SDK 0.86 起普通 Node 路径经根入口用它，而根入口对 babel 转换器是
+ *   惰性 `require("../dist/babel.cjs")`——只在 jiti 自己的包布局里可解析；
+ *   打进 bundle 会把该相对路径锚到 SDK 磁盘副本上而落空。外部化后运行时
+ *   解析到 dist/node_modules/jiti（随包发行），babel 就在原位。注意 `jiti/static`
+ *   是另一个 specifier，不命中这条 external，仍打进 bundle（ESM-only，
+ *   CJS bundle 无法 require 它；它是 SDK 嵌入式运行路径的死分支）。
  */
-const external = ["vscode", "@silvia-odwyer/photon-node", "@mariozechner/clipboard"];
+const external = ["vscode", "@silvia-odwyer/photon-node", "jiti"];
 
 /**
  * SDK 用 `import.meta.url` 锚定路径，打成 CJS 后它会消失，故 `define` 把所有出现

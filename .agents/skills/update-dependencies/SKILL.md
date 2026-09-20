@@ -107,7 +107,7 @@ pnpm check:dependencies
 ```powershell
 pnpm build
 pnpm typecheck
-pnpm verify        # 构建产物校验 + 无头冒烟测试（含 SDK 加载、jiti、clipboard）
+pnpm verify        # 构建产物校验 + 无头冒烟测试（含 SDK 加载、jiti）
 ```
 
 三者全部通过才算更新成功。若 `verify` 失败，重点排查：

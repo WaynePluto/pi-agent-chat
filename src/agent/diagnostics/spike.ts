@@ -1,4 +1,4 @@
-/** 打包管线探针检查（宿主运行时、SDK、undici、jiti、剪贴板）。 */
+/** 打包管线探针检查（宿主运行时、SDK、undici、jiti）。 */
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -28,7 +28,6 @@ export async function runSpikeDiagnostics(): Promise<DiagnosticResult[]> {
   results.push(await checkUndici());
   results.push(await checkPackageAssets());
   results.push(await checkJiti());
-  results.push(await checkClipboardNative());
 
   return results;
 }
@@ -84,15 +83,5 @@ async function checkJiti(): Promise<DiagnosticResult> {
     return { name: "jiti .ts loading", ok: false, detail: describe(error) };
   } finally {
     if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
-  }
-}
-
-/** 图片粘贴用的可选原生依赖；必须优雅降级。 */
-async function checkClipboardNative(): Promise<DiagnosticResult> {
-  try {
-    const mod = await import("@mariozechner/clipboard");
-    return { name: "native clipboard (optional)", ok: true, detail: `loaded, exports: ${Object.keys(mod).join(", ") || "(none)"}` };
-  } catch (error) {
-    return { name: "native clipboard (optional)", ok: false, detail: `not loadable (image paste disabled): ${describe(error)}` };
   }
 }
