@@ -14,9 +14,10 @@ import { runTerminalIntegrationSpike } from "./agent/terminal-spike.js";
 import { CHAT_PANEL_TYPE, CHAT_VIEW_ID, ChatSurfaceManager } from "./chat-surfaces.js";
 
 export function activate(context: vscode.ExtensionContext): void {
-  // SDK-MIRROR: dist/cli.js 进入时设置这些，rpc-entry.js 重复 PI_CODING_AGENT
+  // SDK-MIRROR: dist/bundle/cli-runtime.js 进入时设置这些（0.86.1 起从 cli.js
+  // 移入，cli.js 变成 enableCompileCache 薄壳），rpc-entry.js 重复 PI_CODING_AGENT
   // ——应用入口职责，不是 CLI 装饰。扩展与 `bash` 工具跑的东西靠它们识别自己
-  // 在 agent 里（分页器、颜色、提示符）。cli.js 其余部分刻意不镜像：
+  // 在 agent 里（分页器、颜色、提示符）。cli-runtime.js 其余部分刻意不镜像：
   // process.title 与 emitWarning 在这里归 VS Code，HTTP dispatcher 由下面的
   // agent/http.ts 配置。
   process.env.PI_CODING_AGENT = "true";
