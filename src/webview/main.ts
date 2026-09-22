@@ -51,7 +51,7 @@ import {
   thinkingBtn,
   treeBtn,
 } from "./shell.js";
-import { renderExtensionStatus, renderStatusLine, updateStatusLineFit } from "./statusline.js";
+import { renderExtensionStatus, renderExtensionWorking, renderStatusLine, updateStatusLineFit } from "./statusline.js";
 import { currentLane, isDelegating, isInLane, setState, state } from "./store.js";
 import { applyEvent, applyHistory, assignEntryIds, captureViewState, clearMessages, hasPendingBubbles, removePendingBubbles, setEntryActionsLocked, setShowThinking, showNewSession, updateWorkingIndicator } from "./transcript.js";
 
@@ -588,6 +588,7 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
   } else if (message.type === "setInput") setInput(message.text, message.images);
   else if (message.type === "extensionStatus") renderExtensionStatus(message.items);
   else if (message.type === "extensionWidgets") renderExtensionWidgets(message.items);
+  else if (message.type === "extensionWorkingMessage") renderExtensionWorking(message);
   else if (message.type === "dequeued") {
     removePendingBubbles();
     prependToInput(message.texts);

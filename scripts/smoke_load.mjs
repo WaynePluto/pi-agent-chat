@@ -92,7 +92,10 @@ if (process.env.PI_SPIKE_LIVE === "1") {
 
 extension.deactivate();
 
-if (failures > 0) {
-  console.error(`[fail] ${failures} diagnostic(s) failed`);
-  process.exit(1);
-}
+/* 诊断会加载开发者本机 ~/.pi/agent 里的真实扩展；第三方扩展留下的
+   setInterval（如 token-stats-timer 的秒表）会让事件循环永不排空，
+   成功路径因此挂起（失败路径的 process.exit(1) 反而能走）。结论此刻
+   已全部打印，定时强退，不再依赖自然退出。 */
+const code = failures > 0 ? 1 : 0;
+if (failures > 0) console.error(`[fail] ${failures} diagnostic(s) failed`);
+setTimeout(() => process.exit(code), 1500);

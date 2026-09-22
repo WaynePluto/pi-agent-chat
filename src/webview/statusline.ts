@@ -16,8 +16,20 @@ const t = getDict();
  */
 let extensionStatuses: ExtensionStatusItem[] = [];
 
+/**
+ * 扩展经 `ctx.ui.setWorkingMessage` / `setWorkingVisible` 发布的流式工作
+ * 文案。CLI 渲染在其 loader 行上；这里渲染在状态行里，无自定义文案时该行
+ * 不出现（transcript 的执行过程块已经表达运行中）。
+ */
+let extensionWorking: { text?: string; visible: boolean } | undefined;
+
 export function renderExtensionStatus(items: ExtensionStatusItem[]): void {
   extensionStatuses = items;
+  renderStatusLine();
+}
+
+export function renderExtensionWorking(update: { text?: string; visible: boolean }): void {
+  extensionWorking = update;
   renderStatusLine();
 }
 
@@ -39,6 +51,12 @@ function paintStatusLine(): void {
   if (!state.ready) {
     statusLineEl.appendChild(el("div", "statusline-row", t.starting));
     return;
+  }
+
+  // 扩展的工作文案（`setWorkingMessage`）是流式期间要看的活状态，排在
+  // 扩展状态条目之前；无文案时不占行。
+  if (extensionWorking?.visible && extensionWorking.text) {
+    statusLineEl.appendChild(el("div", "statusline-row working", extensionWorking.text));
   }
 
   // 扩展文本是散文不是计数组，单独占一行：窄了仍可读，也不受下面的

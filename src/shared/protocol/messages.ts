@@ -195,6 +195,12 @@ export type HostMessage =
   | { type: "extensionStatus"; items: ExtensionStatusItem[] }
   | { type: "extensionWidgets"; items: ExtensionWidget[] }
   /**
+   * 扩展经 `ctx.ui.setWorkingMessage` / `setWorkingVisible` 发布的流式工作
+   * 文案槽位（`text` 缺省 = 恢复默认，本宿主默认不显示这一行）。同样是
+   * 实时 UI 状态而非 transcript 历史，显示的会话一变就重发。
+   */
+  | { type: "extensionWorkingMessage"; text?: string; visible: boolean }
+  /**
    * 预填 composer，如分叉时被切走的那条消息。回溯 / 分叉带图消息时
    * `images` 整体替换 composer 的附件 chips（`id` 是宿主暂存里的活
    * id）；缺省不动现有 chips。

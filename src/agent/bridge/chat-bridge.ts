@@ -20,8 +20,11 @@ import {
   extensionNoticeSink,
   extensionStatusSink,
   extensionWidgetSink,
+  extensionWorkingMessageSink,
+  extensionWorkingVisibleSink,
   postExtensionStatus,
   postExtensionWidgets,
+  postExtensionWorkingMessage,
 } from "./extension-ui.js";
 import { onSessionEvent } from "./events.js";
 import {
@@ -113,16 +116,18 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   readonly liveAbortedResponses = new Set<string>();
   /**
    * 其余状态：extensionStatuses / extensionWidgets 存放扩展的 setStatus /
-   * setWidget 条目，attach 时清空、由重绑的扩展重发（对齐 CLI）；
-   * compactionQueues 是 SDK 压缩期间的应用层队列；queuedImages 把进了
-   * SDK 队列的消息文本与其留在 pendingImages 里的附件重新对上（撤回时
-   * 取回，见 types.ts）；skillIndex / promptIndex 用于标注技能工具调用与
+   * setWidget 条目，extensionWorkingMessages 存 `setWorkingMessage` /
+   * `setWorkingVisible` 的合并状态；attach 时清空、由重绑的扩展重发（对齐
+   * CLI）；compactionQueues 是 SDK 压缩期间的应用层队列；queuedImages 把
+   * 进了 SDK 队列的消息文本与其留在 pendingImages 里的附件重新对上（撤回
+   * 时取回，见 types.ts）；skillIndex / promptIndex 用于标注技能工具调用与
    * 归属 / 命令；activity 记录本会话真正生效过的资源（资源面板用）；
    * pendingImages 到达即处理（拒绝趁用户还在编辑时冒出），随送达 / 消费 /
    * 撤回释放、随会话替换丢弃——它们属于正被替换的 composer。
    */
   readonly extensionStatuses = new Map<string, Map<string, string>>();
   readonly extensionWidgets = new Map<string, Map<string, ExtensionWidget>>();
+  readonly extensionWorkingMessages = new Map<string, { text: string | undefined; visible: boolean }>();
   readonly compactionQueues = new Map<string, CompactionQueuedPrompt[]>();
   readonly queuedImages = new Map<string, QueuedImageRecord[]>();
   readonly pendingToolArgs = new Map<string, unknown>();
@@ -163,6 +168,8 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     runtime.setExtensionErrorSink((session, error) => extensionErrorSink(this, session, error));
     runtime.setExtensionStatusSink((session, update) => extensionStatusSink(this, session, update));
     runtime.setExtensionWidgetSink((session, update) => extensionWidgetSink(this, session, update));
+    runtime.setExtensionWorkingMessageSink((session, text) => extensionWorkingMessageSink(this, session, text));
+    runtime.setExtensionWorkingVisibleSink((session, visible) => extensionWorkingVisibleSink(this, session, visible));
     this.modelsConfigWatcher = createModelsConfigWatcher(this);
     this.settingsWatcher = createSettingsWatcher(this);
   }
@@ -181,6 +188,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.histories.clear();
     this.extensionStatuses.clear();
     this.extensionWidgets.clear();
+    this.extensionWorkingMessages.clear();
     this.compactionQueues.clear();
     this.queuedImages.clear();
     this.liveFailedResponses.clear();
@@ -367,6 +375,10 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
 
   postExtensionWidgets(): void {
     postExtensionWidgets(this);
+  }
+
+  postExtensionWorkingMessage(): void {
+    postExtensionWorkingMessage(this);
   }
 
   delegationState(session: AgentSession): ChatState["delegation"] {

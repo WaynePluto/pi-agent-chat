@@ -6,11 +6,28 @@
  * post 结果才 import 它。
  */
 
-import { basename, isAbsolute, relative as relativePath, resolve as resolvePath } from "node:path";
+import { basename, dirname, isAbsolute, relative as relativePath, resolve as resolvePath } from "node:path";
 import { homedir } from "node:os";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { ResourceItem, ResourceScope, ResourceSection } from "../shared/protocol.js";
 import type { ResourceActivity } from "./activity.js";
+
+/**
+ * 扩展面向用户的显示名。目录化安装普遍叫 `index.ts`（pi 的 npm 包装在
+ * `npm/node_modules/<包>/index.ts`，用户自建的扩展目录也常用它），光看
+ * 文件名分不出谁是谁——这类名字带上上级目录。目录本身没有区分度
+ * （`extensions`、`node_modules`）或文件不叫 index/main 时退回文件名。
+ */
+export function extensionDisplayName(path: string): string {
+  const file = basename(path);
+  if (/^(index|main)\.[cm]?[jt]s$/i.test(file)) {
+    const dir = basename(dirname(path));
+    if (dir && dir !== "." && dir !== path && dir !== "extensions" && dir !== "node_modules") {
+      return `${dir}/${file}`;
+    }
+  }
+  return file;
+}
 
 /**
  * 清单需要的运行时信息。取结构而非 `PiRuntime` 类型，离线诊断可以
@@ -71,13 +88,13 @@ export function collectResourceSections(runtime: ResourceHost, activity?: Resour
     sections.push(
       sortedSection("Extensions", [
         ...extensions.map((extension) => ({
-          ...entry(basename(extension.path), extension.path, (extension as { sourceInfo?: { origin?: string } }).sourceInfo),
+          ...entry(extensionDisplayName(extension.path), extension.path, (extension as { sourceInfo?: { origin?: string } }).sourceInfo),
           ...(activity?.isExtensionUsed(extension.path) ? { used: true } : {}),
         })),
         // 加载失败的扩展没有可打开的文件，错误文本即行文本，并置灰：
         // 已配置但未生效。
         ...extensionErrors.map((failure) => ({
-          label: `${basename(failure.path)} (load failed)`,
+          label: `${extensionDisplayName(failure.path)} (load failed)`,
           detail: `${failure.path}: ${String(failure.error)}`,
           inactive: true,
           scope: resourceScope(failure.path, runtime.cwd),

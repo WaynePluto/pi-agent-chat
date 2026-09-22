@@ -8,7 +8,7 @@ import { bubbleEntryIds } from "../history.js";
 import { firstUserLine } from "../session-title.js";
 import { collectResourceSections } from "../resources.js";
 import type { ChatBridge } from "./chat-bridge.js";
-import { postExtensionStatus, postExtensionWidgets } from "./extension-ui.js";
+import { postExtensionStatus, postExtensionWidgets, postExtensionWorkingMessage } from "./extension-ui.js";
 import { delegationState } from "./lanes.js";
 import { withOffer } from "./retry.js";
 
@@ -122,6 +122,7 @@ export function postHistory(bridge: ChatBridge, populateInputHistory = false): v
   postEntryIds(bridge);
   postExtensionStatus(bridge);
   postExtensionWidgets(bridge);
+  postExtensionWorkingMessage(bridge);
 }
 
 /**

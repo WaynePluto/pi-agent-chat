@@ -3,9 +3,9 @@
  * 本体在 `./diagnostics/` 里，由本文件末尾再导出。
  */
 import { runProjectFilesTest, runSessionTreeTest, runSlashCommandTest } from "./diagnostics/commands.js";
-import { runExtensionCommandContextTest, runExtensionReloadTest, runExtensionSdkImportTest } from "./diagnostics/extensions.js";
+import { runExtensionCommandContextTest, runExtensionReloadTest, runExtensionSdkImportTest, runExtensionWorkingMessageTest } from "./diagnostics/extensions.js";
 import { runHistoryReplayTest, runManualRetryTest, runReplayedRetryOfferTest, runRetryOfferLifecycleTest } from "./diagnostics/history-retry.js";
-import { runImageAttachmentTest, runLiveToolCallTest, runResourceListingTest } from "./diagnostics/resources.js";
+import { runExtensionNamingTest, runImageAttachmentTest, runLiveToolCallTest, runResourceListingTest } from "./diagnostics/resources.js";
 import { runQueueRecallTest } from "./diagnostics/queue-recall.js";
 import { runSubagentToolTest } from "./diagnostics/subagent.js";
 import { runSurfaceCoordinationTest } from "./diagnostics/surface.js";
@@ -60,7 +60,12 @@ export const DIAGNOSTIC_SUITES: ReadonlyArray<(cwd: string) => DiagnosticResult[
   // 钉住扩展命令 handler 真能驱动会话（`ctx.newSession()` 一类是宿主
   // 提供的，不是 SDK 默认）。
   runExtensionCommandContextTest,
+  // 钉住扩展拿到的 ctx.ui 是 SDK spread 出的副本：接口成员必须显式补齐
+  // （Proxy 兜底对 spread 无效，issue #7），working message 路由到状态行。
+  runExtensionWorkingMessageTest,
   runResourceListingTest,
+  // 钉住目录化扩展的显示名带上级目录：都叫 index.ts 的扩展在面板里要分得清。
+  runExtensionNamingTest,
   // 经真实 ChatBridge 钉住宿主侧视图状态机：webview 显示什么
   // （live / lane / preview）及从它派生的全部标志。手搭的 ChatState
   // 快照看不见构建它的代码里的 bug。
@@ -110,10 +115,12 @@ export {
   runExtensionSdkImportTest,
   runExtensionReloadTest,
   runExtensionCommandContextTest,
+  runExtensionWorkingMessageTest,
   runViewStateTest,
   runSessionOwnershipTest,
   runStartupSessionTest,
   runResourceListingTest,
+  runExtensionNamingTest,
   runLiveToolCallTest,
   runImageAttachmentTest,
   runQueueRecallTest,

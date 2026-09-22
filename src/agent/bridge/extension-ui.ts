@@ -1,7 +1,7 @@
-import { basename } from "node:path";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { ExtensionWidget } from "../../shared/protocol.js";
 import { tf } from "../i18n.js";
+import { extensionDisplayName } from "../resources.js";
 import type { ChatBridge } from "./chat-bridge.js";
 
 /**
@@ -33,7 +33,7 @@ export function extensionErrorSink(
   bridge.host.log(`extension error (${error.extensionPath}) on ${error.event}: ${error.error}`);
   bridge.emit(session, {
     kind: "error",
-    text: tf("extensionHandlerFailed", basename(error.extensionPath), error.event, error.error),
+    text: tf("extensionHandlerFailed", extensionDisplayName(error.extensionPath), error.event, error.error),
     scope: bridge.extensionCommandDepth > 0 ? "command" : undefined,
   });
   if (bridge.activity.markExtension(error.extensionPath)) bridge.postResourceListing();
@@ -66,6 +66,23 @@ export function extensionWidgetSink(
 }
 
 /**
+ * `ctx.ui.setWorkingMessage` 的合并状态：文案与显形是同一个槽位的两个字段
+ * （CLI 的 loader 行），任一变化都整体重发。`undefined` = 恢复默认，本宿主
+ * 的默认是不显示这一行。
+ */
+export function extensionWorkingMessageSink(bridge: ChatBridge, session: AgentSession, text: string | undefined): void {
+  const current = bridge.extensionWorkingMessages.get(session.sessionId) ?? { text: undefined, visible: true };
+  bridge.extensionWorkingMessages.set(session.sessionId, { ...current, text });
+  if (bridge.isDisplayed(session)) postExtensionWorkingMessage(bridge);
+}
+
+export function extensionWorkingVisibleSink(bridge: ChatBridge, session: AgentSession, visible: boolean): void {
+  const current = bridge.extensionWorkingMessages.get(session.sessionId) ?? { text: undefined, visible: true };
+  bridge.extensionWorkingMessages.set(session.sessionId, { ...current, visible });
+  if (bridge.isDisplayed(session)) postExtensionWorkingMessage(bridge);
+}
+
+/**
  * 下发当前显示会话的扩展状态与 widget。历史 lane 回放展示的是扩展未绑定
  * 的 transcript，因此拿到空集而非 live 会话的那份。
  */
@@ -86,6 +103,18 @@ export function postExtensionWidgets(bridge: ChatBridge): void {
   bridge.host.post({ type: "extensionWidgets", items: [...(entries?.values() ?? [])] });
 }
 
+/** 下发当前显示会话的工作文案槽位；replay 展示的是扩展未绑定的 transcript，拿空状态。 */
+export function postExtensionWorkingMessage(bridge: ChatBridge): void {
+  if (bridge.disposed) return;
+  const session = bridge.displayedSession;
+  const state = bridge.view.kind === "replay" ? undefined : bridge.extensionWorkingMessages.get(session.sessionId);
+  bridge.host.post({
+    type: "extensionWorkingMessage",
+    text: state?.text,
+    visible: state?.visible ?? true,
+  });
+}
+
 /**
  * 丢弃一个会话的扩展状态与 widget。用于 reload：旧扩展实例已拆、
  * `session_start` 尚未到达新实例的空档——这些条目属于旧实例，新实例会
@@ -94,7 +123,9 @@ export function postExtensionWidgets(bridge: ChatBridge): void {
 export function clearExtensionUiState(bridge: ChatBridge, session: AgentSession): void {
   bridge.extensionStatuses.delete(session.sessionId);
   bridge.extensionWidgets.delete(session.sessionId);
+  bridge.extensionWorkingMessages.delete(session.sessionId);
   if (!bridge.isDisplayed(session)) return;
   postExtensionStatus(bridge);
   postExtensionWidgets(bridge);
+  postExtensionWorkingMessage(bridge);
 }

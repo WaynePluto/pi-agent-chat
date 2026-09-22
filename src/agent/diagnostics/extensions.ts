@@ -1,11 +1,14 @@
-/** 扩展加载、重载与扩展命令上下文的自检。 */
+/** 扩展加载、重载、扩展命令上下文与扩展 UI 上下文的自检。 */
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAgentSessionFromServices, createAgentSessionServices, SessionManager } from "@earendil-works/pi-coding-agent";
+import { ChatBridge } from "../bridge.js";
 import { describe } from "../errors.js";
+import { OriginalContentProvider } from "../diff-view.js";
 import { PiRuntime } from "../runtime.js";
 import { SubagentCoordinator } from "../subagent.js";
+import type { HostMessage } from "../../shared/protocol.js";
 import type { DiagnosticResult } from "../diagnostics.js";
 
 /** 一个像真实扩展那样 import SDK 的 pi 扩展。 */
@@ -158,6 +161,92 @@ export async function runExtensionCommandContextTest(cwd: string): Promise<Diagn
     }];
   } catch (error) {
     return [{ name: "extension command context", ok: false, detail: describe(error) }];
+  } finally {
+    runtime?.dispose();
+  }
+}
+
+/**
+ * 扩展拿到的 `ctx.ui` 是 SDK `wrapUIPromptContext()` 经 `{ ...ui }` 展开
+ * 出的副本——宿主 UI 上下文上的 Proxy 兜底陷阱对 spread 无效，凡是没在
+ * `createVsCodeExtensionUiContext()` 里显式列出的成员，扩展一调用即
+ * 「not a function」（issue #7：token-stats-timer 在 `agent_settled` 里
+ * 调 `setWorkingMessage()` 直接炸）。本检查从真实会话的 runner 里取出
+ * 那份展开副本：接口成员必须齐全，`setWorkingMessage` /
+ * `setWorkingVisible` 必须路由成宿主消息，`setFooter` 这类组件工厂必须
+ * 是被容忍的 no-op；会话的扩展 UI 状态随 reload / 替换清空。
+ */
+export async function runExtensionWorkingMessageTest(cwd: string): Promise<DiagnosticResult[]> {
+  let runtime: PiRuntime | undefined;
+  const failures: string[] = [];
+  const expect = (label: string, ok: boolean) => {
+    if (!failures.includes(label) && !ok) failures.push(label);
+  };
+  try {
+    const posted: HostMessage[] = [];
+    runtime = await PiRuntime.create({ cwd, log: () => {} });
+    const bridge = new ChatBridge(
+      runtime,
+      { post: (message) => posted.push(message), log: () => {} },
+      new OriginalContentProvider(),
+    );
+    await bridge.attach();
+    const session = runtime.session;
+
+    // 扩展真正收到的那份对象：runner 展开（spread）后的副本，不是宿主的 Proxy。
+    const ui = session.extensionRunner.createContext().ui as unknown as Record<string, unknown>;
+
+    /* 与 SDK 0.87.0 的 `ExtensionUIContext` 逐一对应（`theme` 是属性除外）。
+       SDK 升级给接口加成员时这份清单要跟着补——Proxy 兜底救不了扩展。 */
+    const required = [
+      "select", "confirm", "input", "editor", "notify", "custom",
+      "onTerminalInput", "setStatus", "setWidget",
+      "setWorkingMessage", "setWorkingVisible", "setWorkingIndicator", "setHiddenThinkingLabel",
+      "setFooter", "setHeader", "setTitle", "setToolsExpanded",
+      "setEditorText", "pasteToEditor", "getEditorText", "addAutocompleteProvider",
+      "setEditorComponent", "getEditorComponent", "getAllThemes", "getTheme", "setTheme", "getToolsExpanded",
+    ];
+    const missing = required.filter((member) => typeof ui[member] !== "function");
+    expect("wrapped ui carries every ExtensionUIContext member", missing.length === 0);
+
+    const lastWorking = () => {
+      for (let i = posted.length - 1; i >= 0; i -= 1) {
+        const message = posted[i];
+        if (message?.type === "extensionWorkingMessage") return message;
+      }
+      return undefined;
+    };
+
+    (ui.setWorkingMessage as (text?: string) => void)("Working... 00:05");
+    expect("setWorkingMessage posts the custom text", lastWorking()?.text === "Working... 00:05" && lastWorking()?.visible === true);
+
+    (ui.setWorkingVisible as (visible: boolean) => void)(false);
+    expect("setWorkingVisible hides the row", lastWorking()?.visible === false && lastWorking()?.text === "Working... 00:05");
+
+    (ui.setWorkingMessage as (text?: string) => void)();
+    expect("restore-default clears the text", lastWorking()?.text === undefined && lastWorking()?.visible === false);
+
+    let footerThrew = false;
+    try {
+      (ui.setFooter as (factory: unknown) => void)(() => ({ render: () => [] }));
+    } catch {
+      footerThrew = true;
+    }
+    expect("setFooter factory is a tolerated no-op", !footerThrew);
+
+    (ui.setWorkingMessage as (text?: string) => void)("Working... 00:09");
+    bridge.clearExtensionUiState(session);
+    expect("cleared with the session's extension ui state", lastWorking()?.text === undefined && lastWorking()?.visible === true);
+
+    return [{
+      name: "extension working message",
+      ok: failures.length === 0,
+      detail: failures.length === 0
+        ? "wrapped ui complete; setWorkingMessage / setWorkingVisible routed; setFooter tolerated; state cleared on reload"
+        : failures.join("; "),
+    }];
+  } catch (error) {
+    return [{ name: "extension working message", ok: false, detail: describe(error) }];
   } finally {
     runtime?.dispose();
   }

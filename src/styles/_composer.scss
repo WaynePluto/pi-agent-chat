@@ -477,6 +477,18 @@ textarea {
     justify-content: flex-start;
     gap: 12px;
   }
+
+  /* 扩展 `ctx.ui.setWorkingMessage()` 的流式文案：运行中的声音用
+     --pulse，与执行过程块的扫描带同一个词汇。这行会换行（white-space:
+     normal），不参与 ellipsis；overflow 必须放开——基样式给
+     .statusline-row 的 overflow: hidden 在分数像素边界会把首字符最左的
+     亚像素列削掉，读起来像「第一个字母被遮了一点」。 */
+  &.working {
+    justify-content: flex-start;
+    color: var(--pulse);
+    white-space: normal;
+    overflow: visible;
+  }
 }
 
 .statusline-right {

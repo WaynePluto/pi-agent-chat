@@ -106,6 +106,12 @@ export class PiRuntime implements vscode.Disposable {
   /** 由 `ChatBridge` 注入；把 `ctx.ui.setWidget` 路由到 composer 边缘。 */
   private extensionWidget?: (session: AgentSession, update: ExtensionWidgetUpdate) => void;
 
+  /** 由 `ChatBridge` 注入；把 `ctx.ui.setWorkingMessage` 路由到状态行。 */
+  private extensionWorkingMessage?: (session: AgentSession, text: string | undefined) => void;
+
+  /** 由 `ChatBridge` 注入；把 `ctx.ui.setWorkingVisible` 路由到状态行。 */
+  private extensionWorkingVisible?: (session: AgentSession, visible: boolean) => void;
+
   // 由 `ChatBridge` 注入；见 `SessionLifecycleSink`。
   private lifecycle?: SessionLifecycleSink;
 
@@ -388,6 +394,14 @@ export class PiRuntime implements vscode.Disposable {
     this.extensionWidget = sink;
   }
 
+  setExtensionWorkingMessageSink(sink: (session: AgentSession, text: string | undefined) => void): void {
+    this.extensionWorkingMessage = sink;
+  }
+
+  setExtensionWorkingVisibleSink(sink: (session: AgentSession, visible: boolean) => void): void {
+    this.extensionWorkingVisible = sink;
+  }
+
   /**
    * 由 `ChatBridge` 在首次 `bindExtensions()` 前注入，同其他 sink：它被那里
    * 创建的命令上下文捕获。
@@ -445,6 +459,8 @@ export class PiRuntime implements vscode.Disposable {
         notice: this.extensionNotice ? (notice) => this.extensionNotice?.(session, notice) : undefined,
         status: this.extensionStatus ? (update) => this.extensionStatus?.(session, update) : undefined,
         widget: this.extensionWidget ? (update) => this.extensionWidget?.(session, update) : undefined,
+        workingMessage: this.extensionWorkingMessage ? (text) => this.extensionWorkingMessage?.(session, text) : undefined,
+        workingVisible: this.extensionWorkingVisible ? (visible) => this.extensionWorkingVisible?.(session, visible) : undefined,
       }),
       abortHandler,
       ...(options?.ownsSession ? { commandContextActions: this.commandContextActions(session) } : {}),

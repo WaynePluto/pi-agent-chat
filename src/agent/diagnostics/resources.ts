@@ -1,12 +1,12 @@
 /** 资源面板清单、live 工具调用与图片附件的自检。 */
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
+import { createAgentSession, createAgentSessionFromServices, createAgentSessionServices, SessionManager } from "@earendil-works/pi-coding-agent";
 import { describe } from "../errors.js";
 import { buildHistoryEntryEvents, bubbleEntryIds } from "../history.js";
 import { imageAttachmentMarkup, prepareImage } from "../images.js";
-import { collectResourceSections } from "../resources.js";
+import { collectResourceSections, extensionDisplayName } from "../resources.js";
 import { userDisplayFromText } from "../session-title.js";
 import type { DiagnosticResult } from "../diagnostics.js";
 import { probePng, type StoredMessage } from "./shared.js";
@@ -37,6 +37,67 @@ export async function runResourceListingTest(cwd: string): Promise<DiagnosticRes
     }];
   } catch (error) {
     return [{ name: "resource listing", ok: false, detail: describe(error) }];
+  }
+}
+
+/** 一个放在子目录里、就叫 index.ts 的探针扩展。 */
+const NAMED_DIR_PROBE_EXTENSION = `import { Type } from "typebox";
+export default function (pi) {
+  pi.registerTool({
+    name: "naming_probe",
+    label: "Naming probe",
+    description: "diagnostic probe",
+    parameters: Type.Object({}),
+    execute: async () => ({ content: [{ type: "text", text: "probe" }], details: {} }),
+  });
+}
+`;
+
+/**
+ * 目录化扩展（pi 的 npm 包、用户自建目录）普遍叫 index.ts，面板里光看
+ * basename 分不出谁是谁——显示名必须带上上级目录（issue #7 验证时的反
+ * 馈）。纯函数 `extensionDisplayName` 属于投影，这里从真实 loader 的清单
+ * 钉到屏上的 label。
+ */
+export async function runExtensionNamingTest(cwd: string): Promise<DiagnosticResult[]> {
+  let dir: string | undefined;
+  const failures: string[] = [];
+  const expect = (label: string, ok: boolean) => {
+    if (!failures.includes(label) && !ok) failures.push(label);
+  };
+  try {
+    /* npm 包机制的 path 是文件（…/<包>/index.ts）；additionalExtensionPaths
+       的目录式扩展 path 是目录本身（basename 已无歧义）。两种形态都钉。 */
+    expect("npm-shaped index.ts gains its parent dir", extensionDisplayName("/x/node_modules/token-stats-timer/index.ts") === "token-stats-timer/index.ts");
+    expect("plain file keeps its basename", extensionDisplayName("/x/extensions/notify.ts") === "notify.ts");
+    expect("named entry file keeps its basename", extensionDisplayName("/x/extensions/pwsh/pwsh.ts") === "pwsh.ts");
+
+    dir = await mkdtemp(join(tmpdir(), "pi-vscode-naming-"));
+    const probeDir = join(dir, "my-probe");
+    await mkdir(probeDir, { recursive: true });
+    await writeFile(join(probeDir, "index.ts"), NAMED_DIR_PROBE_EXTENSION, "utf8");
+    // additionalExtensionPaths 不递归：指到包含 index.ts 的目录本身。
+    const services = await createAgentSessionServices({
+      cwd,
+      resourceLoaderOptions: { additionalExtensionPaths: [probeDir] },
+    });
+    const { session } = await createAgentSessionFromServices({ services, sessionManager: SessionManager.inMemory(cwd) });
+    const sections = collectResourceSections({ session, cwd });
+    session.dispose();
+    const labels = sections.find((section) => section.name === "Extensions")?.items.map((item) => item.label) ?? [];
+    expect("directory probe listed under its dir name", labels.includes("my-probe"));
+    expect("no bare index.ts in the listing", !labels.includes("index.ts"));
+    return [{
+      name: "extension naming",
+      ok: failures.length === 0,
+      detail: failures.length === 0
+        ? `labels: ${labels.join(", ") || "(none)"}`
+        : failures.join("; "),
+    }];
+  } catch (error) {
+    return [{ name: "extension naming", ok: false, detail: describe(error) }];
+  } finally {
+    if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 }
 
