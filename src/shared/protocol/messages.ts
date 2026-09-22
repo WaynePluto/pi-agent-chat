@@ -194,10 +194,18 @@ export type HostMessage =
    */
   | { type: "extensionStatus"; items: ExtensionStatusItem[] }
   | { type: "extensionWidgets"; items: ExtensionWidget[] }
-  /** 预填 composer，如分叉时被切走的那条消息。 */
-  | { type: "setInput"; text: string }
-  // 排队消息被撤回：移除气泡，文本退回 composer。
-  | { type: "dequeued"; texts: string[] }
+  /**
+   * 预填 composer，如分叉时被切走的那条消息。回溯 / 分叉带图消息时
+   * `images` 整体替换 composer 的附件 chips（`id` 是宿主暂存里的活
+   * id）；缺省不动现有 chips。
+   */
+  | { type: "setInput"; text: string; images?: { id: string; image: TranscriptImage }[] }
+  /**
+   * 排队消息被撤回：移除气泡，文本与图片附件退回 composer。`images` 的
+   * `id` 是宿主暂存里的活 id——chip 的移除与再次发送照常经它工作，正如
+   * 附加时一样。
+   */
+  | { type: "dequeued"; texts: string[]; images?: { id: string; image: TranscriptImage }[] }
   | { type: "clear" };
 
 /** webview → 扩展宿主。 */

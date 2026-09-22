@@ -5,7 +5,7 @@ import {
   DEFAULT_WIDE_THRESHOLD,
   WIDE_THRESHOLD_MIN,
 } from "../shared/protocol.js";
-import { clearFileRefs, initComposer, onAttachment, onProjectFiles, populateInputHistoryFromEvents, send, setInput, setSlashCommands } from "./composer.js";
+import { clearFileRefs, initComposer, onAttachment, onProjectFiles, populateInputHistoryFromEvents, restoreAttachments, send, setInput, setSlashCommands } from "./composer.js";
 import { getPersisted, post, setPersisted } from "./host.js";
 import { setFoldMaxLines } from "./bubble.js";
 import { getDict } from "./i18n.js";
@@ -585,12 +585,13 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
     renderResources(message.sections);
     applyResourcesVisibility();
     updateHeaderButtons();
-  } else if (message.type === "setInput") setInput(message.text);
+  } else if (message.type === "setInput") setInput(message.text, message.images);
   else if (message.type === "extensionStatus") renderExtensionStatus(message.items);
   else if (message.type === "extensionWidgets") renderExtensionWidgets(message.items);
   else if (message.type === "dequeued") {
     removePendingBubbles();
     prependToInput(message.texts);
+    restoreAttachments(message.images);
     updateRecallButton();
   }
   else if (message.type === "clear") clearMessages();

@@ -1,8 +1,9 @@
 import * as vscode from "vscode";
 import type { SessionManager, SessionTreeNode } from "@earendil-works/pi-coding-agent";
+import type { TranscriptImage } from "../shared/protocol.js";
 import { t, tf } from "./i18n.js";
 import type { PiRuntime } from "./runtime.js";
-import { contentText, userDisplayFromText, userDisplayText } from "./session-title.js";
+import { contentImages, contentText, userDisplayFromText, userDisplayText } from "./session-title.js";
 
 /**
  * 会话树操作（`/tree`、`/fork`、`/clone`）。
@@ -14,8 +15,22 @@ import { contentText, userDisplayFromText, userDisplayText } from "./session-tit
 /** 树 UI 需要的宿主回调；让本模块不依赖 bridge 细节。 */
 export interface SessionTreeUi {
   status(text: string): void;
-  /** 预填 composer，对齐 CLI 在 fork/导航后的编辑器恢复。 */
-  setInput(text: string): void;
+  /**
+   * 预填 composer，对齐 CLI 在 fork/导航后的编辑器恢复；带图消息连同附件
+   * 一起送回。必须在 `attach()` 之后调用：attach 会清空附件暂存，先登记
+   * 会被随后抹掉。
+   */
+  setInput(text: string, images?: readonly { mimeType: string; data: string; name?: string }[]): void;
+}
+
+/**
+ * 回溯 / 分叉交给调用方预填 composer 的内容。树操作本身不调用
+ * `ui.setInput`：每个调用点都在操作后重新 attach（重放 transcript、重建
+ * 扩展绑定），而 attach 清空附件暂存——预填必须等它落地。
+ */
+export interface ComposerPrefill {
+  text: string;
+  images?: readonly { mimeType: string; data: string; name?: string }[];
 }
 
 export interface TreeChoice extends vscode.QuickPickItem {
@@ -27,7 +42,7 @@ const MAX_TREE_INDENT_DEPTH = 6;
 const MAX_TREE_LABEL_CHARS = 10;
 
 /** 就地切换活动分支，同 CLI 的 `/tree`。 */
-export async function navigateSessionTree(runtime: PiRuntime, ui: SessionTreeUi): Promise<void> {
+export async function navigateSessionTree(runtime: PiRuntime, ui: SessionTreeUi): Promise<ComposerPrefill | undefined> {
   const choices = buildTreeChoices(runtime.session.sessionManager);
   if (choices.length === 0) {
     ui.status(t("treeEmpty"));
@@ -50,16 +65,24 @@ export async function navigateSessionTree(runtime: PiRuntime, ui: SessionTreeUi)
   );
   if (!action) return;
 
-  if (action.action === "switch") {
-    await switchToEntry(runtime, picked.entryId, ui);
-    return;
-  }
-  if (action.action === "fork") {
-    await forkFromEntry(runtime, picked.entryId, ui);
-    return;
-  }
+  if (action.action === "switch") return switchToEntry(runtime, picked.entryId, ui);
+  if (action.action === "fork") return forkFromEntry(runtime, picked.entryId, ui);
 
   await editEntryLabel(runtime, picked.entryId, ui);
+}
+
+/**
+ * 条目里的图片附件，连同正文标记里的名字：回溯 / 分叉把消息送回
+ * composer 时，图片不能只剩文本标记。`navigateTree` / `fork` 只还文本
+ * （`editorText` / `selectedText`），数据部分在 entry 的 content 里。
+ */
+function rewindImages(entry: unknown): TranscriptImage[] | undefined {
+  const content = ((entry as { message?: { content?: unknown } } | undefined)?.message)?.content;
+  const images = contentImages(content);
+  if (images.length === 0) return undefined;
+  // 标记按附加顺序出现在正文里，与 content 里的图片部分同序。
+  const names = [...contentText(content).matchAll(/<image name="([^"]*)">/g)].map((match) => match[1]);
+  return images.map((image, index) => ({ ...image, name: names[index] }));
 }
 
 /**
@@ -69,14 +92,18 @@ export async function navigateSessionTree(runtime: PiRuntime, ui: SessionTreeUi)
  * 把它的文本放回 composer、叶子指到其父条目，这样重发（可换模型）长出
  * 新分支而不是重复该消息。
  */
-export async function switchToEntry(runtime: PiRuntime, entryId: string, ui: SessionTreeUi): Promise<void> {
+export async function switchToEntry(runtime: PiRuntime, entryId: string, ui: SessionTreeUi): Promise<ComposerPrefill | undefined> {
   const result = await runtime.session.navigateTree(entryId);
   if (result.cancelled) {
     ui.status(t("treeNavigationCancelled"));
     return;
   }
-  if (result.editorText) ui.setInput(userDisplayFromText(result.editorText));
   ui.status(t("treeSwitched"));
+  if (!result.editorText) return undefined;
+  return {
+    text: userDisplayFromText(result.editorText),
+    images: rewindImages(runtime.session.sessionManager.getEntry(entryId)),
+  };
 }
 
 /** 设置或清除某条目的书签标签（只追加，不分叉）。 */
@@ -92,7 +119,7 @@ export async function editEntryLabel(runtime: PiRuntime, entryId: string, ui: Se
 }
 
 /** 从较早的用户消息 fork 出新会话，同 CLI 的 `/fork`。 */
-export async function pickForkPoint(runtime: PiRuntime, ui: SessionTreeUi): Promise<void> {
+export async function pickForkPoint(runtime: PiRuntime, ui: SessionTreeUi): Promise<ComposerPrefill | undefined> {
   const choices = buildTreeChoices(runtime.session.sessionManager, { userMessagesOnly: true });
   if (choices.length === 0) {
     ui.status(t("forkNoUserMessage"));
@@ -104,7 +131,7 @@ export async function pickForkPoint(runtime: PiRuntime, ui: SessionTreeUi): Prom
     matchOnDetail: true,
   });
   if (!picked) return;
-  await forkFromEntry(runtime, picked.entryId, ui);
+  return forkFromEntry(runtime, picked.entryId, ui);
 }
 
 /** 在当前位置复制会话，同 CLI 的 `/clone`。 */
@@ -128,16 +155,20 @@ export async function cloneSession(runtime: PiRuntime, ui: SessionTreeUi): Promi
  * 改为在*自身*处 fork——新会话保留到该回答为止的对话，那是它唯一说得
  * 通的读法。
  */
-export async function forkFromEntry(runtime: PiRuntime, entryId: string, ui: SessionTreeUi): Promise<void> {
+export async function forkFromEntry(runtime: PiRuntime, entryId: string, ui: SessionTreeUi): Promise<ComposerPrefill | undefined> {
   const entry = runtime.session.sessionManager.getEntry(entryId);
-  const position = entry && isUserMessage(entry) ? "before" : "at";
+  const fromUserMessage = Boolean(entry && isUserMessage(entry));
+  // 图片要在 fork 之前读取：fork 会替换 runtime 的会话，原条目不在新树上。
+  const restore = fromUserMessage ? rewindImages(entry) : undefined;
+  const position = fromUserMessage ? "before" : "at";
   const result = await runtime.fork(entryId, { position });
   if (result.cancelled) {
     ui.status(t("forkCancelled"));
     return;
   }
-  if (result.selectedText) ui.setInput(userDisplayFromText(result.selectedText));
   ui.status(tf("forkedInto", runtime.session.sessionFile ?? t("inMemorySession")));
+  if (!result.selectedText) return undefined;
+  return { text: userDisplayFromText(result.selectedText), images: restore };
 }
 
 /**

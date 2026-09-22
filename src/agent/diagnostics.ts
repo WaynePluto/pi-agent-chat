@@ -6,6 +6,7 @@ import { runProjectFilesTest, runSessionTreeTest, runSlashCommandTest } from "./
 import { runExtensionCommandContextTest, runExtensionReloadTest, runExtensionSdkImportTest } from "./diagnostics/extensions.js";
 import { runHistoryReplayTest, runManualRetryTest, runReplayedRetryOfferTest, runRetryOfferLifecycleTest } from "./diagnostics/history-retry.js";
 import { runImageAttachmentTest, runLiveToolCallTest, runResourceListingTest } from "./diagnostics/resources.js";
+import { runQueueRecallTest } from "./diagnostics/queue-recall.js";
 import { runSubagentToolTest } from "./diagnostics/subagent.js";
 import { runSurfaceCoordinationTest } from "./diagnostics/surface.js";
 import { runSpikeDiagnostics } from "./diagnostics/spike.js";
@@ -74,6 +75,9 @@ export const DIAGNOSTIC_SUITES: ReadonlyArray<(cwd: string) => DiagnosticResult[
   // bundle 里跑起来，纯附件消息必须保持两个 transcript 投影对齐，所有
   // 界面必须经同一投影给会话定标题。
   runImageAttachmentTest,
+  // 钉住排队 / 插话消息的撤回带回图片附件：SDK 队列只暴露文本，图片
+  // 数据活在本宿主的暂存账上，撤回认领、消费释放，两条队列路径都算。
+  runQueueRecallTest,
 ];
 
 /** 跑全部离线自检。 */
@@ -112,4 +116,5 @@ export {
   runResourceListingTest,
   runLiveToolCallTest,
   runImageAttachmentTest,
+  runQueueRecallTest,
 };

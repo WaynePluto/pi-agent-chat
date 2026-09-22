@@ -2,7 +2,6 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deflateSync } from "node:zlib";
 import { createAgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
 import { describe } from "../errors.js";
 import { buildHistoryEntryEvents, bubbleEntryIds } from "../history.js";
@@ -10,7 +9,7 @@ import { imageAttachmentMarkup, prepareImage } from "../images.js";
 import { collectResourceSections } from "../resources.js";
 import { userDisplayFromText } from "../session-title.js";
 import type { DiagnosticResult } from "../diagnostics.js";
-import type { StoredMessage } from "./shared.js";
+import { probePng, type StoredMessage } from "./shared.js";
 
 /**
  * 离线检查 transcript 上方的资源清单：必须带工具注册表回来，并把 pi
@@ -110,41 +109,6 @@ export async function runLiveToolCallTest(cwd: string, log: (message: string) =>
 }
 
 /* ---------------------------- 图片附件 ---------------------------- */
-
-function probePng(width: number, height: number): Buffer {
-  const table = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    table[n] = c >>> 0;
-  }
-  const crc = (bytes: Uint8Array): number => {
-    let c = 0xffffffff;
-    for (const byte of bytes) c = table[(c ^ byte) & 0xff]! ^ (c >>> 8);
-    return (c ^ 0xffffffff) >>> 0;
-  };
-  const chunk = (type: string, data: Buffer): Buffer => {
-    const head = Buffer.alloc(8);
-    head.writeUInt32BE(data.length, 0);
-    head.write(type, 4, "ascii");
-    const tail = Buffer.alloc(4);
-    tail.writeUInt32BE(crc(Buffer.concat([head.subarray(4), data])), 0);
-    return Buffer.concat([head, data, tail]);
-  };
-  const raw = Buffer.alloc(height * (1 + width * 3));
-  for (let y = 0; y < height; y++) raw[y * (1 + width * 3)] = 0;
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0);
-  ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8;
-  ihdr[9] = 2;
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk("IHDR", ihdr),
-    chunk("IDAT", deflateSync(raw)),
-    chunk("IEND", Buffer.alloc(0)),
-  ]);
-}
 
 /**
  * 离线检查（不调 LLM）：粘贴的图片活着走完往返，纯附件消息让两套

@@ -7,6 +7,6 @@
  * 再导出，导入方继续用 `./composer.js`。
  */
 export { clearFileRefs, initComposer, send, setSlashCommands, setInput } from "./composer/composer.js";
-export { onAttachment } from "./composer/attachments.js";
+export { onAttachment, restoreAttachments } from "./composer/attachments.js";
 export { populateInputHistoryFromEvents } from "./composer/input-history.js";
 export { onProjectFiles } from "./composer/autocomplete.js";

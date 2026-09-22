@@ -5,6 +5,7 @@ import { manageScopedModels, pickModel as openModelPicker } from "../model-picke
 import { buildSkillIndex } from "../skills.js";
 import { buildPromptIndex } from "../invocations.js";
 import type { ChatBridge } from "./chat-bridge.js";
+import { requeueSessionAttachments } from "./attachments.js";
 import { listSessions } from "./sessions-list.js";
 
 /**
@@ -57,7 +58,8 @@ export function builtinActions(bridge: ChatBridge) {
     },
     reattach: async () => bridge.attach(),
     status: (text: string) => bridge.emit(bridge.runtime.session, { kind: "status", text, scope: "command" }),
-    setInput: (text: string) => bridge.host.post({ type: "setInput", text }),
+    setInput: (text: string, images?: readonly { mimeType: string; data: string; name?: string }[]) =>
+      bridge.host.post({ type: "setInput", text, images: requeueSessionAttachments(bridge, images) }),
     refresh: () => void bridge.postState(),
   };
 }

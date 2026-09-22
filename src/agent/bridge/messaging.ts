@@ -6,14 +6,14 @@ import { t, tf } from "../i18n.js";
 import { stripImageAttachmentMarkup, imageAttachmentMarkup } from "../images.js";
 import { resolveInvocation } from "../invocations.js";
 import { invokedSkill } from "../skills.js";
-import { editEntryLabel, forkFromEntry, navigateSessionTree, switchToEntry } from "../session-tree.js";
+import { editEntryLabel, forkFromEntry, navigateSessionTree, switchToEntry, type ComposerPrefill } from "../session-tree.js";
 import { openSettingsMenu } from "../settings-menu.js";
 import { openEditDiff } from "../diff-view.js";
 import { manageScopedModels } from "../model-picker.js";
 import type { ChatBridge } from "./chat-bridge.js";
-import { attachImage, takeAttachments } from "./attachments.js";
+import { attachImage, peekAttachments, releaseAttachments } from "./attachments.js";
 import { builtinActions, modelPickerUi, pickModel, setModel, setThinkingLevel } from "./actions.js";
-import { dequeueAll, queueDuringCompaction } from "./compaction-queue.js";
+import { dequeueAll, queueDuringCompaction, recordQueuedImages } from "./compaction-queue.js";
 import {
   deleteSession,
   renameSession,
@@ -101,8 +101,13 @@ export async function handleMessage(bridge: ChatBridge, message: WebviewMessage)
       break;
     case "openSessionTree":
       if (bridge.guardStreaming()) break;
-      await navigateSessionTree(bridge.runtime, builtinActions(bridge));
-      await bridge.attach();
+      {
+        const ui = builtinActions(bridge);
+        const prefill = await navigateSessionTree(bridge.runtime, ui);
+        await bridge.attach();
+        // 预填在 attach 之后应用：attach 清空附件暂存，先登记会被抹掉。
+        if (prefill) ui.setInput(prefill.text, prefill.images);
+      }
       break;
     case "entryAction":
       await runEntryAction(bridge, message.action, message.entryId);
@@ -200,9 +205,10 @@ export async function runEntryAction(bridge: ChatBridge, action: "switch" | "for
   if (bridge.view.kind !== "live" || bridge.activeRun) return;
   if (action !== "label" && bridge.guardStreaming()) return;
   const ui = builtinActions(bridge);
+  let prefill: ComposerPrefill | undefined;
   try {
-    if (action === "switch") await switchToEntry(bridge.runtime, entryId, ui);
-    else if (action === "fork") await forkFromEntry(bridge.runtime, entryId, ui);
+    if (action === "switch") prefill = await switchToEntry(bridge.runtime, entryId, ui);
+    else if (action === "fork") prefill = await forkFromEntry(bridge.runtime, entryId, ui);
     else await editEntryLabel(bridge.runtime, entryId, ui);
   } catch (error) {
     bridge.reportError(bridge.runtime.session, `${action} failed`, error, "command");
@@ -210,6 +216,8 @@ export async function runEntryAction(bridge: ChatBridge, action: "switch" | "for
   }
   if (action === "label") bridge.postEntryIds();
   else await bridge.attach();
+  // 预填在 attach 之后应用：attach 清空附件暂存，先登记会被抹掉。
+  if (prefill) ui.setInput(prefill.text, prefill.images);
 }
 
 /** 应答 webview 的 @ 项目路径查询；错误内联上报，绝不抛出。 */
@@ -237,8 +245,10 @@ export async function sendPrompt(
   let trimmed = text.trim();
 
   /* 附件在空文本检查之前解析：单独一张图也是一条消息，其标记正是让文本
-     块非空的东西（SDK 总把它放最前，供方会拒绝空文本块）。 */
-  const attachments = takeAttachments(bridge, imageIds);
+     块非空的东西（SDK 总把它放最前，供方会拒绝空文本块）。只读取不消
+     费——消息若落进队列，附件留在宿主暂存里供撤回取回；归宿在下方按
+     路径决定。 */
+  const attachments = peekAttachments(bridge, imageIds);
   if (attachments.length > 0) {
     const markup = attachments.map((item) => imageAttachmentMarkup(item.name, item.hints));
     trimmed = `${trimmed ? `${trimmed}\n\n` : ""}${markup.join("\n")}`;
@@ -261,6 +271,7 @@ export async function sendPrompt(
       }
     } catch (error) {
       bridge.reportError(bridge.runtime.session, "file reference rejected", error, "command");
+      releaseAttachments(bridge, attachments);
       return;
     }
   }
@@ -270,9 +281,13 @@ export async function sendPrompt(
      session 展开；invocation 必须在 prompt() 之前解析——它会把 /模板 改写
      成展开后的正文、把扩展命令整个吞掉。 */
   try {
-    if (await runBuiltinCommand(bridge.runtime, trimmed, builtinActions(bridge))) return;
+    if (await runBuiltinCommand(bridge.runtime, trimmed, builtinActions(bridge))) {
+      releaseAttachments(bridge, attachments);
+      return;
+    }
   } catch (error) {
     bridge.reportError(bridge.runtime.session, "command failed", error, "command");
+    releaseAttachments(bridge, attachments);
     return;
   }
 
@@ -280,7 +295,7 @@ export async function sendPrompt(
   const invocation = resolveInvocation(session, trimmed);
   const extensionCommand = invocation.isExtensionCommand;
   if (session.isCompacting && !extensionCommand) {
-    queueDuringCompaction(bridge, session, trimmed, streamingBehavior ?? "followUp");
+    queueDuringCompaction(bridge, session, trimmed, streamingBehavior ?? "followUp", attachments);
     return;
   }
 
@@ -302,8 +317,16 @@ export async function sendPrompt(
       streamingBehavior: mode,
       images: attachments.length > 0 ? attachments.map(({ mimeType, data }) => ({ type: "image", mimeType, data })) : undefined,
     });
+    if (mode) {
+      // 消息落在 SDK 队列里：附件留在暂存并登记对账，撤回时退回
+      // composer、被消费时（queue_update 不再含该文本）释放。
+      recordQueuedImages(bridge, session, trimmed, attachments);
+    } else {
+      releaseAttachments(bridge, attachments);
+    }
   } catch (error) {
     bridge.reportError(bridge.runtime.session, "prompt failed", error);
+    releaseAttachments(bridge, attachments);
   } finally {
     if (extensionCommand) bridge.extensionCommandDepth -= 1;
     await bridge.postState();

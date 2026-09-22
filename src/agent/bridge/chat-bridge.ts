@@ -48,7 +48,7 @@ import { guardStreaming, handleMessage as handleMessageBridge } from "./messagin
 import { runStalledAction } from "./retry.js";
 import { refreshSessions } from "./sessions-list.js";
 import { createSettingsWatcher, disposeSettingsTimers } from "./settings.js";
-import type { BridgeHost, CompactionQueuedPrompt, View } from "./types.js";
+import type { BridgeHost, CompactionQueuedPrompt, QueuedImageRecord, View } from "./types.js";
 import {
   postCommands as postCommandsBridge,
   postEntryIds as postEntryIdsBridge,
@@ -114,15 +114,17 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
   /**
    * 其余状态：extensionStatuses / extensionWidgets 存放扩展的 setStatus /
    * setWidget 条目，attach 时清空、由重绑的扩展重发（对齐 CLI）；
-   * compactionQueues 是 SDK 压缩期间的应用层队列；skillIndex / promptIndex
-   * 用于标注技能工具调用与归属 / 命令；activity 记录本会话真正生效过的
-   * 资源（资源面板用）；pendingImages 到达即处理（拒绝趁用户还在编辑时
-   * 冒出），被下一次 prompt 消费、随会话替换丢弃——它们属于正被替换的
-   * composer。
+   * compactionQueues 是 SDK 压缩期间的应用层队列；queuedImages 把进了
+   * SDK 队列的消息文本与其留在 pendingImages 里的附件重新对上（撤回时
+   * 取回，见 types.ts）；skillIndex / promptIndex 用于标注技能工具调用与
+   * 归属 / 命令；activity 记录本会话真正生效过的资源（资源面板用）；
+   * pendingImages 到达即处理（拒绝趁用户还在编辑时冒出），随送达 / 消费 /
+   * 撤回释放、随会话替换丢弃——它们属于正被替换的 composer。
    */
   readonly extensionStatuses = new Map<string, Map<string, string>>();
   readonly extensionWidgets = new Map<string, Map<string, ExtensionWidget>>();
   readonly compactionQueues = new Map<string, CompactionQueuedPrompt[]>();
+  readonly queuedImages = new Map<string, QueuedImageRecord[]>();
   readonly pendingToolArgs = new Map<string, unknown>();
   skillIndex: SkillIndex = EMPTY_SKILL_INDEX;
   promptIndex: PromptIndex = EMPTY_PROMPT_INDEX;
@@ -180,6 +182,7 @@ export class ChatBridge implements vscode.Disposable, SubagentObserver {
     this.extensionStatuses.clear();
     this.extensionWidgets.clear();
     this.compactionQueues.clear();
+    this.queuedImages.clear();
     this.liveFailedResponses.clear();
     this.liveAbortedResponses.clear();
     this.activity.reset();

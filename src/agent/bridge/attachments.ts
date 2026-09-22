@@ -7,7 +7,14 @@ import {
 } from "../images.js";
 import type { ChatBridge } from "./chat-bridge.js";
 
-type PendingImage = { name: string; mimeType: string; data: string; hints: string[] };
+/** 一条 prompt 声明的附件，连同它在宿主暂存里的 id。 */
+export interface PromptAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  data: string;
+  hints: string[];
+}
 
 /**
  * 处理一张粘贴 / 拖入的图片并交回 composer。在附加时而非发送时处理：
@@ -64,15 +71,46 @@ function attachmentNote(bridge: ChatBridge): string | undefined {
   return undefined;
 }
 
-/** 按 composer 展示的顺序，消费一次 prompt 声明的附件。 */
-export function takeAttachments(bridge: ChatBridge, ids?: string[]): PendingImage[] {
+/**
+ * 按 composer 展示的顺序，读取一次 prompt 声明的附件——不消费：消息若落
+ * 进排队（steer / follow-up / 压缩队列），附件留在暂存里，撤回时才能退回
+ * composer；何时释放由发送路径按归宿决定（立即送达即释放，入队则随消费
+ * 或撤回释放，见 `releaseAttachments` 与 `compaction-queue.ts`）。
+ */
+export function peekAttachments(bridge: ChatBridge, ids?: string[]): PromptAttachment[] {
   if (!ids?.length) return [];
-  const taken: PendingImage[] = [];
+  const taken: PromptAttachment[] = [];
   for (const id of ids.slice(0, MAX_IMAGE_ATTACHMENTS)) {
     const image = bridge.pendingImages.get(id);
     if (!image) continue;
-    bridge.pendingImages.delete(id);
-    taken.push(image);
+    taken.push({ id, ...image });
   }
   return taken;
+}
+
+/** 附件随消息送达（或该次提交被放弃），从宿主暂存中移除。 */
+export function releaseAttachments(bridge: ChatBridge, attachments: PromptAttachment[]): void {
+  for (const attachment of attachments) bridge.pendingImages.delete(attachment.id);
+}
+
+/**
+ * 回溯 / 分叉从会话条目送回 composer 的历史附件：字节是模型已见过的
+ * SDK 存量（无需重新处理），重新登记进暂存拿到新 id，chip 的移除与再
+ * 次发送从此走正常账。hints 留空：重发时 SDK 会按当前模型重新归一化，
+ * 并在 `<image>` 标记之外附上自己的坐标说明（与「附加后换模型」同一
+ * 兜底）。
+ */
+export function requeueSessionAttachments(
+  bridge: ChatBridge,
+  images: readonly { mimeType: string; data: string; name?: string }[] | undefined,
+): { id: string; image: TranscriptImage }[] | undefined {
+  if (!images?.length) return undefined;
+  const restored: { id: string; image: TranscriptImage }[] = [];
+  for (const image of images.slice(0, MAX_IMAGE_ATTACHMENTS)) {
+    const id = `image-${++bridge.nextAttachmentId}`;
+    const name = image.name ?? attachmentName(bridge.nextAttachmentId);
+    bridge.pendingImages.set(id, { name, mimeType: image.mimeType, data: image.data, hints: [] });
+    restored.push({ id, image: { mimeType: image.mimeType, data: image.data, name } });
+  }
+  return restored;
 }

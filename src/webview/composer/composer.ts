@@ -1,9 +1,9 @@
-import type { SlashCommand } from "../../shared/protocol.js";
+import type { SlashCommand, TranscriptImage } from "../../shared/protocol.js";
 import { inputEl, resizeHandleEl } from "../shell.js";
 import { state } from "../store.js";
 import { post } from "../host.js";
 import { followLatest } from "../transcript.js";
-import { onPaste } from "./attachments.js";
+import { onPaste, replaceAttachments } from "./attachments.js";
 import {
   acceptCompletion,
   closeAutocomplete,
@@ -89,12 +89,13 @@ export function send(streamingBehavior?: "steer" | "followUp"): void {
   });
 }
 
-/** 替换 composer 内容，例如从某条用户消息分叉之后。 */
-export function setInput(text: string): void {
+/** 替换 composer 内容，例如从某条用户消息分叉之后；带图消息连同附件一起送回。 */
+export function setInput(text: string, images?: { id: string; image: TranscriptImage }[]): void {
   // 程序化替换会终结任何历史导航：屏幕上现在是什么，新的 live 草稿就是什么。
   cs.historyIndex = undefined;
   cs.draft = { text: "", references: [] };
   inputEl.value = text;
+  if (images) replaceAttachments(images);
   closeAutocomplete();
   inputEl.focus();
   inputEl.setSelectionRange(text.length, text.length);

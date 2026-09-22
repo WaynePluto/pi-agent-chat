@@ -32,6 +32,21 @@ export interface BridgeHost {
 export interface CompactionQueuedPrompt {
   text: string;
   mode: "steer" | "followUp";
+  /** 附件在宿主暂存（`pendingImages`）里的 id：随冲刷送出，随撤回退回 composer。 */
+  imageIds: string[];
+}
+
+/**
+ * 经 SDK 队列（steer / follow-up）排队、尚未被消费的消息所携带的附件。
+ * SDK 的队列 API 只暴露文本，图片数据只活在宿主暂存里——这条记录把两者
+ * 重新对上：`text` 是发送时的原文（SDK 可能在排队时展开技能 / 模板，对账
+ * 经共享的显示投影做，见 `dequeueAll`）。
+ */
+export interface QueuedImageRecord {
+  text: string;
+  ids: string[];
+  /** 撤回对账的消耗标记：同一文本排队多次时逐条认领。 */
+  claimed?: boolean;
 }
 
 /**

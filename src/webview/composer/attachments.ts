@@ -58,3 +58,24 @@ export function onAttachment(id: string | undefined, image?: TranscriptImage, no
   cs.imageAttachments.push({ id, image, note });
   renderFileRefs();
 }
+
+/**
+ * 撤回的排队消息带回的附件。`id` 仍是宿主暂存里的活 id，chip 的移除与
+ * 再次发送照常工作——与附加时同一套账。放在现有 chip 之前：撤回的文本
+ * 也插在草稿前面。
+ */
+export function restoreAttachments(images?: { id: string; image: TranscriptImage }[]): void {
+  if (!images?.length) return;
+  cs.imageAttachments.unshift(...images);
+  renderFileRefs();
+}
+
+/**
+ * 回溯 / 分叉送回的附件整体替换当前 chips：被顶掉的先经 `detachImage`
+ * 归还宿主的暂存账，避免留在宿主侧成为孤儿。
+ */
+export function replaceAttachments(images: { id: string; image: TranscriptImage }[]): void {
+  for (const attachment of cs.imageAttachments) post({ type: "detachImage", id: attachment.id });
+  cs.imageAttachments = images.map((item) => ({ ...item }));
+  renderFileRefs();
+}

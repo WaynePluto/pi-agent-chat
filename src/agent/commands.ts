@@ -176,18 +176,22 @@ export async function runBuiltinCommand(
     case "import":
       await importSession(runtime, argument, actions);
       break;
-    case "fork":
-      await pickForkPoint(runtime, actions);
+    case "fork": {
+      const prefill = await pickForkPoint(runtime, actions);
       await actions.reattach();
+      if (prefill) actions.setInput(prefill.text, prefill.images);
       break;
+    }
     case "clone":
       await cloneSession(runtime, actions);
       await actions.reattach();
       break;
-    case "tree":
-      await navigateSessionTree(runtime, actions);
+    case "tree": {
+      const prefill = await navigateSessionTree(runtime, actions);
       await actions.reattach();
+      if (prefill) actions.setInput(prefill.text, prefill.images);
       break;
+    }
     case "export":
       await exportSession(runtime, argument, actions);
       break;
