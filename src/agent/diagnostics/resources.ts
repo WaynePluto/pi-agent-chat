@@ -171,6 +171,17 @@ export async function runImageAttachmentTest(cwd: string): Promise<DiagnosticRes
     });
     const attached = prepared.ok ? prepared.image : { data: "", mimeType: "image/png", hints: [] };
 
+    // per-model profile 必须穿透到 resize：SDK 0.87.0 起 prompt() 内部会按
+    // 同一 profile 归一化，附加时提前应用它才能让那层是空操作、坐标说明
+    // 准确。断了这层（参数没接上）不会报错，只会退回默认 2000px——那张
+    // 说明就开始对带更严格 profile 的模型说谎。
+    const profiled = await prepareImage(probePng(2400, 1400), "image/png", true, { maxWidth: 800, maxHeight: 800 });
+    results.push({
+      name: "image resize profile",
+      ok: profiled.ok && profiled.image.hints.some((hint) => hint.includes("800x467")),
+      detail: profiled.ok ? `hints: ${profiled.image.hints.join(" ") || "(none)"}` : `rejected: ${profiled.message}`,
+    });
+
     // 非图片必须被拒而不是当垃圾附上：webview 报的 File.type 只是自称，不算证据。
     const bogus = await prepareImage(Buffer.from("not an image at all"), "application/x-msdownload", true);
     results.push({

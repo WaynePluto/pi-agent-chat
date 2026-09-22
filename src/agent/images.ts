@@ -13,6 +13,9 @@ import { t, tf } from "./i18n.js";
  * 漂移的是 {@link PASSTHROUGH_MIME_TYPES}——见其说明。
  */
 
+/** 缩放 profile：与当前模型的 `inputLimits.images.resize` 同形。`ImageResizeOptions` 未从包根导出，按 `resizeImage` 签名推导。 */
+export type ImageResizeProfile = Parameters<typeof resizeImage>[2];
+
 /**
  * 供应商接受的行内格式，原样附上；其余一律先转 PNG。宁可窄也不要
  * 乐观：发送供应商拒绝的格式会失败整次请求，而多余的转换只多几个字节。
@@ -51,8 +54,19 @@ export type PrepareImageResult = { ok: true; image: PreparedImage } | { ok: fals
  *
  * `autoResize` 来自共享的 `~/.pi/agent/settings.json`
  * （`images.autoResize`），两个宿主对同一张图的处理因此一致。
+ * `resizeProfile` 是**当前模型**的官方 per-model 缩放配置
+ * （models.json 的 `inputLimits.images.resize`）——与 SDK 0.87.0 起
+ * `prompt()` 内部对 images 做的归一化用同一份。提前在附加时应用它，
+ * SDK 发送时那层就是空操作：坐标换算说明准确、不会被二次重缩或追加
+ * 第二条说明。用户附加后换模型由 SDK 兜底重缩（它追加的正确说明在
+ * `<image>` 标记之外、仅回放可见，是已知且接受的小瑕疵）。
  */
-export async function prepareImage(bytes: Uint8Array, mimeType: string, autoResize: boolean): Promise<PrepareImageResult> {
+export async function prepareImage(
+  bytes: Uint8Array,
+  mimeType: string,
+  autoResize: boolean,
+  resizeProfile?: ImageResizeProfile,
+): Promise<PrepareImageResult> {
   if (bytes.byteLength === 0) return { ok: false, message: t("imageEmpty") };
   if (bytes.byteLength > MAX_ATTACHMENT_BYTES) return { ok: false, message: t("imageTooLarge") };
 
@@ -75,7 +89,7 @@ export async function prepareImage(bytes: Uint8Array, mimeType: string, autoResi
 
   if (!autoResize) return { ok: true, image: { data, mimeType: resolvedType, hints } };
 
-  const resized = await resizeImage(Buffer.from(data, "base64"), resolvedType);
+  const resized = await resizeImage(Buffer.from(data, "base64"), resolvedType, resizeProfile);
   if (!resized) return { ok: false, message: t("imageTooLargeToResize") };
   // 说明如何把坐标换算回原图；只在图确实被缩放时出现。
   const note = formatDimensionNote(resized);

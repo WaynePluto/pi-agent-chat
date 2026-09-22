@@ -88,11 +88,15 @@ export async function runManualRetryTest(cwd: string): Promise<DiagnosticResult[
     const afterSuccess = isResumable(succeeded);
 
     /* 回归：error -> user -> error 仍须提供重试，即使 Pi 的自动重试已把
-       最后一个错误从 agent state 移除。活动 SessionManager 分支才是
-       transcript 展示的东西，因此是「轮次被打断」的事实源。 */
+       最后一个错误持久化地从模型上下文忽略（0.87.0 起忽略以 context_edit
+       条目落盘，而非改写 agent state）。规范投影才是发给供应商的东西，
+       因此是「轮次被打断」的事实源。 */
     const repeated = await open([user("first"), assistant("error"), user("second"), assistant("error")]);
     sessions.push(repeated);
-    repeated.agent.state.messages = repeated.agent.state.messages.slice(0, -1);
+    const repeatedBranch = repeated.sessionManager.getBranch();
+    const repeatedTail = repeatedBranch[repeatedBranch.length - 1];
+    if (repeatedTail?.type === "message") repeated.sessionManager.appendContextEdit(repeatedTail.id, null);
+    repeated.refreshContext();
     const afterRepeatedFailure = isResumable(repeated);
 
     const thrown = await open([user("first"), assistant("error"), user("second")]);
@@ -122,6 +126,12 @@ export async function runManualRetryTest(cwd: string): Promise<DiagnosticResult[
     };
     const stoppedResumed = await resumeStalledRun(stopped);
     const stoppedLeft = stopped.agent.state.messages;
+    /* 忽略必须持久化：0.87.0 起 provider 上下文取自 SessionManager 的规范
+       投影，退回「只改 agent state」的旧做法会让首个恢复请求带着空
+       assistant 结尾发给供应商。 */
+    const omissionPersisted =
+      failed.sessionManager.getBranch().some((entry) => entry.type === "context_edit") &&
+      stopped.sessionManager.getBranch().some((entry) => entry.type === "context_edit");
 
     const ok =
       mechanism &&
@@ -141,11 +151,12 @@ export async function runManualRetryTest(cwd: string): Promise<DiagnosticResult[
       Array.isArray(stoppedBatch) &&
       stoppedBatch.length === 0 &&
       stoppedLeft.length === 1 &&
-      stoppedLeft[0]?.role === "user";
+      stoppedLeft[0]?.role === "user" &&
+      omissionPersisted;
     return [{
       name: "manual retry",
       ok,
-      detail: `sdk prompt path=${mechanism ? "present" : "MISSING"}; failed=${afterFailure ? "resumable" : "NOT OFFERED"}; completed=${afterSuccess ? "WRONGLY OFFERED" : "not offered"}; error-user-error=${afterRepeatedFailure ? "resumable" : "NOT OFFERED"}; dangling user=${afterThrownFailure ? "resumable" : "NOT OFFERED"}; aborted=${abortedContinuable ? "continuable" : "NOT OFFERED"} (retry=${abortedResumable ? "WRONGLY OFFERED" : "not offered"}); failed-tail continue=${stoppedNotContinuable ? "WRONGLY OFFERED" : "not offered"}; resumed=${resumed}; re-issued with ${batch?.length ?? "n/a"} new message(s); agent state left with ${left.map((message) => message.role).join(",") || "nothing"}; stopped run resumed=${stoppedResumed}, re-issued with ${stoppedBatch?.length ?? "n/a"} new message(s), left with ${stoppedLeft.map((message) => message.role).join(",") || "nothing"}`,
+      detail: `sdk prompt path=${mechanism ? "present" : "MISSING"}; failed=${afterFailure ? "resumable" : "NOT OFFERED"}; completed=${afterSuccess ? "WRONGLY OFFERED" : "not offered"}; error-user-error=${afterRepeatedFailure ? "resumable" : "NOT OFFERED"}; dangling user=${afterThrownFailure ? "resumable" : "NOT OFFERED"}; aborted=${abortedContinuable ? "continuable" : "NOT OFFERED"} (retry=${abortedResumable ? "WRONGLY OFFERED" : "not offered"}); failed-tail continue=${stoppedNotContinuable ? "WRONGLY OFFERED" : "not offered"}; resumed=${resumed}; re-issued with ${batch?.length ?? "n/a"} new message(s); agent state left with ${left.map((message) => message.role).join(",") || "nothing"}; stopped run resumed=${stoppedResumed}, re-issued with ${stoppedBatch?.length ?? "n/a"} new message(s), left with ${stoppedLeft.map((message) => message.role).join(",") || "nothing"}; omission persisted=${omissionPersisted ? "yes" : "NO"}`,
     }];
   } catch (error) {
     return [{ name: "manual retry", ok: false, detail: describe(error) }];

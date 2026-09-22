@@ -42,7 +42,12 @@ async function prepareAttachment(
   const bytes = Buffer.from(request.data, "base64");
   if (bytes.byteLength > MAX_ATTACHMENT_BYTES) return { error: t("imageTooLarge") };
 
-  const prepared = await prepareImage(bytes, request.mimeType ?? "", bridge.runtime.settingsManager.getImageAutoResize());
+  // 官方配置优先：附加时就用当前模型的 per-model 缩放 profile（与 SDK
+  // 在 prompt() 内部的归一化同源），发送时那层因此通常是空操作。附加后
+  // 换模型（包括扩展在 before_agent_start 改模型）由 SDK 兜底重缩——
+  // 与下面无视觉警告同属「提示不阻断」的宽容度。
+  const resizeProfile = bridge.runtime.session.model?.inputLimits?.images?.resize;
+  const prepared = await prepareImage(bytes, request.mimeType ?? "", bridge.runtime.settingsManager.getImageAutoResize(), resizeProfile);
   if (!prepared.ok) return { error: prepared.message };
 
   const id = `image-${++bridge.nextAttachmentId}`;
