@@ -2,7 +2,7 @@
   "name": "pi-code-agent-chat",
   "displayName": "Pi Agent Chat",
   "description": "%extension.description%",
-  "version": "0.0.19",
+  "version": "0.0.20-20260923",
   "publisher": "waynepluto",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -295,13 +295,13 @@
     "package-and-install:vsix": "npm run package:vsix && npm run install:vsix"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.87.0",
-    "@earendil-works/pi-coding-agent": "0.87.0",
+    "@earendil-works/pi-ai": "0.87.1",
+    "@earendil-works/pi-coding-agent": "0.87.1",
     "diff": "9.0.0",
     "highlight.js": "11.12.0",
     "jsonc-parser": "3.3.1",
-    "marked": "18.0.13",
-    "undici": "8.10.2"
+    "marked": "18.0.14",
+    "undici": "8.11.0"
   },
   "devDependencies": {
     "@types/node": "24.13.6",
@@ -309,8 +309,8 @@
     "@vscode/vsce": "4.0.0",
     "esbuild": "0.28.2",
     "husky": "9.1.7",
-    "jsdom": "30.1.0",
-    "sass": "1.104.1",
+    "jsdom": "30.1.1",
+    "sass": "1.105.0",
     "typescript": "6.0.3"
   },
   "pnpm": {

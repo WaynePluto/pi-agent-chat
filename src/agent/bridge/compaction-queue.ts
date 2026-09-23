@@ -202,29 +202,37 @@ export async function flushCompactionQueue(
 /**
  * 丢弃 webview 为 live 会话排队的全部内容（"dequeue" 消息）：文本与图片
  * 附件退回 composer。SDK 队列只暴露文本，图片数据活在本宿主的暂存里，
- * 按 `queuedImages` 的对账记录逐条认领。
+ * 按 `queuedImages` 的对账记录逐条认领；压缩队列条目则自带附件 id（尚未
+ * 移交 SDK，不在对账记录里），按 id 直接取回。
  */
 export function dequeueAll(bridge: ChatBridge): void {
   const session = bridge.runtime.session;
   const record = bridge.queuedImages.get(session.sessionId) ?? [];
   const restored: { id: string; image: TranscriptImage }[] = [];
-  /** 队列文本 → 撤回的附件；同一文本排队多次时逐条认领。 */
+  /** 已退回 composer 的附件 id：冲刷窗口内同一条消息可能同时出现在两个队列里。 */
+  const returnedIds = new Set<string>();
+  const takeImage = (id: string): void => {
+    if (returnedIds.has(id)) return;
+    const image = bridge.pendingImages.get(id);
+    if (!image) return;
+    returnedIds.add(id);
+    restored.push({ id, image: { mimeType: image.mimeType, data: image.data, name: image.name } });
+  };
+  /** SDK 队列文本 → 撤回的附件；同一文本排队多次时逐条认领。 */
   const claimImages = (rawText: string): void => {
     const entry = record.find((item) => !item.claimed && userDisplayFromText(item.text) === userDisplayFromText(rawText));
     if (!entry) return;
     entry.claimed = true;
-    for (const id of entry.ids) {
-      const image = bridge.pendingImages.get(id);
-      if (image) restored.push({ id, image: { mimeType: image.mimeType, data: image.data, name: image.name } });
-    }
+    for (const id of entry.ids) takeImage(id);
   };
   const sdkRaw = [...session.getSteeringMessages(), ...session.getFollowUpMessages()];
   const compacting = bridge.compactionQueues.get(session.sessionId) ?? [];
-  const rawTexts = [...sdkRaw, ...compacting.map((item) => item.text)];
-  if (rawTexts.length === 0) return;
-  for (const rawText of rawTexts) claimImages(rawText);
+  if (sdkRaw.length === 0 && compacting.length === 0) return;
+  for (const rawText of sdkRaw) claimImages(rawText);
+  for (const item of compacting) for (const id of item.imageIds) takeImage(id);
   // 先告知 webview，让待定气泡在 clearQueue() 的 queue_update 到达之前移除
   // （否则它们会被当作已消费而钉进 transcript）。
+  const rawTexts = [...sdkRaw, ...compacting.map((item) => item.text)];
   bridge.host.post({
     type: "dequeued",
     texts: rawTexts.map(userDisplayFromText),
@@ -233,7 +241,9 @@ export function dequeueAll(bridge: ChatBridge): void {
   // 未被认领的暂存图片（消息已被消费或文本形态漂移）不再有归属，释放。
   for (const entry of record) {
     if (entry.claimed) continue;
-    for (const id of entry.ids) bridge.pendingImages.delete(id);
+    for (const id of entry.ids) {
+      if (!returnedIds.has(id)) bridge.pendingImages.delete(id);
+    }
   }
   bridge.queuedImages.delete(session.sessionId);
   bridge.compactionQueues.delete(session.sessionId);

@@ -12,16 +12,16 @@ The package sources are linked below for verification.
 MIT-licensed packages
 ---------------------
 
-@earendil-works/pi-agent-core@0.87.0
-@earendil-works/pi-coding-agent@0.87.0
-@earendil-works/pi-ai@0.87.0
-@earendil-works/pi-tui@0.87.0
+@earendil-works/pi-agent-core@0.87.1
+@earendil-works/pi-coding-agent@0.87.1
+@earendil-works/pi-ai@0.87.1
+@earendil-works/pi-tui@0.87.1
 Source: https://github.com/earendil-works/pi
 
-undici@8.10.2
+undici@8.11.0
 Source: https://github.com/nodejs/undici
 
-marked@18.0.13
+marked@18.0.14
 Source: https://github.com/markedjs/marked
 
 jiti@2.7.0

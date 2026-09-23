@@ -4,10 +4,11 @@
  * 上报的 bug：撤回（dequeue）只把文本退回 composer，带图的排队消息图片
  * 直接消失。根因是 SDK 队列 API 只暴露文本（`getSteeringMessages()` 返回
  * `string[]`，图片数据活在其私有队列里），压缩队列又只存 `{text, mode}`。
- * 修复后的账是：附件在入队时不消费、留在宿主暂存（`pendingImages`）并登
- * 记文本对账（`queuedImages`），撤回时认领退回、消费时（queue_update 不
- * 再含该文本）释放。这里经真实 `ChatBridge.handleMessage()` 钉住整条路：
- * 附加 → 排队（SDK 队列与压缩队列两条）→ 撤回带回图片；以及消费后释放。
+ * 修复后的账是：附件在入队时不消费、留在宿主暂存（`pendingImages`）——SDK
+ * 队列登记文本对账（`queuedImages`），压缩队列条目自带 id；撤回时各自认领
+ * 退回、消费时（queue_update 不再含该文本）释放。这里经真实
+ * `ChatBridge.handleMessage()` 钉住整条路：附加 → 排队（SDK 队列与压缩队列
+ * 两条）→ 撤回带回图片（压缩队列在冲刷前后两个时刻）；以及消费后释放。
  */
 import { ChatBridge } from "../bridge.js";
 import { flushCompactionQueue } from "../bridge/compaction-queue.js";
@@ -97,6 +98,24 @@ export async function runQueueRecallTest(cwd: string): Promise<DiagnosticResult[
     if (second) {
       Object.defineProperty(session, "isCompacting", { get: () => true, configurable: true });
       await bridge.handleMessage({ type: "prompt", text: "during compaction", imageIds: [second.id], streamingBehavior: "followUp" });
+
+      /* 冲刷前撤回：压缩仍在进行，条目与附件 id 都还在宿主手里，图片必须
+         随文本退回 composer（按 id 认领，不经文本对账）。 */
+      await bridge.handleMessage({ type: "dequeue" });
+      const preFlush = lastDequeued();
+      expect(
+        "compaction queue: recall returns the image while still compacting",
+        preFlush !== undefined &&
+          preFlush.texts.length === 1 &&
+          preFlush.texts[0] === "during compaction" &&
+          preFlush.images?.length === 1 &&
+          preFlush.images[0]!.id === second.id,
+      );
+      expect("compaction queue: recalled id is live again", bridge.pendingImages.has(second.id));
+      expect("compaction queue: host queue emptied", (bridge.compactionQueues.get(session.sessionId) ?? []).length === 0);
+
+      /* 重新排队同一条消息（撤回的 id 已回 composer，可复用），再走冲刷路径。 */
+      await bridge.handleMessage({ type: "prompt", text: "during compaction", imageIds: [second.id], streamingBehavior: "followUp" });
       delete (session as { isCompacting?: boolean }).isCompacting;
       const entry = (bridge.compactionQueues.get(session.sessionId) ?? [])[0];
       expect("compaction queue: entry keeps the attachment id", entry !== undefined && entry.imageIds.includes(second.id));
@@ -108,10 +127,10 @@ export async function runQueueRecallTest(cwd: string): Promise<DiagnosticResult[
       expect("compaction queue: reconciliation handed over", (bridge.queuedImages.get(session.sessionId) ?? []).length === 1);
 
       await bridge.handleMessage({ type: "dequeue" });
-      const dequeued = lastDequeued();
+      const postFlush = lastDequeued();
       expect(
         "compaction queue: recall returns the image after flush",
-        dequeued !== undefined && dequeued.images?.length === 1 && dequeued.images[0]!.id === second.id,
+        postFlush !== undefined && postFlush.images?.length === 1 && postFlush.images[0]!.id === second.id,
       );
       expect("compaction queue: queue emptied", session.getFollowUpMessages().length === 0);
     }
@@ -184,7 +203,7 @@ export async function runQueueRecallTest(cwd: string): Promise<DiagnosticResult[
         name: "queue recall",
         ok: failures.length === 0,
         detail: failures.length === 0
-          ? "queued messages recall with their images (sdk queue, compaction queue, post-flush); consumed queues release theirs"
+          ? "queued messages recall with their images (sdk queue, compaction queue pre- and post-flush); consumed queues release theirs"
           : `failed: ${failures.join("; ")}`,
       },
       {
