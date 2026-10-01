@@ -4,6 +4,7 @@ import {
   type AgentSessionServices,
   type ScopedModel,
 } from "@earendil-works/pi-coding-agent";
+import { builtinExtensions } from "../builtin-extensions.js";
 
 /**
  * 返回注册了 `toolName` 工具的已加载 pi 扩展的路径。
@@ -41,6 +42,9 @@ export async function createIsolatedServices(
     agentDir: parent.agentDir,
     modelRuntime: parent.modelRuntime,
     settingsManager: parent.settingsManager,
+    // 与顶层会话同一份内置扩展（见 builtin-extensions.ts）：子代理同样只由
+    // 共享配置驱动，不做本插件自己的按 lane 策略。
+    resourceLoaderOptions: { extensionFactories: builtinExtensions },
   });
 }
 

@@ -1,4 +1,4 @@
-import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import type { AgentSession, PromptOptions } from "@earendil-works/pi-coding-agent";
 import type { TranscriptImage } from "../../shared/protocol.js";
 import { invokedSkill } from "../skills.js";
 import { stripImageAttachmentMarkup } from "../images.js";
@@ -7,6 +7,9 @@ import type { PromptAttachment } from "./attachments.js";
 import { peekAttachments, releaseAttachments } from "./attachments.js";
 import type { ChatBridge } from "./chat-bridge.js";
 import type { CompactionQueuedPrompt, QueuedImageRecord } from "./types.js";
+
+/** SDK 未从包根导出 PromptDisposition，从公开的 PromptOptions 派生。 */
+type PromptDisposition = Parameters<NonNullable<PromptOptions["preflightResult"]>>[0];
 
 /** 把宿主自己的压缩队列与 SDK 的常规队列合并展示，并对账排队附件。 */
 export function emitCombinedQueueUpdate(
@@ -153,8 +156,10 @@ export async function flushCompactionQueue(
   // 手动压缩后没有活动的 agent 循环：首条排队消息作为普通 prompt 启动运行，preflight 成功后再转入其余各项。
   const [first, ...rest] = queued;
   if (!first) return;
-  let resolvePreflight!: (success: boolean) => void;
-  const preflight = new Promise<boolean>((resolve) => {
+  // SDK 0.99 起 preflightResult 只在成功路径回调（"handled" / "queued" / "started"），
+  // 失败改为直接抛错不再回调（旧版先回调 false 再抛），故 "failed" 由 catch 侧补报，否则 await 悬挂。
+  let resolvePreflight!: (disposition: PromptDisposition | "failed") => void;
+  const preflight = new Promise<PromptDisposition | "failed">((resolve) => {
     resolvePreflight = resolve;
   });
   let started = false;
@@ -168,14 +173,14 @@ export async function flushCompactionQueue(
     })
     .catch((error) => {
       failed = true;
+      resolvePreflight("failed");
       // preflight 之后失败：首条按既有语义被丢弃（不回队列），附件随之释放。
       if (started) releaseAttachments(bridge, firstImages);
       restore(started ? rest : queued, error);
     });
 
-  const preflightSucceeded = await preflight;
-  started = preflightSucceeded;
-  if (!preflightSucceeded) {
+  started = (await preflight) !== "failed";
+  if (!started) {
     await promptPromise;
     return;
   }

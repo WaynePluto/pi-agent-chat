@@ -13,6 +13,7 @@ import {
   type ScopedModel,
 } from "@earendil-works/pi-coding-agent";
 import { SubagentCoordinator, SUBAGENT_TOOL } from "../subagent.js";
+import { builtinExtensions } from "../builtin-extensions.js";
 import { readSubagentConfig, readTerminalConfig, type SubagentConfig, type TerminalConfig } from "../config.js";
 import { configureHttpDispatcher } from "../http.js";
 import { VsCodeTerminalPool, VSCODE_TERMINAL_TOOL } from "../vscode-terminal.js";
@@ -136,7 +137,13 @@ export class PiRuntime implements vscode.Disposable {
       // modelRuntimeSignal：启动中途关闭视图时取消创建期的凭据恢复与可用性探测。
       const services = options.sharedServices
         ? await createIsolatedServices(options.sharedServices, effectiveCwd)
-        : await createAgentSessionServices({ cwd: effectiveCwd, modelRuntimeSignal: lifetime.signal });
+        : await createAgentSessionServices({
+            cwd: effectiveCwd,
+            modelRuntimeSignal: lifetime.signal,
+            // CLI 自带的内置扩展（codemode / tool-search / mcp），与共享配置
+            // 同一套启用语义（见 builtin-extensions.ts）。
+            resourceLoaderOptions: { extensionFactories: builtinExtensions },
+          });
       toolSetup.shadowedSubagent = findShadowedExtensionTool(services, SUBAGENT_TOOL);
       toolSetup.shadowedTerminal = findShadowedExtensionTool(services, VSCODE_TERMINAL_TOOL);
       for (const [name, path] of [

@@ -3,6 +3,7 @@
  * 本体在 `./diagnostics/` 里，由本文件末尾再导出。
  */
 import { runProjectFilesTest, runSessionTreeTest, runSlashCommandTest } from "./diagnostics/commands.js";
+import { runBuiltinExtensionTest } from "./diagnostics/builtin-extensions.js";
 import { runExtensionCommandContextTest, runExtensionReloadTest, runExtensionSdkImportTest, runExtensionWorkingMessageTest } from "./diagnostics/extensions.js";
 import { runHistoryReplayTest, runManualRetryTest, runReplayedRetryOfferTest, runRetryOfferLifecycleTest } from "./diagnostics/history-retry.js";
 import { runExtensionNamingTest, runImageAttachmentTest, runLiveToolCallTest, runResourceListingTest } from "./diagnostics/resources.js";
@@ -51,6 +52,9 @@ export const DIAGNOSTIC_SUITES: ReadonlyArray<(cwd: string) => DiagnosticResult[
   // 工具没创建的终端。
   runTerminalToolTest,
   runProjectFilesTest,
+  // 钉住 CLI 自带的 codemode / tool-search / mcp 内置扩展在插件会话里同样
+  // 装载且隐藏于面板，codemode 的 QuickJS worker 与 wasm 磁盘资产就位。
+  runBuiltinExtensionTest,
   // 必须在 bundle 里跑：它证明重建的 `import.meta.url` 仍能让 SDK 给
   // jiti 可用的 alias（见 sdkModuleUrlPlugin）。
   runExtensionSdkImportTest,
@@ -112,6 +116,7 @@ export {
   runProjectFilesTest,
   runSubagentToolTest,
   runTerminalToolTest,
+  runBuiltinExtensionTest,
   runExtensionSdkImportTest,
   runExtensionReloadTest,
   runExtensionCommandContextTest,

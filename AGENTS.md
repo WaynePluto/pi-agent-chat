@@ -9,6 +9,7 @@
 - `src/extension.ts` — 插件入口：注册侧边栏 webview view（`piAgentChat.view`）、编辑区 `WebviewPanel` serializer、命令与诊断。
 - `src/chat-surfaces.ts`（桶，实现在 `src/chat-surfaces/`）— 顶层聊天编排：sidebar/editor 是可替换 GUI surface，每个独立会话由自己的 `ChatController`（`PiRuntime` + `ChatBridge`）驱动；窗口级 session claim、surface 间移动、关闭 editor 后无面保活到 settle、peer 会话状态都在这里（基类 controller + 面板 manager 等按职责分模块，`ownedSessionFiles()` 唯一所有权规则内聚不分散）。
 - `src/agent/runtime.ts`（桶，实现在 `src/agent/runtime/`：types、services 与隔离、启动会话解析、扩展 UI 上下文、`PiRuntime` 本体）— SDK `AgentSessionRuntime` 薄封装；负责 session 新建/切换/fork 与 extension 重绑定；扩展 UI 的 `ctx.ui.notify` 经 sink 转到 transcript。
+- `src/agent/builtin-extensions.ts` — CLI 自带的 codemode / tool-search / mcp 内置扩展（SDK 0.99 起）的装载清单：按 CLI 同形状（`builtin: true` + `replaceable: true`）经 `resourceLoaderOptions.extensionFactories` 注入两处服务构造（顶层与子会话同一份），默认启用、共享 `extensions` 设置的 `-builtin:<name>` 可禁用；插件不做自己的开关（共享能力归共享配置）；`/mcp` 在非 TUI 宿主自动降级为 notify 状态汇报；codemode 的 QuickJS worker 靠 pi-codemode 模块自己的 `import.meta.url` 定位（esbuild 的 sdkModuleUrlPlugin 对该包同样回填磁盘 URL）；llama.cpp 内置扩展因工厂未从 SDK 包根导出而暂缺。
 - `src/agent/bridge.ts`（桶，实现在 `src/agent/bridge/` 按职责分 14 模块：状态归 `ChatBridge` 类，功能层为接收 bridge 的模块函数）— 双向翻译层：SDK 事件 → `HostMessage`，webview 消息 → runtime 操作；session 历史回放的编排（投影本身在 `agent/history.ts`）。
 - `src/agent/history.ts` — 持久化 transcript → `ChatEvent` 的纯投影，与必须与它逐条对应的 `bubbleEntryIds()` 同居一个文件（那是保证对应关系的手段）。
 - `src/agent/resources.ts` — 资源面板清单的纯投影（Context / Skills / Prompts / Extensions / Tools），只列 pi 官方的资源类型。

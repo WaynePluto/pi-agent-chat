@@ -273,18 +273,23 @@ async function editSetting(runtime: PiRuntime, ui: SettingsMenuUi, descriptor: S
   if (descriptor.affectsCommands) ui.commandsChanged?.();
 }
 
-/**
- * 新会话起步时的内置工具——SDK 的固定集合（`core/sdk.ts` 的
- * `defaultActiveToolNames`）。扩展与 SDK 自定义工具不在列：
- * `defaultTools` 从不门控它们。
- */
-const BUILTIN_TOOLS = ["read", "bash", "edit", "write"] as const;
+/** SDK 的固定默认集合（`core/settings-manager.ts` 的 `DEFAULT_TOOL_NAMES`）。 */
+const DEFAULT_TOOLS = ["read", "bash", "edit", "write"] as const;
 
-const TOOL_DESCRIPTIONS: Record<(typeof BUILTIN_TOOLS)[number], keyof typeof import("../shared/messages.js").sharedMessages> = {
+/**
+ * 多选列出的工具：默认四件 + codemode。SDK 0.99 起 codemode 是唯一有
+ * 官方文档、经 `defaultTools` 启用的内置扩展工具（`+codemode` 或裸名
+ * 皆可）；其余扩展与自定义工具不在列——它们的启停由扩展自己的
+ * `defaultActive` 决定，不经 `defaultTools` 门控。
+ */
+const PICKABLE_TOOLS = [...DEFAULT_TOOLS, "codemode"] as const;
+
+const TOOL_DESCRIPTIONS: Record<(typeof PICKABLE_TOOLS)[number], keyof typeof import("../shared/messages.js").sharedMessages> = {
   read: "toolDescRead",
   bash: "toolDescBash",
   edit: "toolDescEdit",
   write: "toolDescWrite",
+  codemode: "toolDescCodemode",
 };
 
 /**
@@ -310,26 +315,32 @@ function toolSetSummary(tools: string[] | undefined): string {
  *
  * SDK 只在会话构造时读它、没有 setter，选中值按手改路径写入（jsonc
  * `modify()` + WorkspaceEdit，保注释与已打开编辑器）再 `reload()`；
- * 运行中的会话保留原工具集。用户勾满四个删键恢复默认、一个不勾写
- * `[]`；工作区始终写显式列表以便钉住，撤销覆盖走「重置」项。
+ * 运行中的会话保留原工具集。用户勾成恰好默认四件（不含 codemode）删键
+ * 恢复默认、一个不勾写 `[]`；工作区始终写显式列表以便钉住，撤销覆盖走
+ * 「重置」项。
  */
 async function manageDefaultTools(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "status">): Promise<void> {
   const settings = runtime.settingsManager;
-  const globalTools = settings.getGlobalSettings().defaultTools;
   const projectTools = settings.getProjectSettings().defaultTools;
   const workspacePath = join(runtime.cwd, CONFIG_DIR_NAME, "settings.json");
+  /* 勾选态与菜单行摘要同一口径：读解析后的生效集合（`getDefaultTools()`）
+     而不是原始键值——手写的 `["+codemode"]` / `["-bash"]` 只有解析后才对
+     得上勾选框；键未设时回落默认四件。项目覆盖存在时显示的是合并结果，
+     保存就把看到的勾选写进所选作用域。 */
+  const effective = settings.getDefaultTools() ?? [...DEFAULT_TOOLS];
 
   type ScopeItem = vscode.QuickPickItem & { scope: "user" | "workspace" | "reset" };
   const items: ScopeItem[] = [
     {
       scope: "user",
       label: t("defaultToolsScopeUser"),
-      description: toolSetSummary(globalTools),
+      description: toolSetSummary(effective),
       detail: t("defaultToolsScopeUserDetail"),
     },
     {
       scope: "workspace",
       label: t("defaultToolsScopeWorkspace"),
+      // 工作区行展示覆盖的原始写法：`+`/`-` 条目按用户写的样子呈现。
       description: projectTools ? toolSetSummary(projectTools) : t("defaultToolsWorkspaceNotSet"),
       detail: tf("defaultToolsScopeWorkspaceDetail", workspacePath),
     },
@@ -352,25 +363,29 @@ async function manageDefaultTools(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "
   }
 
   if (picked.scope === "user") {
-    const selected = await pickToolSet(
-      t("defaultToolsTitleUser"),
-      t("defaultToolsPlaceholder"),
-      new Set(globalTools ?? BUILTIN_TOOLS),
-    );
+    const selected = await pickToolSet(t("defaultToolsTitleUser"), t("defaultToolsPlaceholder"), new Set(effective));
     if (!selected) return;
-    const value = selected.length === BUILTIN_TOOLS.length ? undefined : selected;
-    if (!(await persistDefaultTools(join(getAgentDir(), "settings.json"), value))) return;
+    // 原样接受（含项目覆盖带来的勾选）不写盘：用户层只为看得见的改动落笔。
+    const unchanged = selected.length === effective.length && selected.every((tool) => effective.includes(tool));
+    if (unchanged) {
+      ui.status(tf("defaultToolsSaved", defaultToolsSummary(runtime)));
+      return;
+    }
+    // 恰好默认四件（不含 codemode）= 恢复默认，删键；勾上 codemode 的
+    // 全集写显式列表。
+    const isDefault =
+      selected.length === DEFAULT_TOOLS.length && selected.every((tool) => (DEFAULT_TOOLS as readonly string[]).includes(tool));
+    if (!(await persistDefaultTools(join(getAgentDir(), "settings.json"), isDefault ? undefined : selected))) return;
   } else {
-    const inherited = new Set(globalTools ?? BUILTIN_TOOLS);
     const selected = await pickToolSet(
       t("defaultToolsTitleWorkspace"),
       t("defaultToolsWorkspacePlaceholder"),
-      new Set(projectTools ?? inherited),
+      new Set(effective),
     );
     if (!selected) return;
     // 尚无覆盖时，选出的恰是继承集合会创建一个什么也不改的覆盖——
     // 跳过写入。
-    if (!projectTools && selected.length === inherited.size && selected.every((tool) => inherited.has(tool))) {
+    if (!projectTools && selected.length === effective.length && selected.every((tool) => effective.includes(tool))) {
       ui.status(tf("defaultToolsSaved", defaultToolsSummary(runtime)));
       return;
     }
@@ -392,7 +407,7 @@ async function pickToolSet(
   active: ReadonlySet<string>,
 ): Promise<string[] | undefined> {
   const picked = await vscode.window.showQuickPick(
-    BUILTIN_TOOLS.map((tool) => ({
+    PICKABLE_TOOLS.map((tool) => ({
       label: tool,
       description: t(TOOL_DESCRIPTIONS[tool]),
       picked: active.has(tool),
@@ -401,7 +416,7 @@ async function pickToolSet(
   );
   if (!picked) return undefined;
   const checked = new Set(picked.map((item) => item.label));
-  return BUILTIN_TOOLS.filter((tool) => checked.has(tool));
+  return PICKABLE_TOOLS.filter((tool) => checked.has(tool));
 }
 
 /**

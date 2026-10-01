@@ -2,7 +2,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAgentSession, createAgentSessionFromServices, createAgentSessionServices, SessionManager } from "@earendil-works/pi-coding-agent";
+import { createAgentSession, createAgentSessionFromServices, createAgentSessionServices, SessionManager, type PromptOptions } from "@earendil-works/pi-coding-agent";
 import { describe } from "../errors.js";
 import { buildHistoryEntryEvents, bubbleEntryIds } from "../history.js";
 import { imageAttachmentMarkup, prepareImage } from "../images.js";
@@ -10,6 +10,9 @@ import { collectResourceSections, extensionDisplayName } from "../resources.js";
 import { userDisplayFromText } from "../session-title.js";
 import type { DiagnosticResult } from "../diagnostics.js";
 import { probePng, type StoredMessage } from "./shared.js";
+
+/** SDK 未从包根导出 PromptDisposition，从公开的 PromptOptions 派生。 */
+type PromptDisposition = Parameters<NonNullable<PromptOptions["preflightResult"]>>[0];
 
 /**
  * 离线检查 transcript 上方的资源清单：必须带工具注册表回来，并把 pi
@@ -134,10 +137,10 @@ export async function runLiveToolCallTest(cwd: string, log: (message: string) =>
       detail: `model=${(session.model as { id?: string } | undefined)?.id ?? "(none)"}, thinking=${session.thinkingLevel}`,
     });
 
-    let accepted: boolean | undefined;
+    let accepted: PromptDisposition | undefined;
     await session.prompt(
       `Use the bash tool exactly once to print the text ${marker}, then reply with that text and nothing else.`,
-      { preflightResult: (success) => (accepted = success) },
+      { preflightResult: (disposition) => (accepted = disposition) },
     );
     unsubscribe();
 
@@ -146,8 +149,8 @@ export async function runLiveToolCallTest(cwd: string, log: (message: string) =>
 
     results.push({
       name: "prompt accepted",
-      ok: accepted !== false,
-      detail: `preflight=${String(accepted)}, events=${[...seenEvents].join(",") || "(none)"}`,
+      ok: accepted !== undefined,
+      detail: `preflight=${accepted ?? "(none)"}, events=${[...seenEvents].join(",") || "(none)"}`,
     });
     if (agentError) {
       results.push({ name: "agent error", ok: false, detail: agentError.slice(0, 500) });

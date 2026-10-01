@@ -33,6 +33,9 @@ export const runtimePackages = [
   "@earendil-works/pi-agent-core",
   "@earendil-works/pi-tui",
   "@earendil-works/pi-ai",
+  // 0.99 起 SDK 自带 codemode / mcp 两个内置扩展，config.js 顶层引用其实现包。
+  "@earendil-works/pi-codemode",
+  "@earendil-works/pi-mcp",
   "typebox",
   "jiti",
   "@silvia-odwyer/photon-node",
@@ -122,6 +125,8 @@ export const runtimePackages = [
   // 打包器触达不到，故 esbuild 本身无需随包发行。
   "@earendil-works/chord",
   "@earendil-works/pi-telemetry",
+  // pi-codemode 的沙箱引擎（QuickJS WASM）。
+  "quickjs-wasi",
   "balanced-match",
   "brace-expansion",
   "chalk",

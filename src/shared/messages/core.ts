@@ -158,8 +158,8 @@ export const sharedMessages = {
   },
   settingsDefaultTools: { en: "Default tools", zh: "默认工具" },
   settingsDefaultToolsDetail: {
-    en: "Built-in tools enabled when a session starts",
-    zh: "新会话启动时启用的内置工具",
+    en: "Tools enabled when a session starts, codemode included; applies to new sessions only",
+    zh: "新会话启动时启用的工具（含 codemode）；仅对新会话生效",
   },
   defaultToolsScopeTitle: { en: "Pi Agent Chat: default tools scope", zh: "Pi Agent Chat：默认工具作用域" },
   defaultToolsScopeUser: { en: "User (global)", zh: "用户（全局）" },
@@ -175,8 +175,8 @@ export const sharedMessages = {
     zh: "Pi Agent Chat：默认工具（工作区）",
   },
   defaultToolsPlaceholder: {
-    en: "Check the built-in tools enabled at session start; checking all four restores the default, checking none disables them",
-    zh: "勾选会话启动时启用的内置工具；全选即恢复默认，全不选则不启用内置工具",
+    en: "Check the tools enabled at session start; checking exactly the four core tools restores the default, checking none disables them",
+    zh: "勾选会话启动时启用的工具；恰好四件核心工具即恢复默认，全不选则不启用",
   },
   defaultToolsWorkspacePlaceholder: {
     en: "Check the built-in tools enabled at session start in this workspace",
@@ -190,6 +190,10 @@ export const sharedMessages = {
   toolDescBash: { en: "Run shell commands", zh: "执行 shell 命令" },
   toolDescEdit: { en: "Edit files with exact replacements", zh: "按精确替换修改文件" },
   toolDescWrite: { en: "Create or overwrite files", zh: "创建或覆写文件" },
+  toolDescCodemode: {
+    en: "Sandboxed JavaScript calling tools in parallel; also enabled automatically when MCP servers use the default exposure",
+    zh: "沙箱 JavaScript 并行调用工具；MCP 服务器使用默认 exposure 时也会自动启用",
+  },
   settingsRefreshModels: { en: "Refresh model catalog", zh: "刷新模型列表" },
   settingsRefreshModelsDetail: {
     en: "Re-fetch every provider's model list from the network (retry after a failed refresh)",

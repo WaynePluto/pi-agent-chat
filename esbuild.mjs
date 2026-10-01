@@ -112,6 +112,13 @@ const __piSdkModuleUrl = (relative) => {
   const nodeUrl = require("node:url");
   const distDir = nodePath.dirname(nodeUrl.fileURLToPath(__piSdkEntryUrl));
   return nodeUrl.pathToFileURL(nodePath.join(distDir, relative)).href;
+};
+const __piPkgModuleUrl = (pkg, file) => {
+  const nodePath = require("node:path");
+  const nodeUrl = require("node:url");
+  const distDir = nodePath.dirname(nodeUrl.fileURLToPath(__piSdkEntryUrl));
+  const scopeDir = nodePath.dirname(nodePath.dirname(distDir));
+  return nodeUrl.pathToFileURL(nodePath.join(scopeDir, pkg, "dist", file)).href;
 };`;
 
 /**
@@ -122,20 +129,33 @@ const __piSdkModuleUrl = (relative) => {
  * 缺了它，core/extensions/loader.js 会拼错 `@earendil-works/pi-coding-agent`
  * 的 jiti alias，import 该 SDK 的扩展全部死于
  * "Cannot find module .../@earendil-works/index.js"。
+ * 同样的处理也落到 pi-codemode 的模块上（同一 scope 的兄弟包，磁盘上随
+ * runtimePackages 发行）：它的 runtime/host.js 用
+ * `new URL("./worker.js", import.meta.url)` 定位 QuickJS worker，打进 bundle
+ * 后不回填就会去 SDK 的 dist 目录里找一个不存在的 worker，codemode 第一次
+ * 跑脚本即失败。
  */
 const sdkModuleUrlPlugin = {
   name: "pi-sdk-module-url",
   setup(build) {
-    const sdkDist = resolve(root, "node_modules", "@earendil-works", "pi-coding-agent", "dist");
+    const pkgDist = (pkg) => resolve(root, "node_modules", "@earendil-works", pkg, "dist");
     build.onLoad({ filter: /\.js$/ }, async (args) => {
-      if (!args.path.startsWith(sdkDist + sep)) return undefined;
-      const source = await readFile(args.path, "utf8");
-      if (!source.includes("import.meta.url")) return undefined;
-      const relativePath = relative(sdkDist, args.path).split(sep).join("/");
-      return {
-        contents: `const __piSdkEntryUrl = __piSdkModuleUrl(${JSON.stringify(relativePath)});\n${source}`,
-        loader: "js",
-      };
+      for (const pkg of ["pi-coding-agent", "pi-codemode"]) {
+        const dist = pkgDist(pkg);
+        if (!args.path.startsWith(dist + sep)) continue;
+        const source = await readFile(args.path, "utf8");
+        if (!source.includes("import.meta.url")) return undefined;
+        const relativePath = relative(dist, args.path).split(sep).join("/");
+        const replacer =
+          pkg === "pi-coding-agent"
+            ? `__piSdkModuleUrl(${JSON.stringify(relativePath)})`
+            : `__piPkgModuleUrl("pi-codemode", ${JSON.stringify(relativePath)})`;
+        return {
+          contents: `const __piSdkEntryUrl = ${replacer};\n${source}`,
+          loader: "js",
+        };
+      }
+      return undefined;
     });
   },
 };
@@ -232,6 +252,11 @@ async function compileSass() {
 if (watch) {
   const contexts = await Promise.all([esbuild.context(extensionConfig), esbuild.context(webviewConfig)]);
   await Promise.all(contexts.map((ctx) => ctx.watch()));
+  // 开发构建不带 dist/node_modules：banner 的 __piSdkEntryUrl 会优先选中
+  // 它，一份上次生产构建留下的陈旧副本会把 jiti alias 与 codemode worker
+  // 都锚到旧 SDK 上（开发态静默版本偏斜）。删掉后解析回落到仓库自己的
+  // node_modules；VSIX 布局由生产构建整目录重建，不受影响。
+  if (!production) await rm(resolve(root, "dist", "node_modules"), { recursive: true, force: true });
   // 首次 SCSS 构建 + 简单的目录监听（sass 的 JS API 没有内置 watch）。
   await compileSass();
   const { watch: fsWatch } = await import("node:fs");
@@ -241,6 +266,7 @@ if (watch) {
   console.log("[esbuild] watching...");
 } else {
   if (production) await rm(resolve(root, "dist"), { recursive: true, force: true });
+  else await rm(resolve(root, "dist", "node_modules"), { recursive: true, force: true });
   await Promise.all([esbuild.build(extensionConfig), esbuild.build(webviewConfig), compileSass()]);
   if (production) await copyRuntimePackagesIntoDist();
   console.log("[esbuild] build complete");
