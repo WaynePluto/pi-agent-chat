@@ -11,7 +11,7 @@
 
 import { copyButton } from "./clipboard.js";
 import { button, el } from "./dom.js";
-import { BUBBLE_FOLD_CHARS_PER_LINE } from "./format.js";
+import { BUBBLE_FOLD_CHARS_PER_LINE, formatDuration } from "./format.js";
 import { getDict } from "./i18n.js";
 import { renderMarkdown, renderMarkdownNoHighlight } from "./markdown.js";
 import { DEFAULT_FOLD_LINES } from "../shared/protocol.js";
@@ -51,6 +51,11 @@ export interface MessageBubble {
    */
   setStreamingText(text: string): void;
   setFolded(folded: boolean): void;
+  /**
+   * 显示这条回答的生成耗时（SDK 持久化的 `durationMs`）。footer 平时只在
+   * hover / 折叠时可见，耗时跟着它：想看的时候在，不想看的时候不吵。
+   */
+  setDuration(ms: number | undefined): void;
 }
 
 export interface MessageBubbleOptions {
@@ -75,6 +80,7 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
   const root = el("div", `bubble markdown ${options.role}`);
   const content = el("div", "bubble-content");
   const footer = el("div", "bubble-footer");
+  const duration = el("span", "bubble-duration");
   const toggle = button("bubble-fold", "", () => {
     pinned = true;
     setFolded(!folded);
@@ -170,7 +176,7 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
     applyFold();
   };
 
-  footer.append(toggle, gotoStart, copyButton("bubble-copy", t.copyMessage, () => text));
+  footer.append(duration, toggle, gotoStart, copyButton("bubble-copy", t.copyMessage, () => text));
   if (options.extra) root.append(content, options.extra, footer);
   else root.append(content, footer);
   setText(options.text);
@@ -192,6 +198,9 @@ export function createMessageBubble(options: MessageBubbleOptions): MessageBubbl
     setText,
     setStreamingText,
     setFolded,
+    setDuration: (ms: number | undefined) => {
+      duration.textContent = formatDuration(ms);
+    },
   };
 }
 

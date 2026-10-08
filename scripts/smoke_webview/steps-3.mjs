@@ -2,7 +2,7 @@
    输入历史与延迟折叠。步骤按序执行，且建立在前面的步骤留下的
    DOM 之上。 */
 
-import { baseState, LONG_PROMPT, LONG_ANSWER } from "./fixtures.mjs";
+import { baseState, LONG_PROMPT, LONG_ANSWER, TINY_PNG } from "./fixtures.mjs";
 
 export const STEPS_3 = [
   // transcript 搜索：可见文本上的字面、大小写不敏感匹配，
@@ -415,6 +415,185 @@ export const STEPS_3 = [
         }),
       );
       window.document.getElementById("scroll-down").click();
+    },
+  },
+  {
+    // 工具耗时与嵌套调用（回放）：tool_end 携带 durationMs 与持久化的
+    // nestedCalls 记录。卡片标题栏显示耗时；嵌套调用是父卡片 body 里的
+    // 行，不是顶层卡片。
+    label: "tool duration and replayed nested calls",
+    messages: [
+      {
+        type: "history",
+        transcriptId: "nested-replay",
+        events: [
+          { kind: "user_message", text: "count the mirrors via codemode" },
+          {
+            kind: "tool_end",
+            id: "call-n1",
+            name: "codemode",
+            isError: false,
+            text: "3 mirrors",
+            durationMs: 2500,
+            nested: [
+              { id: "call-n1/1", name: "bash", args: { command: "cat mirrors.txt" }, status: "ok", durationMs: 1200 },
+              { id: "call-n1/2", name: "read", status: "error", durationMs: 90, error: "ENOENT: mirrors.txt" },
+            ],
+          },
+        ],
+      },
+      { type: "state", state: baseState },
+    ],
+    beforeSnapshot: (window) => {
+      const document = window.document;
+      const cards = document.querySelectorAll(".tool-card");
+      if (cards.length !== 1) throw new Error(`expected exactly one top-level tool card, got ${cards.length}`);
+      const card = cards[0];
+      // 有嵌套调用的卡片默认展开（与 subagent 卡片同一先例），无需手动
+      // 展开即可断言 body 里的行。
+      if (card.classList.contains("collapsed")) throw new Error("card with nested calls should default to expanded");
+      const duration = card.querySelector(".card-duration");
+      if (!duration || duration.textContent !== "2.5s") {
+        throw new Error(`expected card duration "2.5s", got ${JSON.stringify(duration?.textContent)}`);
+      }
+      const rows = card.querySelectorAll(".nested-row");
+      if (rows.length !== 2) throw new Error(`expected 2 nested rows, got ${rows.length}`);
+      if (!rows[0].classList.contains("nested-ok")) throw new Error("first nested row should be ok");
+      if (!rows[1].classList.contains("nested-error")) throw new Error("second nested row should be error");
+      if (rows[0].querySelector(".nested-duration")?.textContent !== "1.2s") throw new Error("nested duration missing");
+      if (!card.textContent.includes("ENOENT: mirrors.txt")) throw new Error("nested error text missing");
+    },
+  },
+  {
+    // 嵌套调用（实时）：带 parentToolCallId 的工具事件渲染进正在运行的父
+    // 卡片，不占顶层序列；父卡片结束时带上自己的耗时。
+    label: "live nested calls stay inside the parent card",
+    messages: [
+      { type: "history", transcriptId: "nested-live", events: [{ kind: "user_message", text: "run the codemode script" }] },
+      { type: "state", state: { ...baseState, isStreaming: true } },
+    ],
+    beforeSnapshot: (window) => {
+      const send = (event) =>
+        window.dispatchEvent(new window.MessageEvent("message", { data: { type: "event", event } }));
+      send({ kind: "tool_start", id: "call-l1", name: "codemode", args: { script: "count.js" } });
+      send({ kind: "tool_start", id: "call-l1/1", name: "bash", args: { command: "ls" }, parentToolCallId: "call-l1" });
+      send({ kind: "tool_end", id: "call-l1/1", name: "bash", isError: false, text: "a.txt", durationMs: 640, parentToolCallId: "call-l1" });
+      send({ kind: "tool_end", id: "call-l1", name: "codemode", isError: false, text: "done", durationMs: 1500 });
+      const document = window.document;
+      const cards = document.querySelectorAll(".tool-card");
+      if (cards.length !== 1) throw new Error(`nested call leaked into a top-level card (${cards.length} cards)`);
+      const rows = cards[0].querySelectorAll(".nested-row");
+      if (rows.length !== 1) throw new Error(`expected 1 nested row, got ${rows.length}`);
+      if (!rows[0].classList.contains("nested-ok")) throw new Error("nested row should be ok");
+      if (rows[0].querySelector(".nested-duration")?.textContent !== "640ms") throw new Error("live nested duration missing");
+      if (cards[0].querySelector(".card-duration")?.textContent !== "1.5s") throw new Error("parent duration missing");
+    },
+  },
+  {
+    // 工具结果里的图片（如 codemode 生成、read 读图）：经 TranscriptImage
+    // 通道进卡片 body 的缩略图栅格；带图卡片默认展开（图片是结果的本
+    // 体），live 事件与回放读同一 content。
+    label: "tool result images render in the card body",
+    messages: [
+      {
+        type: "history",
+        transcriptId: "tool-images",
+        events: [
+          { kind: "user_message", text: "draw a tiny logo" },
+          {
+            kind: "tool_end",
+            id: "call-i1",
+            name: "codemode",
+            isError: false,
+            text: "image generated",
+            images: [{ mimeType: "image/png", data: TINY_PNG }],
+          },
+        ],
+      },
+      { type: "state", state: baseState },
+    ],
+    beforeSnapshot: (window) => {
+      const document = window.document;
+      const card = document.querySelector(".tool-card");
+      if (!card) throw new Error("expected a tool card");
+      if (card.classList.contains("collapsed")) throw new Error("card with images should default to expanded");
+      const img = card.querySelector(".tool-images img");
+      if (!img || !String(img.getAttribute("src")).startsWith("data:image/png;base64,")) {
+        throw new Error("expected a data: URL image in the card body");
+      }
+      // 实时路径同一投影：带图 tool_end 到达即渲染。
+      const send = (event) =>
+        window.dispatchEvent(new window.MessageEvent("message", { data: { type: "event", event } }));
+      send({ kind: "tool_start", id: "call-i2", name: "codemode", args: { script: "logo.js" } });
+      send({
+        kind: "tool_end",
+        id: "call-i2",
+        name: "codemode",
+        isError: false,
+        text: "done",
+        images: [{ mimeType: "image/png", data: TINY_PNG }],
+      });
+      if (document.querySelectorAll(".tool-card .tool-images img").length !== 2) {
+        throw new Error("expected images in both the replayed and the live card");
+      }
+    },
+  },
+  {
+    // 回放与实时读同一个持久化字段：回答气泡 footer 的耗时两个路径都有，
+    // hover 之外不占任何空间。
+    label: "answer duration in the bubble footer",
+    messages: [
+      {
+        type: "history",
+        transcriptId: "answer-duration",
+        events: [
+          { kind: "user_message", text: "how long did that take" },
+          { kind: "assistant_message", text: "About a minute.", durationMs: 61_000 },
+        ],
+      },
+      { type: "state", state: baseState },
+    ],
+    beforeSnapshot: (window) => {
+      const document = window.document;
+      const replayed = document.querySelector(".bubble.assistant .bubble-duration");
+      if (replayed?.textContent !== "1m01s") {
+        throw new Error(`expected replayed answer duration "1m01s", got ${JSON.stringify(replayed?.textContent)}`);
+      }
+      const send = (event) =>
+        window.dispatchEvent(new window.MessageEvent("message", { data: { type: "event", event } }));
+      send({ kind: "text_delta", delta: "Live one." });
+      send({ kind: "assistant_end", durationMs: 950 });
+      const durations = document.querySelectorAll(".bubble.assistant .bubble-duration");
+      const live = durations[durations.length - 1];
+      if (live?.textContent !== "950ms") {
+        throw new Error(`expected live answer duration "950ms", got ${JSON.stringify(live?.textContent)}`);
+      }
+    },
+  },
+  {
+    // 虚拟模型在快捷菜单里带标注：识别它是虚拟的，选择行为不变。
+    label: "composer model menu marks virtual models",
+    messages: [
+      { type: "state", state: baseState },
+      {
+        type: "models",
+        catalog: {
+          items: [
+            { provider: "test-provider", id: "test-model" },
+            { provider: "router", id: "auto", virtual: true },
+          ],
+        },
+      },
+    ],
+    beforeSnapshot: (window) => {
+      const document = window.document;
+      document.getElementById("btn-model").click();
+      const notes = [...document.querySelectorAll(".picker-row .picker-note")].map((note) => note.textContent);
+      if (!notes.some((text) => text?.includes("virtual"))) {
+        throw new Error(`expected a virtual model note, got ${JSON.stringify(notes)}`);
+      }
+      // 关掉菜单，别让弹层进快照。
+      document.getElementById("btn-model").click();
     },
   },
 ];

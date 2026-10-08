@@ -160,12 +160,34 @@ export interface ChatState {
 }
 
 /**
+ * 一次工具调用经 `ctx.executeTool()` 由**另一个工具**发起的记录（如
+ * codemode 脚本调 bash/read）。
+ *
+ * 实时与回放共用这一形状：实时来自带 `parentToolCallId` 的工具事件
+ * （`args` 是原始参数），回放投影自父结果消息上持久化的 `nestedCalls`
+ * 有界记录（`args` 可能被 SDK 按尺寸上限省略）。两种来源渲染出同一行。
+ */
+export interface NestedToolCall {
+  id: string;
+  name: string;
+  /** 参数摘要；回放记录超限时省略。 */
+  args?: JsonValue;
+  /** `running` 只出现在实时；回放记录是终态（含 `unfinished`）。 */
+  status: "running" | "ok" | "error" | "unfinished";
+  durationMs?: number;
+  /** 失败时的错误文本（回放记录带，已截断）。 */
+  error?: string;
+}
+
+/**
  * composer 快捷模型菜单的一行，只够识别模型：带能力详情、⭐ 与 📌 的完整
  * 列表在「其他模型」背后的原生选择器里。
  */
 export interface ModelOption {
   provider: string;
   id: string;
+  /** 扩展注册的虚拟模型（每次请求路由到物理模型）：行内标注，供识别。 */
+  virtual?: boolean;
 }
 
 // 快捷切换可选的模型：配置顺序的常用模型，未设范围时为全部已认证模型。

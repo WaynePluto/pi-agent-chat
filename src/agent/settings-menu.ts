@@ -220,6 +220,12 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
         description: defaultToolsSummary(runtime),
         detail: t("settingsDefaultToolsDetail"),
       },
+      {
+        id: "codemode",
+        label: t("settingsCodemode"),
+        description: codemodeSummary(runtime),
+        detail: t("settingsCodemodeDetail"),
+      },
       { id: "pluginSettings", label: t("settingsPluginSettings"), detail: t("settingsPluginSettingsDetail") },
       { id: "shellPath", label: t("settingsShellPath"), detail: t("settingsShellPathDetail") },
       { id: "openFile", label: t("settingsOpenFile"), detail: t("settingsOpenFileDetail") },
@@ -239,6 +245,7 @@ export async function openSettingsMenu(runtime: PiRuntime, ui: SettingsMenuUi): 
     if (picked.id === "refreshModels") return void (await ui.refreshModels());
     if (picked.id === "scopedModels") return void (await ui.manageScopedModels());
     if (picked.id === "defaultTools") return void (await manageDefaultTools(runtime, ui));
+    if (picked.id === "codemode") return void (await manageCodemode(runtime, ui));
     if (picked.id === "shellPath") return void (await pickShellPath(runtime, ui));
     // 插件专属开关（子代理、transcript 折叠……）是本宿主自己的
     // VS Code 设置，归属地是设置界面：它本来就渲染描述、用户/工作区
@@ -425,6 +432,14 @@ async function pickToolSet(
  * 正解。
  */
 async function persistDefaultTools(path: string, tools: string[] | undefined): Promise<boolean> {
+  return persistJsoncSetting(path, ["defaultTools"], tools);
+}
+
+/**
+ * 往某个 settings.json 写一个键（`undefined` 删键），必要时按 CLI 惰性
+ * 创建的方式种一个空对象。文件改不了时返回 false。
+ */
+async function persistJsoncSetting(path: string, keyPath: string[], value: unknown): Promise<boolean> {
   try {
     await fs.access(path);
   } catch {
@@ -435,7 +450,104 @@ async function persistDefaultTools(path: string, tools: string[] | undefined): P
   }
   // "unchanged" 算成功：文件已经是要选的内容（如删除从未设过的键）——
   // 没有要持久化的，也没有失败。
-  return (await writeJsoncValue(path, ["defaultTools"], tools)) !== "failed";
+  return (await writeJsoncValue(path, keyPath, value)) !== "failed";
+}
+
+/* ---------------------------------------------------------------- */
+/* codemode 设置                                                      */
+/* ---------------------------------------------------------------- */
+
+/** SDK 的默认描述预算（`core/settings-manager.ts` 的 CodemodeSettings）。 */
+const CODEMODE_DEFAULT_BUDGET = 3000;
+
+interface CodemodeEffective {
+  mode: "on" | "only";
+  inlineBudget?: number;
+  /** 工作区设置存在覆盖时标出：写用户层改不动生效值，用户该知道。 */
+  workspaceOverridden: boolean;
+}
+
+function codemodeEffective(runtime: PiRuntime): CodemodeEffective {
+  const settings = runtime.settingsManager;
+  const merged = settings.getSettings().codemode;
+  return {
+    mode: merged?.mode === "only" ? "only" : "on",
+    inlineBudget: typeof merged?.inlineBudget === "number" ? merged.inlineBudget : undefined,
+    workspaceOverridden: settings.getProjectSettings().codemode !== undefined,
+  };
+}
+
+/** 菜单行摘要：模式 · 预算，被工作区覆盖时标注（同 defaultTools 的口径）。 */
+function codemodeSummary(runtime: PiRuntime): string {
+  const current = codemodeEffective(runtime);
+  const summary = `${current.mode} · ${current.inlineBudget ?? CODEMODE_DEFAULT_BUDGET}`;
+  return current.workspaceOverridden ? `${summary} (${t("defaultToolsWorkspace")})` : summary;
+}
+
+/**
+ * `codemode` 设置：模式（on/only）与描述预算。SDK 没有专用
+ * getter/setter，读走合并后的 `getSettings()`，写按手改路径（jsonc
+ * `modify()` + WorkspaceEdit）落用户层 `settings.json` 再 `reload()`——
+ * 与 `defaultTools` 同一条路径，运行中的会话保留装配时的工具呈现。
+ */
+async function manageCodemode(runtime: PiRuntime, ui: Pick<SettingsMenuUi, "status" | "error">): Promise<void> {
+  const current = codemodeEffective(runtime);
+  type Item = vscode.QuickPickItem & { action: "on" | "only" | "budget" | "reset" };
+  const items: Item[] = [
+    {
+      action: "on",
+      label: "on",
+      description: current.mode === "on" ? t("current") : undefined,
+      detail: t("codemodeModeOnDetail"),
+    },
+    {
+      action: "only",
+      label: "only",
+      description: current.mode === "only" ? t("current") : undefined,
+      detail: t("codemodeModeOnlyDetail"),
+    },
+    {
+      action: "budget",
+      label: t("codemodeInlineBudget"),
+      description: String(current.inlineBudget ?? CODEMODE_DEFAULT_BUDGET),
+      detail: t("codemodeInlineBudgetDetail"),
+    },
+    { action: "reset", label: t("codemodeReset"), detail: t("codemodeResetDetail") },
+  ];
+  const picked = await vscode.window.showQuickPick(items, { title: t("settingsCodemode"), matchOnDetail: true });
+  if (!picked) return;
+
+  const settingsPath = join(getAgentDir(), "settings.json");
+  if (picked.action === "reset") {
+    if (!(await persistJsoncSetting(settingsPath, ["codemode"], undefined))) return;
+    await runtime.settingsManager.reload();
+    ui.status(t("codemodeResetDone"));
+    return;
+  }
+
+  if (picked.action === "budget") {
+    const answer = await vscode.window.showInputBox({
+      title: t("codemodeInlineBudgetTitle"),
+      prompt: t("codemodeInlineBudgetPrompt"),
+      value: String(current.inlineBudget ?? CODEMODE_DEFAULT_BUDGET),
+    });
+    const budget = answer === undefined ? undefined : Number(answer.trim());
+    if (budget === undefined) return;
+    if (!Number.isInteger(budget) || budget <= 0) {
+      ui.error(t("codemodeBudgetInvalid"));
+      return;
+    }
+    if (budget === (current.inlineBudget ?? CODEMODE_DEFAULT_BUDGET)) return;
+    if (!(await persistJsoncSetting(settingsPath, ["codemode", "inlineBudget"], budget))) return;
+    await runtime.settingsManager.reload();
+    ui.status(tf("settingChanged", t("codemodeInlineBudget"), String(budget)));
+    return;
+  }
+
+  if (picked.action === current.mode) return;
+  if (!(await persistJsoncSetting(settingsPath, ["codemode", "mode"], picked.action))) return;
+  await runtime.settingsManager.reload();
+  ui.status(tf("settingChanged", t("settingsCodemode"), picked.action));
 }
 
 /** 在编辑器标签页打开共享的 `~/.pi/agent/settings.json`。 */

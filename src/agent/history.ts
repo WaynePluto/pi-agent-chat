@@ -12,7 +12,8 @@
 import { isAbsolute, resolve as resolvePath } from "node:path";
 import { sessionEntryToContextMessages } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import type { ChatEvent } from "../shared/protocol.js";
+import type { ChatEvent, JsonValue, NestedToolCall, TranscriptImage } from "../shared/protocol.js";
+import { MAX_IMAGE_ATTACHMENTS } from "../shared/protocol.js";
 import { EMPTY_PROMPT_INDEX, expandedPrompt, type PromptIndex } from "./invocations.js";
 import { EMPTY_SKILL_INDEX, matchSkill, type SkillIndex } from "./skills.js";
 import { contentImages, contentText, readUserDisplay, userDisplayText } from "./session-title.js";
@@ -26,6 +27,16 @@ export function resultText(result: unknown): string {
     .filter((part) => part?.type === "text" && typeof part.text === "string")
     .map((part) => part.text as string)
     .join("\n");
+}
+
+/**
+ * 工具结果 `content` 里的图片部分（如 codemode 脚本生成），与用户附件
+ * 同一 `TranscriptImage` 通道。封顶同 composer 附件上限：一条极端的
+ * 结果在这里就截住，不会撑爆 postMessage。
+ */
+export function resultImages(result: unknown): TranscriptImage[] | undefined {
+  const images = contentImages((result as { content?: unknown } | undefined)?.content);
+  return images.length > 0 ? images.slice(0, MAX_IMAGE_ATTACHMENTS) : undefined;
 }
 
 /**
@@ -74,6 +85,8 @@ function appendHistoryMessage(
     stopReason?: string;
     errorMessage?: string;
     details?: { patch?: string; path?: string };
+    durationMs?: unknown;
+    nestedCalls?: unknown;
   };
 
   if (message.role === "user") {
@@ -103,7 +116,14 @@ function appendHistoryMessage(
       .join("\n\n");
     if (thinking.trim()) events.push({ kind: "thinking_message", text: thinking });
     const text = assistantMessageText(message.content);
-    if (text.trim()) events.push({ kind: "assistant_message", text });
+    // 耗时与文本同源（都持久化在消息上）：实时 `assistant_end` 带同一个
+    // 字段，重载前后显示一致。
+    if (text.trim())
+      events.push({
+        kind: "assistant_message",
+        text,
+        durationMs: typeof message.durationMs === "number" ? message.durationMs : undefined,
+      });
     for (const part of parts) {
       if (part.type === "toolCall" && typeof part.id === "string") toolArgs.set(part.id, part.arguments);
     }
@@ -126,6 +146,9 @@ function appendHistoryMessage(
       path: toolFilePath(args, cwd),
       details: sanitizeToolDetails(message.toolName ?? "", message.details),
       skill: matchSkill(skills, message.toolName ?? "", args, cwd),
+      durationMs: typeof message.durationMs === "number" ? message.durationMs : undefined,
+      nested: nestedCallEvents(message.nestedCalls),
+      images: resultImages(message),
     });
   }
 }
@@ -170,6 +193,45 @@ export function bubbleEntryIds(entries: readonly SessionEntry[]): { user: string
     }
   }
   return { user, assistant };
+}
+
+/**
+ * 持久化 `nestedCalls` 有界记录 → 协议的嵌套调用行。
+ *
+ * SDK 已按尺寸上限裁过这份记录（超限参数整体省略、只留字节数）；这里只做
+ * 形状防御，不再截断——显示侧（webview）按展示预算自行截。
+ */
+function nestedCallEvents(raw: unknown): NestedToolCall[] | undefined {
+  const calls = (raw as { calls?: unknown } | undefined)?.calls;
+  if (!Array.isArray(calls) || calls.length === 0) return undefined;
+  const projected: NestedToolCall[] = [];
+  for (const call of calls) {
+    const record = call as {
+      id?: unknown;
+      name?: unknown;
+      arguments?: unknown;
+      status?: unknown;
+      durationMs?: unknown;
+      error?: unknown;
+    };
+    if (typeof record.id !== "string" || typeof record.name !== "string") continue;
+    if (record.status !== "ok" && record.status !== "error" && record.status !== "unfinished") continue;
+    projected.push({
+      id: record.id,
+      name: record.name,
+      args: isJsonValue(record.arguments) ? record.arguments : undefined,
+      status: record.status,
+      durationMs: typeof record.durationMs === "number" ? record.durationMs : undefined,
+      error: typeof record.error === "string" ? record.error : undefined,
+    });
+  }
+  return projected.length > 0 ? projected : undefined;
+}
+
+/** 数值、字符串、布尔与它们的数组/对象（工具参数摘要只要求这一层）。 */
+function isJsonValue(value: unknown): value is JsonValue {
+  if (value === null || typeof value !== "object") return typeof value !== "function" && typeof value !== "symbol";
+  return Array.isArray(value) || Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null;
 }
 
 /** edit/write 工具经 `path` 参数指名目标文件。 */

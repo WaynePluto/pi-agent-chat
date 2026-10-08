@@ -16,10 +16,12 @@ import {
 } from "./transcript/bubbles.js";
 import {
   createThinkingCard,
+  endNestedCall,
   endToolCard,
   finishCard,
   finishThinkingCard,
   finishWorkBlock,
+  startNestedCall,
   startToolCard,
 } from "./transcript/cards.js";
 import { appendCompactionBoundary, appendNoticeCard } from "./transcript/notices.js";
@@ -93,17 +95,22 @@ export function applyEvent(event: ChatEvent): void {
     }
     case "assistant_message":
       finishWorkBlock();
-      appendMarkdownBubble("assistant", event.text);
+      appendMarkdownBubble("assistant", event.text, undefined, event.durationMs);
       st.assistantBubble = undefined;
       break;
     case "assistant_end":
       // 最终完整渲染带语法高亮（流式期间跳过）。
       if (st.assistantBubble) st.assistantBubble.bubble.setText(st.assistantBubble.raw);
+      // 这次响应的耗时随消息持久化，回放从 assistant_message 带同一个值。
+      st.assistantBubble?.bubble.setDuration(event.durationMs);
       finishThinkingCard();
       st.assistantBubble = undefined;
       break;
     case "tool_start":
-      startToolCard(event.id, event.name, event.args, event.skill);
+      // 嵌套调用（另一工具经 ctx.executeTool() 发起）渲染进父卡片，
+      // 不占顶层卡片序列。
+      if (event.parentToolCallId) startNestedCall(event.parentToolCallId, event.id, event.name, event.args);
+      else startToolCard(event.id, event.name, event.args, event.skill);
       break;
     case "tool_update": {
       const card = st.toolCards.get(event.id);
@@ -118,7 +125,8 @@ export function applyEvent(event: ChatEvent): void {
       break;
     }
     case "tool_end":
-      endToolCard(event);
+      if (event.parentToolCallId) endNestedCall(event.parentToolCallId, event);
+      else endToolCard(event);
       break;
     case "agent_start":
       st.assistantBubble = undefined;

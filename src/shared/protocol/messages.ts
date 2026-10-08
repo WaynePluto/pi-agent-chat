@@ -9,6 +9,7 @@ import type {
   ExtensionWidget,
   JsonValue,
   ModelCatalog,
+  NestedToolCall,
   ProjectFileItem,
   ResourceSection,
   SessionListItem,
@@ -31,18 +32,23 @@ export type ChatEvent =
   | { kind: "text_delta"; delta: string }
   | { kind: "thinking_delta"; delta: string }
   /** 完整的 assistant 文本，回放会话历史时用。 */
-  | { kind: "assistant_message"; text: string }
+  | { kind: "assistant_message"; text: string; durationMs?: number }
   /** 历史里的完整思考文本，渲染为折叠卡片。 */
   | { kind: "thinking_message"; text: string }
-  | { kind: "assistant_end" }
-  | { kind: "tool_start"; id: string; name: string; args: unknown; skill?: SkillRef }
+  | { kind: "assistant_end"; durationMs?: number }
+  /**
+   * 工具调用。`parentToolCallId` 存在时这是另一个工具经 `ctx.executeTool()`
+   * 发起的**嵌套**调用：不进顶层卡片序列，渲染进父卡片的嵌套行（见
+   * `NestedToolCall`）。
+   */
+  | { kind: "tool_start"; id: string; name: string; args: unknown; skill?: SkillRef; parentToolCallId?: string }
   /**
    * 仍在运行的工具的部分结果。
    *
    * `details` 带工具自己的实时载荷；子代理卡片正是用它画的，各子代理行才能
    * 在调用期间动起来。
    */
-  | { kind: "tool_update"; id: string; text: string; details?: JsonValue }
+  | { kind: "tool_update"; id: string; text: string; details?: JsonValue; parentToolCallId?: string }
   | {
       kind: "tool_end";
       id: string;
@@ -58,6 +64,23 @@ export type ChatEvent =
       details?: JsonValue;
       /** 该调用读取或运行了技能的一部分时设置。 */
       skill?: SkillRef;
+      /**
+       * 本次执行的耗时（SDK 持久化在结果消息上，单调钟）：live 事件与
+       * 回放读同一字段，重载前后一致。历史结果可能没有。
+       */
+      durationMs?: number;
+      parentToolCallId?: string;
+      /**
+       * 该调用运行期间经 `ctx.executeTool()` 发起的嵌套调用，回放时从
+       * 持久化的 `nestedCalls` 记录投影；实时路径嵌套调用走独立的
+       * `tool_*` 事件（带 `parentToolCallId`），不在此字段里。
+       */
+      nested?: NestedToolCall[];
+      /**
+       * 结果 `content` 里的图片部分（如 codemode 脚本生成的图），与用户
+       * 附件同一 `TranscriptImage` 通道；宿主截到附件上限。没有则省略。
+       */
+      images?: TranscriptImage[];
     }
   | { kind: "agent_start" }
   | { kind: "agent_end" }

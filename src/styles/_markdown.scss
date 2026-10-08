@@ -131,15 +131,19 @@
 }
 
 /* 附件缩略图。它在 `.bubble-content` 外面，因此不参与折叠裁剪：
-   折起来的是正文，而附件本来就不是正文的一部分。 */
-.bubble-images {
+   折起来的是正文，而附件本来就不是正文的一部分。
+   `.tool-images` 是工具卡片 body 里的结果图（如 codemode 生成）——同一
+   `TranscriptImage` 通道，同一缩略图视觉，选择器并列而不是复制一份规则。 */
+.bubble-images,
+.tool-images {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
 }
 
-.bubble-image > img {
+.bubble-image > img,
+.tool-image > img {
   display: block;
   /* 上限而不是固定尺寸：截图往往是宽的，小图标不该被拉大。
      `border-box` 是必需的：默认下 `max-height` 只管内容盒，那条边框会把
@@ -172,6 +176,19 @@
 
 .bubble.assistant > .bubble-footer {
   gap: 4px;
+}
+
+/* 这条回答的生成耗时（SDK 持久化的 durationMs，hover 才可见）：旁注而非
+   状态，用最安静的前景；没有耗时的历史消息不占位。 */
+.bubble-duration {
+  padding: 0 2px;
+  color: var(--text-dim);
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+
+  &:empty {
+    display: none;
+  }
 }
 
 /* 只有长到值得折叠的消息才有这两个开关（「回到开头」另要求未折叠，见上）。 */

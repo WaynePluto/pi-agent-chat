@@ -34,9 +34,25 @@ function modelRef(model: { provider: string; id: string }): string {
  * 时菜单刻意留空：完整目录属于原生选择器，不属于一个小弹层。
  */
 export async function buildModelCatalog(runtime: PiRuntime): Promise<ModelCatalog> {
-  const items = runtime.scopedModels.map(({ model }) => ({ provider: model.provider, id: model.id }));
+  const items = runtime.scopedModels.map(({ model }) => ({
+    provider: model.provider,
+    id: model.id,
+    virtual: isVirtualModel(runtime, model),
+  }));
   items.sort((a, b) => (a.provider === b.provider ? codeUnitOrder(a.id, b.id) : codeUnitOrder(a.provider, b.provider)));
   return { items };
+}
+
+/**
+ * 是否扩展注册的虚拟模型（每次请求路由到物理模型）。catalog 里同名非
+ * 虚拟实体不存在即虚拟；只在行内标注供识别，选择与切换照常。
+ */
+function isVirtualModel(runtime: PiRuntime, model: { provider: string; id: string }): boolean {
+  try {
+    return runtime.modelRuntime.getPhysicalModel(model.provider, model.id) === undefined;
+  } catch {
+    return false;
+  }
 }
 
 function codeUnitOrder(a: string, b: string): number {
@@ -106,6 +122,7 @@ function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelIte
     const description = [
       model.provider,
       isSubscription(model.provider) ? t("subscriptionLabel") : undefined,
+      isVirtualModel(runtime, model) ? t("virtualModelMarker") : undefined,
       isDefault ? t("defaultModelMarker") : undefined,
     ]
       .filter(Boolean)
@@ -237,7 +254,9 @@ export async function manageScopedModels(runtime: PiRuntime, ui: ModelPickerUi):
     for (const model of list) {
       items.push({
         label: model.id,
-        description: model.provider,
+        description: [model.provider, isVirtualModel(runtime, model) ? t("virtualModelMarker") : undefined]
+          .filter(Boolean)
+          .join(" \u00b7 "),
         detail: describeModel(model),
         picked: enabled.has(modelRef(model)),
         model,

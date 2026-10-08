@@ -1,6 +1,6 @@
 import type { MessageBubble } from "../bubble.js";
 import type { Collapsible } from "../collapsible.js";
-import type { JsonValue, SubagentSetup, ToolSetup } from "../../shared/protocol.js";
+import type { JsonValue, NestedToolCall, SubagentSetup, ToolSetup, TranscriptImage } from "../../shared/protocol.js";
 import { messagesContentEl } from "../shell.js";
 
 /**
@@ -36,6 +36,17 @@ export interface ToolCard extends Collapsible {
   path?: string;
   /** 工具自定义的结构化结果；见 `renderDetailsBlock`。 */
   details?: JsonValue;
+  /** 结果 `content` 里的图片（如 codemode 生成），进卡片 body 的栅格。 */
+  images?: TranscriptImage[];
+  /** 本次执行的耗时（持久化在结果消息上）；无则不显示。 */
+  durationMs?: number;
+  /** 标题栏耗时槽（`startToolCard` 里接线）；没有耗时的历史结果保持为空。 */
+  setDuration?: (ms: number | undefined) => void;
+  /**
+   * 该工具经 `ctx.executeTool()` 发起的嵌套调用，按调用 id。实时由嵌套
+   * 工具事件逐条登记，回放在 `tool_end` 上一并注入（`nestedCalls` 记录）。
+   */
+  nested: Map<string, NestedToolCall>;
 }
 
 /**

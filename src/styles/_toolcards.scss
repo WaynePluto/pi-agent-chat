@@ -74,6 +74,18 @@
   }
 }
 
+/* 执行耗时（SDK 持久化的 durationMs）。与 `.card-status` 同一视觉层：
+   都是标题栏的旁注，安静、不参与状态语义。没有耗时的历史结果不占位。 */
+.card-duration {
+  flex: none;
+  color: var(--text-dim);
+  opacity: 0.8;
+
+  &:empty {
+    display: none;
+  }
+}
+
 /* 技能归属徽章：模型自己加载技能时来的是一次普通 `read`，这枚徽章是区分两者的唯一信号。 */
 .skill-badge {
   margin-left: 6px;
@@ -130,7 +142,6 @@
 }
 
 /* -- subagent 卡片：每一路一行 -------------------------------------------- */
-
 .lane-list {
   display: flex;
   flex-direction: column;
@@ -196,6 +207,72 @@
   display: flex;
   gap: 6px;
   margin-top: 4px;
+}
+
+/* -- 嵌套调用行（ctx.executeTool()）-------------------------------------- */
+
+.nested-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 2px;
+  padding-left: 6px;
+  border-left: 1px solid var(--line-soft);
+}
+
+.nested-row {
+  border-left: 2px solid var(--border);
+  padding: 1px 0 1px 8px;
+
+  &.nested-running {
+    border-left-color: var(--pulse);
+  }
+
+  &.nested-ok {
+    border-left-color: var(--verdant);
+  }
+
+  &.nested-error {
+    border-left-color: var(--ember);
+  }
+}
+
+.nested-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.nested-mark {
+  flex: none;
+}
+
+.nested-running > .nested-head > .nested-mark {
+  color: var(--pulse);
+}
+
+.nested-error > .nested-head > .nested-mark {
+  color: var(--ember);
+}
+
+.nested-name {
+  color: var(--text);
+  word-break: break-word;
+}
+
+.nested-duration {
+  color: var(--text-dim);
+}
+
+.nested-args {
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.nested-error {
+  color: var(--ember);
+  word-break: break-word;
 }
 
 /* 工具自带 `details` 负载的通用树，默认折叠。 */

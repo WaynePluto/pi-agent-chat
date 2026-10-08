@@ -36,6 +36,7 @@ export type {
   ExtensionWidget,
   ModelCatalog,
   ModelOption,
+  NestedToolCall,
   ProjectFileItem,
   ResourceItem,
   ResourceScope,

@@ -1,4 +1,4 @@
-import { SUBAGENT_TOOL, type ChatEvent, type JsonValue, type SkillRef } from "../../shared/protocol.js";
+import { SUBAGENT_TOOL, type ChatEvent, type JsonValue, type NestedToolCall, type SkillRef, type TranscriptImage } from "../../shared/protocol.js";
 import { CARD_CLASSES, WORK_CLASSES, createCollapsible } from "../collapsible.js";
 import { button, el } from "../dom.js";
 import {
@@ -6,6 +6,7 @@ import {
   MAX_LANE_DETAIL_CHARS,
   MAX_TOOL_ARGS_CHARS,
   MAX_TOOL_OUTPUT_CHARS,
+  formatDuration,
   truncate,
 } from "../format.js";
 import { post } from "../host.js";
@@ -181,11 +182,20 @@ export function startToolCard(id: string, name: string, args: unknown, skill?: S
   entry.toolName = name;
   entry.argsText = summarizeArgs(args);
   entry.bodyText = "";
+  entry.nested = new Map();
+  // 耗时挂在标题栏状态之后；没有（历史结果缺失）就整个不占位。
+  const duration = el("span", "card-duration");
+  entry.statusEl.after(duration);
+  entry.setDuration = (ms: number | undefined) => {
+    duration.textContent = formatDuration(ms);
+  };
   st.toolCards.set(id, entry);
-  // 折叠时 body 永不渲染，其文本（args、输出、patch、details）只有经
-  // 这个区域才可搜索；闭包读取的是活的 entry，tool_end 会持续填充。
+  // 折叠时 body 永不渲染，其文本（args、输出、patch、details、嵌套调用）
+  // 只有经这个区域才可搜索；闭包读取的是活的 entry，tool_end 会持续填充。
   registerHiddenBody(entry, () =>
-    [entry.argsText, entry.bodyText, entry.patch, flattenDetailText(entry.details)].filter(Boolean).join("\n"));
+    [entry.argsText, entry.bodyText, entry.patch, nestedCallText(entry), flattenDetailText(entry.details)]
+      .filter(Boolean)
+      .join("\n"));
   // 必须在 entry 存在之后展开：展开会渲染 body，而 body 回读 `entry`。
   // 委派卡片是子代理动态的唯一视图，父级等待时自身无输出：
   // 默认折叠会让窗口看起来冻住。
@@ -218,6 +228,17 @@ export function endToolCard(event: Extract<ChatEvent, { kind: "tool_end" }>): vo
   entry.patch = event.patch;
   entry.path = event.path;
   entry.details = event.details;
+  entry.images = event.images;
+  entry.durationMs = event.durationMs;
+  entry.setDuration?.(event.durationMs);
+  // 回放把持久化的 nestedCalls 记录一并交给父卡片；实时路径的嵌套调用
+  // 已作为独立事件登记过，这里不动。两侧都在有嵌套调用时展开卡片
+  //（见 `startNestedCall`）。
+  if (event.nested) for (const call of event.nested) entry.nested.set(call.id, call);
+  if (entry.nested.size > 0) entry.setExpanded(true);
+  // 图片是结果的主体（如 codemode 生成、read 读图）：折叠等于把答案藏
+  // 起来，与嵌套调用同一先例默认展开。
+  if (entry.images && entry.images.length > 0) entry.setExpanded(true);
   entry.invalidate();
   entry.refresh();
 
@@ -231,7 +252,57 @@ export function endToolCard(event: Extract<ChatEvent, { kind: "tool_end" }>): vo
   st.toolCards.delete(event.id);
 }
 
-/** 工具卡片完整 body：args 摘要 + 输出文本或 diff + 动作。 */
+/* ---------------------------------------------------------------- */
+/* 嵌套工具调用（`ctx.executeTool()`）                                */
+/* ---------------------------------------------------------------- */
+
+/**
+ * 登记一条嵌套调用的开始。父卡片正在运行、是它的 body 承载这些行——
+ * 不进顶层卡片序列，也不计执行过程块的「工具 N」。
+ *
+ * 父卡片不在 `st.toolCards` 时（父已结束但嵌套调用仍在跑，SDK 记录里的
+ * `unfinished` 就是这个形态）退回顶层卡片：诚实展示，不静默吞掉。
+ */
+export function startNestedCall(parentToolCallId: string, id: string, name: string, args: unknown): void {
+  const parent = st.toolCards.get(parentToolCallId);
+  if (!parent) {
+    startToolCard(id, name, args);
+    return;
+  }
+  // 嵌套调用是真实的工具执行，资源面板照常点亮。
+  markToolUsed(name);
+  parent.nested.set(id, { id, name, args: args as JsonValue, status: "running" });
+  // 第一路嵌套调用把父卡片展开：它此刻是这轮活动唯一的实时视图，折叠
+  // 会让窗口看起来冻住——与 subagent 卡片同一先例。回放侧由
+  // `endToolCard` 对 `nested` 记录做同一件事，两条路径终态一致。
+  if (parent.nested.size === 1) parent.setExpanded(true);
+  parent.invalidate();
+  parent.refresh();
+}
+
+/** 嵌套调用结束：更新父卡片里的那一行；父已不在时同上退回顶层。 */
+export function endNestedCall(parentToolCallId: string, event: Extract<ChatEvent, { kind: "tool_end" }>): void {
+  const parent = st.toolCards.get(parentToolCallId);
+  if (!parent) {
+    endToolCard(event);
+    return;
+  }
+  const existing = parent.nested.get(event.id);
+  parent.nested.set(event.id, {
+    id: event.id,
+    name: event.name,
+    args: (existing?.args ?? (event.args as JsonValue | undefined)) ?? undefined,
+    status: event.isError ? "error" : "ok",
+    durationMs: event.durationMs,
+    // 失败文本就是这行的结果；错误文本比成功输出更该留（成功输出太长，
+    // 父卡片的 body 已经装着父工具自己的输出）。
+    error: event.isError ? truncate(event.text, MAX_LANE_DETAIL_CHARS) : undefined,
+  });
+  parent.invalidate();
+  parent.refresh();
+}
+
+/** 工具卡片完整 body：args 摘要 + 输出文本或 diff + 嵌套调用 + 动作。 */
 function renderToolBody(entry: ToolCard, body: HTMLElement): void {
   body.replaceChildren();
   // subagent 卡片用 `details` 而不是结果文本构建：调用运行期间该
@@ -253,7 +324,74 @@ function renderToolBody(entry: ToolCard, body: HTMLElement): void {
   } else if (entry.bodyText) {
     body.appendChild(el("pre", "tool-body", truncate(entry.bodyText, MAX_TOOL_OUTPUT_CHARS)));
   }
+  if (entry.images && entry.images.length > 0) renderToolImages(entry.images, body);
+  if (entry.nested.size > 0) renderNestedCalls(entry.nested, body);
   if (entry.details !== undefined) renderDetailsBlock(entry.details, body);
+}
+
+/**
+ * 结果图片（如 codemode 生成）：与用户附件同一 `TranscriptImage` 通道、
+ * 同一缩略图视觉（`.tool-images` 复用 `.bubble-images` 的样式规则）。
+ */
+function renderToolImages(images: TranscriptImage[], body: HTMLElement): void {
+  const strip = el("div", "tool-images");
+  for (const image of images) {
+    const figure = el("span", "tool-image");
+    const img = document.createElement("img");
+    img.src = `data:${image.mimeType};base64,${image.data}`;
+    img.alt = image.name ?? "";
+    if (image.name) img.title = image.name;
+    figure.appendChild(img);
+    strip.appendChild(figure);
+  }
+  body.appendChild(strip);
+}
+
+/**
+ * 嵌套调用行：调用方工具运行期间经 `ctx.executeTool()` 跑了什么。
+ *
+ * 与子代理 lane 行同一语法（左缘状态色 + 名称 + 耗时），但只读——这是
+ * 已发生调用的记录，不是可介入的运行。
+ */
+function renderNestedCalls(calls: Map<string, NestedToolCall>, body: HTMLElement): void {
+  const list = el("div", "nested-list");
+  for (const call of calls.values()) {
+    const row = el("div", `nested-row nested-${call.status}`);
+    const head = el("div", "nested-head");
+    head.appendChild(el("span", "nested-mark", nestedMark(call.status)));
+    head.appendChild(el("span", "nested-name", call.name));
+    const duration = formatDuration(call.durationMs);
+    if (duration) head.appendChild(el("span", "nested-duration", duration));
+    row.appendChild(head);
+    if (call.args !== undefined) {
+      row.appendChild(el("div", "nested-args", truncate(summarizeArgs(call.args) || "", MAX_TOOL_ARGS_CHARS)));
+    }
+    if (call.error) row.appendChild(el("div", "nested-error", call.error));
+    list.appendChild(row);
+  }
+  body.appendChild(list);
+}
+
+function nestedMark(status: NestedToolCall["status"]): string {
+  switch (status) {
+    case "ok":
+      return "\u2713";
+    case "error":
+      return "\u2717";
+    case "unfinished":
+      return "\u25a0";
+    default:
+      return "\u25cf";
+  }
+}
+
+/** 嵌套调用行进折叠卡片的可搜索文本。 */
+function nestedCallText(entry: ToolCard): string {
+  if (entry.nested.size === 0) return "";
+  return [...entry.nested.values()]
+    .map((call) => [call.name, summarizeArgs(call.args ?? undefined), call.error].filter(Boolean).join(" "))
+    .filter(Boolean)
+    .join("\n");
 }
 
 /**

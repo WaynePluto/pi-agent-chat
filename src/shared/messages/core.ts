@@ -271,6 +271,37 @@ export const sharedMessages = {
     en: "Warn when Anthropic subscription auth may use paid extra usage",
     zh: "订阅认证可能产生付费额外用量时警告",
   },
+  settingsCodemode: { en: "Codemode", zh: "Codemode" },
+  settingsCodemodeDetail: {
+    en: "How the codemode tool presents other tools (mode and description budget)",
+    zh: "codemode 工具如何呈现其他工具（模式与描述预算）",
+  },
+  codemodeModeOnDetail: {
+    en: "Scripts call tools directly; callable tools get a note in their description",
+    zh: "脚本直接调用工具；可被调用的工具在描述中加注",
+  },
+  codemodeModeOnlyDetail: {
+    en: "The codemode description lists every callable tool; active direct tools are not declared to the model",
+    zh: "codemode 描述列出全部可调用工具；不再向模型声明直接的活跃工具",
+  },
+  codemodeInlineBudget: { en: "Description budget", zh: "描述预算" },
+  codemodeInlineBudgetDetail: {
+    en: "Estimated tokens the codemode description may spend on tool declarations",
+    zh: "codemode 描述在工具声明上可花的 token（估算）",
+  },
+  codemodeInlineBudgetPrompt: {
+    en: "Estimated tokens (characters / 4); a positive integer",
+    zh: "token 估算值（字符数 / 4）；正整数",
+  },
+  codemodeInlineBudgetTitle: { en: "Codemode description budget", zh: "Codemode 描述预算" },
+  codemodeReset: { en: "Reset to defaults", zh: "恢复默认" },
+  codemodeResetDetail: {
+    en: "Remove the codemode section from settings.json",
+    zh: "删除 settings.json 中的 codemode 段",
+  },
+  codemodeResetDone: { en: "Codemode settings reset to defaults", zh: "Codemode 设置已恢复默认" },
+  codemodeBudgetInvalid: { en: "Description budget must be a positive integer", zh: "描述预算必须是正整数" },
+  virtualModelMarker: { en: "virtual", zh: "虚拟" },
   renameRunningSession: {
     en: "A subagent is writing to this session; rename it after the run finishes.",
     zh: "子代理正在写入该会话，运行结束后再重命名。",

@@ -62,7 +62,12 @@ function scrollToBubbleStart(root: HTMLElement): void {
   );
 }
 
-export function appendMarkdownBubble(role: string, text: string, extra?: HTMLElement): MessageBubble {
+export function appendMarkdownBubble(
+  role: string,
+  text: string,
+  extra?: HTMLElement,
+  durationMs?: number,
+): MessageBubble {
   const index = ++st.bubbleIndex;
   const remembered = st.currentView.bubbles.get(index);
   const bubble = createMessageBubble({
@@ -73,6 +78,8 @@ export function appendMarkdownBubble(role: string, text: string, extra?: HTMLEle
     onToggle: (folded) => st.currentView.bubbles.set(index, folded),
     onGotoStart: () => scrollToBubbleStart(bubble.root),
   });
+  // 回放路径的耗时（持久化在消息上）；实时路径由 assistant_end 设置。
+  if (durationMs !== undefined) bubble.setDuration(durationMs);
   // 刚到的消息才是正在读的，同角色上一条随之折叠——除非用户手动开合过，
   // 用户决定优先于默认。用户正在上方阅读（未跟随）时改为暂存：
   // 见 deferredFolds。

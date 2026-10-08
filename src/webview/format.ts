@@ -12,6 +12,19 @@ export function formatTokens(value: number): string {
   return String(value);
 }
 
+/**
+ * SDK 持久化的执行耗时（单调钟），紧凑显示：830ms / 1.2s / 2m04s。
+ * 非法值（含历史结果缺失）返回空串，调用方据此不占位。
+ */
+export function formatDuration(ms: number | undefined): string {
+  if (ms === undefined || !Number.isFinite(ms) || ms < 0) return "";
+  if (ms < 1_000) return `${Math.round(ms)}ms`;
+  if (ms < 60_000) return `${(ms / 1_000).toFixed(1)}s`;
+  const minutes = Math.floor(ms / 60_000);
+  const seconds = Math.round((ms % 60_000) / 1_000);
+  return `${minutes}m${String(seconds).padStart(2, "0")}s`;
+}
+
 /* 显示上限。长内容截断而非丢弃：完整文本仍在会话文件与工具自己的输出里。 */
 export const MAX_TOOL_OUTPUT_CHARS = 4000;
 export const MAX_DIFF_LINES = 400;

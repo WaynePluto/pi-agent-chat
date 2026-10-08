@@ -12,12 +12,12 @@ The package sources are linked below for verification.
 MIT-licensed packages
 ---------------------
 
-@earendil-works/pi-agent-core@0.99.2
-@earendil-works/pi-coding-agent@0.99.2
-@earendil-works/pi-ai@0.99.2
-@earendil-works/pi-tui@0.99.2
-@earendil-works/pi-codemode@0.99.2
-@earendil-works/pi-mcp@0.99.2
+@earendil-works/pi-agent-core@1.1.0
+@earendil-works/pi-coding-agent@1.1.0
+@earendil-works/pi-ai@1.1.0
+@earendil-works/pi-tui@1.1.0
+@earendil-works/pi-codemode@1.1.0
+@earendil-works/pi-mcp@1.1.0
 Source: https://github.com/earendil-works/pi
 
 quickjs-wasi@3.6.2
@@ -26,7 +26,7 @@ Source: https://github.com/vercel-labs/quickjs-wasi
 undici@8.11.2
 Source: https://github.com/nodejs/undici
 
-marked@18.0.14
+marked@18.1.0
 Source: https://github.com/markedjs/marked
 
 jiti@2.7.0

@@ -1,5 +1,5 @@
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { resultText, toolFilePath } from "../history.js";
+import { resultImages, resultText, toolFilePath } from "../history.js";
 import { matchSkill } from "../skills.js";
 import { sanitizeToolDetails } from "../tool-details.js";
 import type { ChatBridge } from "./chat-bridge.js";
@@ -57,8 +57,11 @@ export function onSessionEvent(bridge: ChatBridge, session: AgentSession, event:
          cache / cost，SDK 落盘后即刷新 footer（含只请求工具的响应）；SDK
          在 SessionManager 追加 message_end 之前通知订阅者，故等当前栈展开
          后再收集。新会话文件在首条 assistant 消息完成时才写盘，此处刷新让
-         列表先见到它。 */
-      bridge.emit(session, { kind: "assistant_end" });
+         列表先见到它。`durationMs` 随消息持久化，回放读同一字段。 */
+      bridge.emit(session, {
+        kind: "assistant_end",
+        durationMs: event.message.role === "assistant" ? event.message.durationMs : undefined,
+      });
       if (event.message.role === "assistant") {
         bridge.liveFailedResponses.delete(session.sessionId);
         bridge.liveAbortedResponses.delete(session.sessionId);
@@ -92,6 +95,7 @@ export function onSessionEvent(bridge: ChatBridge, session: AgentSession, event:
         name: event.toolName,
         args: event.args,
         skill: matchSkill(bridge.skillIndex, event.toolName, event.args, bridge.runtime.cwd),
+        parentToolCallId: event.parentToolCallId,
       });
       break;
     case "tool_execution_update":
@@ -101,6 +105,7 @@ export function onSessionEvent(bridge: ChatBridge, session: AgentSession, event:
         text: resultText(event.partialResult),
         // 未结束工具的实时负载：与最终结果同条件清洗——它也要过 postMessage。
         details: sanitizeToolDetails(event.toolName, event.partialResult?.details),
+        parentToolCallId: event.parentToolCallId,
       });
       break;
     case "tool_execution_end": {
@@ -118,6 +123,9 @@ export function onSessionEvent(bridge: ChatBridge, session: AgentSession, event:
         path: toolFilePath(args, bridge.runtime.cwd),
         details: sanitizeToolDetails(event.toolName, event.result?.details),
         skill: matchSkill(bridge.skillIndex, event.toolName, args, bridge.runtime.cwd),
+        durationMs: event.durationMs,
+        parentToolCallId: event.parentToolCallId,
+        images: resultImages(event.result),
       });
       break;
     }

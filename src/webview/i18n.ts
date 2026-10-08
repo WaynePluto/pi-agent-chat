@@ -55,6 +55,8 @@ const en = {
   modelPickerOther: sharedMessages.otherModels.en,
   modelPickerLoading: "Loading models...",
   modelPickerNone: "None",
+  /* 虚拟模型的行内标注：扩展注册、每次请求路由到物理模型。 */
+  modelVirtual: "virtual",
   thinkingPickerTitle: "Thinking level",
   inputPlaceholder: "Ask Pi...  (Enter to send, Shift/Ctrl+Enter for newline, / commands, @ paths, paste screenshots)",
   compactionInputPlaceholder: "Compacting context... Enter queues your message",
@@ -289,6 +291,7 @@ const zh: Dict = {
   modelPickerOther: sharedMessages.otherModels.zh,
   modelPickerLoading: "正在加载模型...",
   modelPickerNone: "无",
+  modelVirtual: "虚拟",
   thinkingPickerTitle: "思考等级",
   inputPlaceholder: "问问 Pi...（Enter 发送，Shift/Ctrl+Enter 换行，/ 命令，@ 引用路径，可粘贴截图）",
   compactionInputPlaceholder: "正在压缩上下文……按 Enter 将消息加入队列",
