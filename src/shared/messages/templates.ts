@@ -119,14 +119,14 @@ export const sharedTemplates = {
     zh: (path: string) => `从 ${path} 移除 defaultTools；本工作区恢复沿用用户设置`,
   },
   favoriteModelSet: {
-    en: (reference: string, favorite: boolean) =>
-      favorite ? `${reference} added to frequently used models` : `${reference} removed from frequently used models`,
-    zh: (reference: string, favorite: boolean) =>
-      favorite ? `已将 ${reference} 设为常用模型` : `已将 ${reference} 移出常用模型`,
+    en: (name: string, favorite: boolean) =>
+      favorite ? `${name} added to frequently used models` : `${name} removed from frequently used models`,
+    zh: (name: string, favorite: boolean) =>
+      favorite ? `已将 ${name} 设为常用模型` : `已将 ${name} 移出常用模型`,
   },
   defaultModelSet: {
-    en: (reference: string) => `default model set to ${reference}`,
-    zh: (reference: string) => `默认模型已设为 ${reference}`,
+    en: (name: string) => `default model set to ${name}`,
+    zh: (name: string) => `默认模型已设为 ${name}`,
   },
   settingChanged: {
     en: (label: string, value: string) => `${label}: ${value}`,

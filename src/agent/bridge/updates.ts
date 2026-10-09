@@ -163,7 +163,7 @@ export async function postState(bridge: ChatBridge): Promise<void> {
   const probe = new AbortController();
   bridge.availabilityProbe = probe;
   const session = bridge.displayedSession;
-  const model = session.model as { id?: string; provider?: string } | undefined;
+  const model = session.model as { id?: string; provider?: string; name?: string } | undefined;
   let needsAuth = false;
   try {
     needsAuth = (await bridge.runtime.getAvailableModels(probe.signal)).length === 0;
@@ -180,6 +180,7 @@ export async function postState(bridge: ChatBridge): Promise<void> {
     sessionName: sessionDisplayName(session),
     modelId: model?.id,
     providerId: model?.provider,
+    modelName: model?.name,
     thinkingLevel: session.thinkingLevel,
     thinkingLevels: session.getAvailableThinkingLevels(),
     // replay 期间 live 运行继续，但屏上 transcript 是静态历史：无停止按钮、无运行指示。

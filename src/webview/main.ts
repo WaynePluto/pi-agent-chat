@@ -327,8 +327,9 @@ function applyState(next: ChatState): void {
     : parentWaiting
       ? t.parentFollowUpTitle
       : t.followUpTitle;
-  // 模型 / 思考等级的值自解释，不需要文字前缀。
-  modelBtn.textContent = state.modelId ?? "-";
+  // 模型 / 思考等级的值自解释，不需要文字前缀。chip 显示模型名；规范的
+  // `provider/id` 引用留在 tooltip 里。
+  modelBtn.textContent = state.modelName ?? state.modelId ?? "-";
   modelBtn.title = state.providerId ? `${t.modelTitle}: ${state.providerId}/${state.modelId}` : t.modelTitle;
   thinkingBtn.textContent = state.thinkingLevel ?? "-";
   // 不可选思考等级的模型只报一个固定值（通常是 off）；隐藏控件免得点开一个死胡同。

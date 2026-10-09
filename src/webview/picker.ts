@@ -171,7 +171,8 @@ function buildModelRows(): PickerRow[] {
 
   for (const item of catalog?.items ?? []) {
     const current = item.id === state.modelId && item.provider === state.providerId;
-    const row = buildRow(item.id, {
+    // 行显示模型名；tooltip 保留规范的 `provider/id` 引用。
+    const row = buildRow(item.name ?? item.id, {
       // 虚拟模型的标注与供应商并列：识别它是虚拟的，选择行为不变。
       note: item.virtual ? `${item.provider} · ${t.modelVirtual}` : item.provider,
       current,

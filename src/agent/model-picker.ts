@@ -37,9 +37,10 @@ export async function buildModelCatalog(runtime: PiRuntime): Promise<ModelCatalo
   const items = runtime.scopedModels.map(({ model }) => ({
     provider: model.provider,
     id: model.id,
+    name: model.name,
     virtual: isVirtualModel(runtime, model),
   }));
-  items.sort((a, b) => (a.provider === b.provider ? codeUnitOrder(a.id, b.id) : codeUnitOrder(a.provider, b.provider)));
+  items.sort((a, b) => (a.provider === b.provider ? codeUnitOrder(a.name, b.name) : codeUnitOrder(a.provider, b.provider)));
   return { items };
 }
 
@@ -128,7 +129,7 @@ function buildModelItems(runtime: PiRuntime, models: AvailableModel[]): ModelIte
       .filter(Boolean)
       .join(" \u00b7 ");
     return {
-      label: `${isCurrent ? "$(check) " : ""}${model.id}`,
+      label: `${isCurrent ? "$(check) " : ""}${model.name}`,
       description,
       detail: describeModel(model),
       // 模型是默认值时也显示常用星标；藏掉它就没了直接取消
@@ -192,10 +193,10 @@ export async function pickModel(runtime: PiRuntime, ui: ModelPickerUi): Promise<
       const action = (event.button as ModelActionButton).action;
       if (action === "toggle-favorite") {
         const update = await toggleFavoriteModel(runtime, model, models.length);
-        ui.status(update === "cleared" ? t("favoriteModelsCleared") : tf("favoriteModelSet", modelRef(model), update === "added"));
+        ui.status(update === "cleared" ? t("favoriteModelsCleared") : tf("favoriteModelSet", model.name, update === "added"));
       } else {
         await runtime.setDefaultModel(model.provider, model.id);
-        ui.status(tf("defaultModelSet", modelRef(model)));
+        ui.status(tf("defaultModelSet", model.name));
       }
       // 重渲染，让星标/默认标记挪到新状态。
       quickPick.items = buildModelItems(runtime, models);
@@ -253,7 +254,7 @@ export async function manageScopedModels(runtime: PiRuntime, ui: ModelPickerUi):
     items.push({ label: provider, kind: vscode.QuickPickItemKind.Separator });
     for (const model of list) {
       items.push({
-        label: model.id,
+        label: model.name,
         description: [model.provider, isVirtualModel(runtime, model) ? t("virtualModelMarker") : undefined]
           .filter(Boolean)
           .join(" \u00b7 "),

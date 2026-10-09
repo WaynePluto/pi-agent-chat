@@ -188,7 +188,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -404,7 +404,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -620,7 +620,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -836,7 +836,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -1052,7 +1052,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -1268,7 +1268,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -1484,7 +1484,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -1700,7 +1700,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -1916,7 +1916,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -2132,7 +2132,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -2434,7 +2434,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -2736,7 +2736,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip hidden" title="Switch thinking level" disabled>
                 "off"
@@ -3038,7 +3038,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -3066,19 +3066,19 @@ Open in editor" type="button">
                       <span>
                         <svg/>
                     <span class="picker-name">
-                      "test-model"
+                      "Test Model"
                     <span class="picker-note">
                       "test-provider"
                   <div class="picker-row" title="test-provider/other-model">
                     <span class="picker-mark">
                     <span class="picker-name">
-                      "other-model"
+                      "Other Model"
                     <span class="picker-note">
                       "test-provider"
                   <div class="picker-row" title="second-provider/cheap-model">
                     <span class="picker-mark">
                     <span class="picker-name">
-                      "cheap-model"
+                      "Cheap Model"
                     <span class="picker-note">
                       "second-provider"
                 <button class="picker-more" type="button">
@@ -3365,7 +3365,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -3674,7 +3674,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -3997,7 +3997,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -4282,7 +4282,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -4544,7 +4544,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -4831,7 +4831,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -5179,7 +5179,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -5527,7 +5527,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -5971,7 +5971,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -6439,7 +6439,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -6933,7 +6933,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -7445,7 +7445,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -8056,7 +8056,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -8667,7 +8667,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -9346,7 +9346,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -10026,7 +10026,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model" disabled>
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level" disabled>
                 "medium"
@@ -10850,7 +10850,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -11674,7 +11674,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -11999,7 +11999,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -12463,7 +12463,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -12833,7 +12833,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -13215,7 +13215,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -13613,7 +13613,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -13998,7 +13998,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -14388,7 +14388,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model" disabled>
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level" disabled>
                 "medium"
@@ -14823,7 +14823,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -15238,7 +15238,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -15653,7 +15653,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -16074,7 +16074,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -16467,7 +16467,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -16936,7 +16936,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -17405,7 +17405,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -17908,7 +17908,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -18411,7 +18411,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -18914,7 +18914,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -19306,7 +19306,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -19786,7 +19786,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -20266,7 +20266,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -20746,7 +20746,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -21185,7 +21185,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -21624,7 +21624,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -22075,7 +22075,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -22515,7 +22515,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -22955,7 +22955,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"
@@ -23395,7 +23395,7 @@ Open in editor" type="button">
             <div id="composer-actions" class="composer-actions">
               <span class="overflow-slot">
               <button id="btn-model" class="chip" title="Switch model: test-provider/test-model">
-                "test-model"
+                "Test Model"
               <span class="overflow-slot">
               <button id="btn-thinking" class="chip" title="Switch thinking level">
                 "medium"

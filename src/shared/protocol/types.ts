@@ -139,6 +139,8 @@ export interface ChatState {
   sessionName?: string;
   modelId?: string;
   providerId?: string;
+  /** 模型显示名（`modelId` 是传给 SDK 的技术 id，不用于展示）。 */
+  modelName?: string;
   thinkingLevel?: string;
   /** 当前模型接受的思考等级，按 SDK 顺序。只有一条（或没有）即等级固定，composer 隐藏选择器。 */
   thinkingLevels?: string[];
@@ -186,6 +188,8 @@ export interface NestedToolCall {
 export interface ModelOption {
   provider: string;
   id: string;
+  /** 面向用户的显示名（SDK `BaseModel.name`）；`provider/id` 仍是唯一引用。 */
+  name: string;
   /** 扩展注册的虚拟模型（每次请求路由到物理模型）：行内标注，供识别。 */
   virtual?: boolean;
 }

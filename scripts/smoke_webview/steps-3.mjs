@@ -579,8 +579,8 @@ export const STEPS_3 = [
         type: "models",
         catalog: {
           items: [
-            { provider: "test-provider", id: "test-model" },
-            { provider: "router", id: "auto", virtual: true },
+            { provider: "test-provider", id: "test-model", name: "Test Model" },
+            { provider: "router", id: "auto", name: "Auto Route", virtual: true },
           ],
         },
       },

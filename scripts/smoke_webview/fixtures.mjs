@@ -12,6 +12,7 @@ export const baseState = {
   sessionId: "session-1",
   modelId: "test-model",
   providerId: "test-provider",
+  modelName: "Test Model",
   thinkingLevel: "medium",
   thinkingLevels: ["off", "low", "medium", "high"],
   isStreaming: false,
@@ -106,8 +107,8 @@ export const RESOURCE_SECTIONS = [
 
 export const MODEL_CATALOG = {
   items: [
-    { provider: "test-provider", id: "test-model" },
-    { provider: "test-provider", id: "other-model" },
-    { provider: "second-provider", id: "cheap-model" },
+    { provider: "test-provider", id: "test-model", name: "Test Model" },
+    { provider: "test-provider", id: "other-model", name: "Other Model" },
+    { provider: "second-provider", id: "cheap-model", name: "Cheap Model" },
   ],
 };
