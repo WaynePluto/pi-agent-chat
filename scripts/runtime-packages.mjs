@@ -120,10 +120,8 @@ export const runtimePackages = [
   // `import "@earendil-works/pi-ai"` 经 jiti 落到磁盘副本，副本自己的
   // `import "partial-json"` 只能对 dist/node_modules 解析、没有兜底可退。
   // 缺了它们，任何碰到 SDK 的扩展都死于 "Cannot find module"。
-  // SDK harness 层的运行时依赖（agent-core 在顶层再导出其 context 辅助）。
-  // SDK 的入口闭包只触达 `chord/context` 与主入口，esbuild 版 `chord/node`
-  // 打包器触达不到，故 esbuild 本身无需随包发行。
-  "@earendil-works/chord",
+  // SDK harness 层的运行时依赖（agent-core 在顶层再导出其 context 辅助）；
+  // 1.2.0 起上游移除了 chord（其 bundler 辅助已内联），pi-telemetry 归 pi-ai 依赖。
   "@earendil-works/pi-telemetry",
   // pi-codemode 的沙箱引擎（QuickJS WASM）。
   "quickjs-wasi",

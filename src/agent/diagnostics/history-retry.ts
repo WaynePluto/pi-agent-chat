@@ -58,7 +58,12 @@ export async function runHistoryReplayTest(cwd: string): Promise<DiagnosticResul
  * user 尾巴，仍走同一空批路径。运行以桩代之；真实请求是 live 测试的事。
  */
 export async function runManualRetryTest(cwd: string): Promise<DiagnosticResult[]> {
-  type Runner = { _runAgentPrompt: (messages: unknown[]) => Promise<void> };
+  // 桩打在 agent 的公开 `prompt` 上：起始消息批正是它收到的参数，
+  // 「0 新消息」这一不变式在此处最直接可见（运行循环本身照真跑）。
+  type PromptSink = { prompt: (messages: unknown[]) => Promise<void>; hasQueuedMessages(): boolean };
+  const stubPrompt = (session: AgentSession, sink: (messages: unknown[]) => Promise<void>): void => {
+    (session.agent as unknown as PromptSink).prompt = sink;
+  };
   const user = (text: string): StoredMessage => ({
     role: "user",
     content: [{ type: "text", text }],
@@ -112,18 +117,18 @@ export async function runManualRetryTest(cwd: string): Promise<DiagnosticResult[
     const stoppedNotContinuable = isContinuable(failed);
 
     let batch: unknown[] | undefined;
-    (failed as unknown as Runner)._runAgentPrompt = async (messages) => {
+    stubPrompt(failed, async (messages) => {
       batch = messages;
-    };
+    });
     const resumed = await resumeStalledRun(failed);
     const left = failed.agent.state.messages;
 
     /* 续跑被停止的运行：同一空批路径，aborted 尾巴照丢（供应商无法从
        被中止的响应继续）。 */
     let stoppedBatch: unknown[] | undefined;
-    (stopped as unknown as Runner)._runAgentPrompt = async (messages) => {
+    stubPrompt(stopped, async (messages) => {
       stoppedBatch = messages;
-    };
+    });
     const stoppedResumed = await resumeStalledRun(stopped);
     const stoppedLeft = stopped.agent.state.messages;
     /* 忽略必须持久化：0.87.0 起 provider 上下文取自 SessionManager 的规范
@@ -222,7 +227,12 @@ export async function runReplayedRetryOfferTest(cwd: string): Promise<Diagnostic
  * 在前一条成功响应上时也能在 settle 产出提议（上报过的「超时卡片无按钮」）。
  */
 export async function runRetryOfferLifecycleTest(cwd: string): Promise<DiagnosticResult[]> {
-  type Runner = { _runAgentPrompt: (messages: unknown[]) => Promise<void> };
+  // 桩打在私有 `_startRun` 上（resume 的现行入口），模拟一轮真实运行的
+  // 事件序列；经 receive() 直喂 bridge，不碰真模型。
+  type Runner = { _startRun: (trigger: unknown, onStarted?: () => void) => Promise<void> };
+  const stubRun = (session: AgentSession, body: () => Promise<void>): void => {
+    (session as unknown as Runner)._startRun = async () => body();
+  };
   const name = "retry offer lifecycle";
   let dir: string | undefined;
   let runtime: PiRuntime | undefined;
@@ -268,7 +278,7 @@ export async function runRetryOfferLifecycleTest(cwd: string): Promise<Diagnosti
     };
 
     // 重试 A 拿到合法的工具请求响应，随后工具活动后的供方调用超时；A 成功，超时归提议 B。
-    (runtime.session as unknown as Runner)._runAgentPrompt = async () => {
+    stubRun(runtime.session, async () => {
       const toolRequest = response("toolUse", "calling tool");
       runtime!.session.agent.state.messages.push(toolRequest);
       receive({ type: "message_end", message: toolRequest });
@@ -286,7 +296,7 @@ export async function runRetryOfferLifecycleTest(cwd: string): Promise<Diagnosti
       receive({ type: "message_end", message: laterFailure });
       runtime!.session.sessionManager.appendMessage(laterFailure);
       receive({ type: "agent_settled" });
-    };
+    });
     posted.length = 0;
     await bridge.handleMessage({ type: "retry" });
     const duringRun = retryStates(posted).includes("running");
@@ -298,13 +308,13 @@ export async function runRetryOfferLifecycleTest(cwd: string): Promise<Diagnosti
     const afterReplay = latestRetryStates(posted);
 
     // 重试 B 拿不到任何成功响应：B 失败、新打断归提议 C；A 不得被 B 的下场改写。
-    (runtime.session as unknown as Runner)._runAgentPrompt = async () => {
+    stubRun(runtime.session, async () => {
       const failure = response("error", "");
       runtime!.session.agent.state.messages.push(failure);
       receive({ type: "message_end", message: failure });
       runtime!.session.sessionManager.appendMessage(failure);
       receive({ type: "agent_settled" });
-    };
+    });
     posted.length = 0;
     await bridge.handleMessage({ type: "retry" });
     const afterFailedRetry = latestRetryStates(posted);

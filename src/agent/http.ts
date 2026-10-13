@@ -70,7 +70,7 @@ export function configureHttpProxy(cwd: string, log: (message: string) => void):
  * 生效的 `httpIdleTimeoutMs` 变化时再次调用，对齐 CLI 在其设置选择器里
  * 的重配方式。
  */
-export function configureHttpDispatcher(timeoutMs: number | undefined = DEFAULT_HTTP_IDLE_TIMEOUT_MS): void {
+export function configureHttpDispatcher(timeoutMs: number | string | undefined = DEFAULT_HTTP_IDLE_TIMEOUT_MS): void {
   const normalized = parseHttpIdleTimeoutMs(timeoutMs) ?? DEFAULT_HTTP_IDLE_TIMEOUT_MS;
   const dispatcher = withUndiciErrorListener(
     new undici.EnvHttpProxyAgent({

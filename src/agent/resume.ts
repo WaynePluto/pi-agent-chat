@@ -8,27 +8,61 @@ import type { AgentSession, SessionMessageEntry } from "@earendil-works/pi-codin
  * SDK-MIRROR: `core/agent-session.ts`，复刻自动重试的两步：把中断的响应
  * 持久化地从模型上下文忽略（`appendContextEdit(id, null)`——0.87.0 起
  * SDK 自动重试放弃一次尝试时写的就是它；原始 transcript 保留显示，
- * 供应商拒绝空 assistant 结尾）；以空批走私有 `_runAgentPrompt`——外层
- * 循环管 streaming、重试、压缩与 settle，直调 agent 则 UI 永远等不到
- * settle。0.87.0 起 provider 上下文一律取自 SessionManager 的规范投影
- * （`prepareRequest` 每次请求整体替换消息），改写 `agent.state.messages`
+ * 供应商拒绝空 assistant 结尾）；再以空起始消息批走私有 `_startRun`
+ * ——外层循环管 streaming、重试、压缩与 settle，直调 agent 则 UI 永远等
+ * 不到 settle。0.87.0 起 provider 上下文一律取自 SessionManager 的规范
+ * 投影（`prepareRequest` 每次请求整体替换消息），改写 `agent.state.messages`
  * 对请求已无效果——丢弃若不走持久化忽略，恢复的首个请求就会带着空
- * assistant 结尾发给供应商。
+ * assistant 结尾发给供应商。1.2.0 起 `_startRun` 吸并了旧 `_runAgentPrompt`
+ * 的调用形状：起始消息批改由 `_prepareRun(trigger)` 构造，而两种 trigger
+ * 都至少新增一条消息，空批续跑只能置换首次 `_prepareRun`（见
+ * `runEmptyBatch()`）；后续 resume 机制不变。
  */
 
-/** 上述私有 prompt 路径的形状。 */
+/** 上述私有运行入口的形状（1.2.0 起 `_startRun` + `_prepareRun`）。 */
 interface SessionRunner {
-  _runAgentPrompt(messages: unknown[]): Promise<void>;
+  _startRun(trigger: unknown, onStarted?: () => void): Promise<void>;
+  _prepareRun(trigger: unknown): Promise<unknown[]>;
 }
 
-function runner(session: AgentSession): SessionRunner["_runAgentPrompt"] | undefined {
-  const candidate = (session as unknown as Partial<SessionRunner>)._runAgentPrompt;
-  return typeof candidate === "function" ? candidate : undefined;
+function runner(session: AgentSession): SessionRunner | undefined {
+  const candidate = session as unknown as Partial<SessionRunner>;
+  return typeof candidate._startRun === "function" && typeof candidate._prepareRun === "function"
+    ? (candidate as SessionRunner)
+    : undefined;
 }
 
 /** 本宿主能否 resume 一轮失败的会话（SDK 机制是否存在）。 */
 export function supportsResume(session: AgentSession): boolean {
   return runner(session) !== undefined;
+}
+
+/**
+ * 以空起始消息批跑一轮 `_startRun`。
+ *
+ * 置换只吃掉第一次 `_prepareRun`：本次运行的 settle 期间排队的真实
+ * prompt 会经 deferred settled action 重入 `prompt()` → `_startRun`，
+ * 必须仍走原始消息构造，否则用户那条消息会被静默换成空批。
+ */
+async function runEmptyBatch(session: AgentSession, run: SessionRunner): Promise<void> {
+  let first = true;
+  const prepare = run._prepareRun;
+  const stub = async (trigger: unknown): Promise<unknown[]> => {
+    if (first) {
+      first = false;
+      return [];
+    }
+    return prepare.call(session, trigger);
+  };
+  (session as unknown as SessionRunner)._prepareRun = stub;
+  try {
+    // trigger 只是 `_prepareRun` 的入参，已被置换消费，形状不再被读到。
+    await run._startRun.call(session, { messageType: "custom", message: null });
+  } finally {
+    if ((session as unknown as SessionRunner)._prepareRun === stub) {
+      delete (session as unknown as { _prepareRun?: SessionRunner["_prepareRun"] })._prepareRun;
+    }
+  }
 }
 
 /**
@@ -81,7 +115,7 @@ export async function resumeStalledRun(session: AgentSession): Promise<boolean> 
   if (last?.role === "assistant" && (last.stopReason === "error" || last.stopReason === "aborted")) {
     omitFromProviderContext(session, last);
   }
-  await run.call(session, []);
+  await runEmptyBatch(session, run);
   return true;
 }
 

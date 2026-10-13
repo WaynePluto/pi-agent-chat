@@ -2,7 +2,7 @@
   "name": "pi-code-agent-chat",
   "displayName": "Pi Agent Chat",
   "description": "%extension.description%",
-  "version": "0.1.1-20261009",
+  "version": "0.1.1",
   "publisher": "waynepluto",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -295,16 +295,16 @@
     "package-and-install:vsix": "npm run package:vsix && npm run install:vsix"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "1.1.0",
-    "@earendil-works/pi-coding-agent": "1.1.0",
+    "@earendil-works/pi-ai": "1.2.0",
+    "@earendil-works/pi-coding-agent": "1.2.0",
     "diff": "9.0.0",
     "highlight.js": "11.12.0",
     "jsonc-parser": "3.3.1",
-    "marked": "18.1.0",
+    "marked": "18.1.1",
     "undici": "8.11.2"
   },
   "devDependencies": {
-    "@types/node": "24.19.1",
+    "@types/node": "24.19.2",
     "@types/vscode": "1.99.1",
     "@vscode/vsce": "4.0.0",
     "esbuild": "0.28.2",
