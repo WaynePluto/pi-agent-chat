@@ -116,16 +116,20 @@ export function collectResourceSections(runtime: ResourceHost, activity?: Resour
  *
  * pi 注册七个内置工具但只激活 `read`/`bash`/`edit`/`write`
  * （`core/sdk.ts`），`grep`/`find`/`ls` 在这里显示为未激活，直到某个扩展
- * 打开它们——这正是该行要回答的问题。内置与 SDK 提供的工具带合成的
- * `<builtin:read>` 路径、点了不打开；扩展注册的工具保留该扩展的文件，
- * 行因此指向提供者。
+ * 打开它们——这正是该行要回答的问题。内置与插件自有工具带合成路径
+ * （SDK 0.99 起 `builtin:read`，更早与插件自有工具为 `<sdk:name>`；SDK
+ * 0.99 前 builtin 形状是 `<builtin:read>`）、点了不打开；扩展注册的工具
+ * 保留该扩展的文件，行因此指向提供者。
  */
 function collectToolItems(runtime: ResourceHost): ResourceItem[] {
   const session = runtime.session;
   const active = new Set(session.getActiveToolNames());
   return session.getAllTools().map((tool) => {
     const sourceInfo = tool.sourceInfo as { path?: string; origin?: string } | undefined;
-    const path = sourceInfo?.path && !sourceInfo.path.startsWith("<") ? sourceInfo.path : undefined;
+    // SDK-MIRROR: `core/source-info.ts` 的 isSyntheticPath（未从包根导出）——
+    // 判定合成的依据是路径形状，改漏任何一个前缀都会把内置工具算进「其他」。
+    const synthetic = !!sourceInfo?.path && (sourceInfo.path.startsWith("<") || sourceInfo.path.startsWith("builtin:"));
+    const path = synthetic ? undefined : sourceInfo?.path;
     const hint = tool.description?.split("\n").find((line) => line.trim())?.trim();
     return {
       label: tool.name,

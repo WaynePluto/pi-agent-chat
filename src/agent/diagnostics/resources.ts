@@ -17,6 +17,8 @@ type PromptDisposition = Parameters<NonNullable<PromptOptions["preflightResult"]
 /**
  * 离线检查 transcript 上方的资源清单：必须带工具注册表回来，并把 pi
  * 注册而未激活的工具（grep / find / ls，除非扩展打开它们）标为未生效。
+ * 内置工具必须分进 `builtin` 组——合成路径判定漏掉 SDK 0.99 起的
+ * `builtin:` 前缀形状时，它们会落进「其他」（真实案例，0.1.1 重发）。
  */
 export async function runResourceListingTest(cwd: string): Promise<DiagnosticResult[]> {
   try {
@@ -33,10 +35,12 @@ export async function runResourceListingTest(cwd: string): Promise<DiagnosticRes
     /* 扩展标签是入口文件的 basename，忘带 pi.extensions 清单的目录式
        扩展会在这里显示成无用的 index.ts——不开面板也值得看见。 */
     const extensions = sections.find((section) => section.name === "Extensions")?.items.map((item) => item.label) ?? [];
+    const builtinTools = tools.filter((tool) => tool.scope === "builtin").map((tool) => tool.label);
+    const allBuiltin = ["read", "bash", "edit", "write"].every((name) => builtinTools.includes(name));
     return [{
       name: "resource listing",
-      ok: tools.length > 0 && active.includes("read"),
-      detail: `sections: ${sections.map((section) => `${section.name} ${section.items.length}`).join(", ")}; extensions: ${extensions.join(", ") || "(none)"}; tools active: ${active.join(", ") || "(none)"}; inactive: ${inactive.join(", ") || "(none)"}`,
+      ok: tools.length > 0 && active.includes("read") && allBuiltin,
+      detail: `sections: ${sections.map((section) => `${section.name} ${section.items.length}`).join(", ")}; extensions: ${extensions.join(", ") || "(none)"}; tools active: ${active.join(", ") || "(none)"}; inactive: ${inactive.join(", ") || "(none)"}${allBuiltin ? "" : `; missing from builtin group: read/bash/edit/write of [${builtinTools.join(", ") || "(none)"}]`}`,
     }];
   } catch (error) {
     return [{ name: "resource listing", ok: false, detail: describe(error) }];
