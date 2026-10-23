@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAgentSession, createAgentSessionFromServices, createAgentSessionServices, SessionManager, type PromptOptions } from "@earendil-works/pi-coding-agent";
+import { ActivityTracker } from "../activity.js";
 import { describe } from "../errors.js";
 import { buildHistoryEntryEvents, bubbleEntryIds } from "../history.js";
 import { imageAttachmentMarkup, prepareImage } from "../images.js";
@@ -103,6 +104,67 @@ export async function runExtensionNamingTest(cwd: string): Promise<DiagnosticRes
     }];
   } catch (error) {
     return [{ name: "extension naming", ok: false, detail: describe(error) }];
+  } finally {
+    if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/** 订阅 settle 期两个扩展事件的探针。 */
+const SETTLE_PROBE_EXTENSION = `export default function (pi) {
+  pi.on("agent_before_settle", async () => {});
+  pi.on("cache_warming_decision", async () => {});
+}
+`;
+
+/** 只订阅 `user_bash` 的探针：本宿主没有 `!命令` 直通，该事件永不发出。 */
+const USER_BASH_PROBE_EXTENSION = `export default function (pi) {
+  pi.on("user_bash", async () => {});
+}
+`;
+
+/**
+ * 钉住资源面板「本会话生效过」的伴随事件映射（activity.ts 的
+ * COMPANION_EVENTS）：`agent_settled` 必须点亮订阅 `agent_before_settle` /
+ * `cache_warming_decision` 的扩展、且不提前到绑定期，同时不得点亮只订阅
+ * `user_bash` 的扩展——那是宿主职责的事件（CLI 处理 `!命令` 直通时发出），
+ * 插件没有直通路径，映射它等于宣告一个从未运行过的扩展生效过。驱动的是
+ * 真实 `ActivityTracker` + 真实装载的扩展 handlers，不是映射表本身。
+ */
+export async function runExtensionActivityTest(cwd: string): Promise<DiagnosticResult[]> {
+  let dir: string | undefined;
+  try {
+    dir = await mkdtemp(join(tmpdir(), "pi-vscode-activity-"));
+    const settleDir = join(dir, "settle-probe");
+    const userBashDir = join(dir, "userbash-probe");
+    await mkdir(settleDir, { recursive: true });
+    await mkdir(userBashDir, { recursive: true });
+    await writeFile(join(settleDir, "index.ts"), SETTLE_PROBE_EXTENSION, "utf8");
+    await writeFile(join(userBashDir, "index.ts"), USER_BASH_PROBE_EXTENSION, "utf8");
+    const services = await createAgentSessionServices({
+      cwd,
+      resourceLoaderOptions: { additionalExtensionPaths: [settleDir, userBashDir] },
+    });
+    const { session } = await createAgentSessionFromServices({ services, sessionManager: SessionManager.inMemory(cwd) });
+    const tracker = new ActivityTracker();
+    tracker.noteBind(session);
+    const litAtBind = tracker.isExtensionUsed(settleDir);
+    tracker.noteSessionEvent(session, "agent_settled");
+    const settleLit = tracker.isExtensionUsed(settleDir);
+    const userBashLit = tracker.isExtensionUsed(userBashDir);
+    session.dispose();
+    const failures: string[] = [];
+    if (litAtBind) failures.push("settle subscriber must not light up at bind time");
+    if (!settleLit) failures.push("agent_settled must light agent_before_settle/cache_warming_decision subscribers");
+    if (userBashLit) failures.push("agent_settled must not light a user_bash-only subscriber");
+    return [{
+      name: "extension activity",
+      ok: failures.length === 0,
+      detail: failures.length === 0
+        ? `settle subscriber: bind=no, agent_settled=yes; user_bash-only subscriber: agent_settled=no`
+        : failures.join("; "),
+    }];
+  } catch (error) {
+    return [{ name: "extension activity", ok: false, detail: describe(error) }];
   } finally {
     if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
   }

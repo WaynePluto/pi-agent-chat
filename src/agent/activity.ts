@@ -27,7 +27,16 @@ const BIND_EVENTS = ["session_start", "resources_discover", "project_trust"] as 
  * SDK-MIRROR: emit 位置在 `core/agent-session.ts`（SDK 0.86 起 `core/agent.ts`
  * 的 emit 辅助并入其中；一次运行的 `emitInput` / `emitBeforeAgentStart` /
  * `emitContext` / `emitBeforeProviderRequest` / `emitBeforeProviderHeaders`，
- * 工具调用的 `emitToolCall` / `emitToolResult`）。
+ * 工具调用的 `emitToolCall` / `emitToolResult`）。例外两处：`after_provider_response`
+ * 由 `core/sdk.ts` 的 provider 层发出；`agent_before_settle` 在
+ * `_runBeforeSettleBoundary()` 里发出——每次非中止 run 的收尾、紧贴
+ * `agent_settled` 之前，且 emit 以 hasHandlers 为门（我们只标记真实
+ * 订阅者，门与标记恰好对齐）。`cache_warming_decision` 由 cache warmer
+ * 在 settle 之后的后台定时器里发出（默认 `cacheWarming: "streaming"`），
+ * 没有紧邻的会话事件，按宽口径归入 `agent_settled`。`user_bash`
+ * 不映射：它是宿主职责（CLI 的 interactive/rpc mode 处理 `!命令`
+ * 直通时发出），插件没有 `!` 直通，该事件在本宿主不会发出——订阅它
+ * 的扩展在本宿主不可能合法生效过，标了就是编造。
  */
 const COMPANION_EVENTS: Readonly<Record<string, readonly string[]>> = {
   agent_start: ["input", "before_agent_start", "context", "before_provider_request", "before_provider_headers", "turn_start"],
@@ -38,6 +47,8 @@ const COMPANION_EVENTS: Readonly<Record<string, readonly string[]>> = {
   compaction_start: ["session_before_compact"],
   compaction_end: ["session_compact"],
   thinking_level_changed: ["thinking_level_select"],
+  // settle 收尾：边界询问紧贴其前，预热决策在其后的空闲定时器里。
+  agent_settled: ["agent_before_settle", "cache_warming_decision"],
 };
 
 /** 能证明会话已向模型发出过请求的历史事件。 */

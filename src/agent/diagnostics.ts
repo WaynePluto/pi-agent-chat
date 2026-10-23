@@ -6,7 +6,7 @@ import { runProjectFilesTest, runSessionTreeTest, runSlashCommandTest } from "./
 import { runBuiltinExtensionTest } from "./diagnostics/builtin-extensions.js";
 import { runExtensionCommandContextTest, runExtensionReloadTest, runExtensionSdkImportTest, runExtensionWorkingMessageTest } from "./diagnostics/extensions.js";
 import { runHistoryReplayTest, runManualRetryTest, runReplayedRetryOfferTest, runRetryOfferLifecycleTest } from "./diagnostics/history-retry.js";
-import { runExtensionNamingTest, runImageAttachmentTest, runLiveToolCallTest, runResourceListingTest } from "./diagnostics/resources.js";
+import { runExtensionActivityTest, runExtensionNamingTest, runImageAttachmentTest, runLiveToolCallTest, runResourceListingTest } from "./diagnostics/resources.js";
 import { runQueueRecallTest } from "./diagnostics/queue-recall.js";
 import { runSubagentToolTest } from "./diagnostics/subagent.js";
 import { runSurfaceCoordinationTest } from "./diagnostics/surface.js";
@@ -70,6 +70,10 @@ export const DIAGNOSTIC_SUITES: ReadonlyArray<(cwd: string) => DiagnosticResult[
   runResourceListingTest,
   // 钉住目录化扩展的显示名带上级目录：都叫 index.ts 的扩展在面板里要分得清。
   runExtensionNamingTest,
+  // 钉住资源面板「本会话生效过」的伴随事件映射：agent_settled 点亮
+  // settle 期的两个扩展事件订阅者，不点亮 user_bash 订阅者（本宿主无
+  // `!命令` 直通，该事件永不发出）。
+  runExtensionActivityTest,
   // 经真实 ChatBridge 钉住宿主侧视图状态机：webview 显示什么
   // （live / lane / preview）及从它派生的全部标志。手搭的 ChatState
   // 快照看不见构建它的代码里的 bug。
@@ -126,6 +130,7 @@ export {
   runStartupSessionTest,
   runResourceListingTest,
   runExtensionNamingTest,
+  runExtensionActivityTest,
   runLiveToolCallTest,
   runImageAttachmentTest,
   runQueueRecallTest,

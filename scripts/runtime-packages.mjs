@@ -139,6 +139,8 @@ export const runtimePackages = [
   "isexe",
   "lru-cache",
   "marked",
+  // pi-tui 1.4.0 的 markdown 组件在顶层 import 它（与 marked 同为裸导入）。
+  "marked-cjk-friendly",
   "minimatch",
   "partial-json",
   "path-key",
