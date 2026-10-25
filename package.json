@@ -2,7 +2,7 @@
   "name": "pi-code-agent-chat",
   "displayName": "Pi Agent Chat",
   "description": "%extension.description%",
-  "version": "0.1.3-20261023",
+  "version": "0.1.3",
   "publisher": "waynepluto",
   "license": "MIT",
   "icon": "media/icon.png",
