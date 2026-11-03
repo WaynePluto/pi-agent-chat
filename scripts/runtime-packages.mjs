@@ -33,6 +33,8 @@ export const runtimePackages = [
   "@earendil-works/pi-agent-core",
   "@earendil-works/pi-tui",
   "@earendil-works/pi-ai",
+  // 1.5.0 起拆出的 schema 包（pi-ai / pi-agent-core 依赖它）。
+  "@earendil-works/pi-schema",
   // 0.99 起 SDK 自带 codemode / mcp 两个内置扩展，config.js 顶层引用其实现包。
   "@earendil-works/pi-codemode",
   "@earendil-works/pi-mcp",
@@ -142,6 +144,8 @@ export const runtimePackages = [
   // pi-tui 1.4.0 的 markdown 组件在顶层 import 它（与 marked 同为裸导入）。
   "marked-cjk-friendly",
   "minimatch",
+  // minimatch 11（SDK 1.5.0 起）的匹配引擎。
+  "@isaacs/nonrecursive-glob-match",
   "partial-json",
   "path-key",
   "proper-lockfile",
