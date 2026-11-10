@@ -134,7 +134,8 @@ export const runtimePackages = [
   "diff",
   "get-east-asian-width",
   "graceful-fs",
-  "grok-mermaid",
+  // 1.5.1 起由 grok-mermaid 改名而来。
+  "lovely-mermaid",
   "highlight.js",
   "hosted-git-info",
   "ignore",

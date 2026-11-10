@@ -32,7 +32,8 @@ const BIND_EVENTS = ["session_start", "resources_discover", "project_trust"] as 
  * `_runBeforeSettleBoundary()` 里发出——每次非中止 run 的收尾、紧贴
  * `agent_settled` 之前，且 emit 以 hasHandlers 为门（我们只标记真实
  * 订阅者，门与标记恰好对齐）。`cache_warming_decision` 由 cache warmer
- * 在 settle 之后的后台定时器里发出（默认 `cacheWarming: "streaming"`），
+ * 在 settle 之后的后台定时器里发出（1.5.1 起默认 `cacheWarming: "idle"`，
+ * 即流式期间与 settle 后最长 30 分钟内都可能续暖），
  * 没有紧邻的会话事件，按宽口径归入 `agent_settled`。`user_bash`
  * 不映射：它是宿主职责（CLI 的 interactive/rpc mode 处理 `!命令`
  * 直通时发出），插件没有 `!` 直通，该事件在本宿主不会发出——订阅它
